@@ -1,0 +1,14 @@
+[package]
+name = "evdev"
+version = "0.1.0"
+authors = ["Corey Richardson <corey@octayn.net>"]
+description = "evdev interface for Linux"
+license = "BSL-1.0/Apache-2.0"
+repository = "https://github.com/cmr/evdev"
+documentation = "https://cmr.github.io/evdev"
+
+[dependencies]
+ioctl = "*"
+
+[features]
+unstable = []
