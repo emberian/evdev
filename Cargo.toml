@@ -8,7 +8,11 @@ repository = "https://github.com/cmr/evdev"
 documentation = "https://cmr.github.io/evdev"
 
 [dependencies]
-ioctl = "*"
+ioctl = { path = "/home/cmr/ioctl" }
+bitflags = { git = "https://github.com/cmr/bitflags" }
+errno = "*"
+libc = "*"
+fixedbitset = "*"
 
 [features]
 unstable = []
