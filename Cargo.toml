@@ -9,10 +9,11 @@ documentation = "https://cmr.github.io/evdev"
 
 [dependencies]
 ioctl = { path = "/home/cmr/ioctl" }
-bitflags = { git = "https://github.com/cmr/bitflags" }
+bitflags = "*"
 errno = "*"
 libc = "*"
 fixedbitset = "*"
+num = "*"
 
 [features]
 unstable = []

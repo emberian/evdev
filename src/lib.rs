@@ -1,16 +1,20 @@
+#![cfg_attr(feature = "unstable", feature(drain))]
 #[macro_use]
 extern crate bitflags;
 extern crate ioctl;
 extern crate libc;
 extern crate errno;
 extern crate fixedbitset;
+extern crate num;
 
 use std::os::unix::io::*;
 use std::os::unix::ffi::*;
 use std::path::Path;
 use std::ffi::CString;
+use std::mem::size_of;
 use fixedbitset::FixedBitSet;
 
+#[derive(Debug)]
 pub enum Error {
     NulError(std::ffi::NulError),
     LibcError(errno::Errno),
@@ -52,7 +56,6 @@ impl std::ops::Deref for Fd {
     }
 }
 
-
 bitflags! {
     flags Types: u32 {
         const SYNCHRONIZATION = 1 << 0x00,
@@ -83,7 +86,7 @@ bitflags! {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-enum Key {
+pub enum Key {
     KEY_RESERVED =	0,
     KEY_ESC =		1,
     KEY_1 =		2,
@@ -762,20 +765,20 @@ bitflags! {
     }
 }
 
-#[derive(Debug)]
 pub struct Device {
     fd: RawFd,
     ty: Types,
     name: CString,
-    phys: CString,
-    uniq: CString,
+    phys: Option<CString>,
+    uniq: Option<CString>,
     id: ioctl::input_id,
     props: Props,
-    driver_version: libc::c_int,
+    driver_version: (u8, u8, u8),
     key_bits: FixedBitSet,
     key_vals: FixedBitSet,
     rel: RelativeAxis,
     abs: AbsoluteAxis,
+    abs_vals: Vec<ioctl::input_absinfo>,
     switch: Switch,
     switch_vals: FixedBitSet,
     led: Led,
@@ -785,10 +788,286 @@ pub struct Device {
     ff_stat: FFStatus,
     rep: Repeat,
     snd: Sound,
+    pending_events: Vec<ioctl::input_event>,
+}
+
+impl std::fmt::Debug for Device {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Device");
+        ds.field("name", &self.name).field("fd", &self.fd).field("ty", &self.ty);
+        if let Some(ref phys) = self.phys {
+            ds.field("phys", phys);
+        }
+        if let Some(ref uniq) = self.uniq {
+            ds.field("uniq", uniq);
+        }
+        ds.field("id", &self.id)
+          .field("id", &self.id)
+          .field("props", &self.props)
+          .field("driver_version", &self.driver_version);
+        if self.ty.contains(SYNCHRONIZATION) {
+
+        }
+        if self.ty.contains(KEY) {
+            ds.field("key_bits", &self.key_bits)
+              .field("key_vals", &self.key_vals);
+        }
+        if self.ty.contains(RELATIVE) {
+            ds.field("rel", &self.rel);
+        }
+        if self.ty.contains(ABSOLUTE) {
+            ds.field("abs", &self.abs);
+            for idx in (0..0x28) {
+                let abs = 1 << idx;
+                // ignore multitouch, we'll handle that later.
+                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
+                    // eugh.
+                    ds.field(&format!("abs_{:x}", idx), &self.abs_vals[idx as usize]);
+                }
+            }
+        }
+        if self.ty.contains(MISC) {
+
+        }
+        if self.ty.contains(SWITCH) {
+            ds.field("switch", &self.switch)
+              .field("switch_vals", &self.switch_vals);
+        }
+        if self.ty.contains(LED) {
+            ds.field("led", &self.led)
+              .field("led_vals", &self.led_vals);
+        }
+        if self.ty.contains(SOUND) {
+            ds.field("snd", &self.snd);
+        }
+        if self.ty.contains(REPEAT) {
+            ds.field("rep", &self.rep);
+        }
+        if self.ty.contains(FORCEFEEDBACK) {
+            ds.field("ff", &self.ff);
+        }
+        if self.ty.contains(POWER) {
+        }
+        if self.ty.contains(FORCEFEEDBACKSTATUS) {
+            ds.field("ff_stat", &self.ff_stat);
+        }
+        ds.finish()
+    }
+}
+
+fn bus_name(x: u16) -> &'static str {
+    match x {
+        0x1 => "PCI",
+        0x2 => "ISA Plug 'n Play",
+        0x3 => "USB",
+        0x4 => "HIL",
+        0x5 => "Bluetooth",
+        0x6 => "Virtual",
+        0x10 => "ISA",
+        0x11 => "i8042",
+        0x12 => "XTKBD",
+        0x13 => "RS232",
+        0x14 => "Gameport",
+        0x15 => "Parallel Port",
+        0x16 => "Amiga",
+        0x17 => "ADB",
+        0x18 => "I2C",
+        0x19 => "Host",
+        0x1A => "GSC",
+        0x1B => "Atari",
+        0x1C => "SPI",
+        _ => "Unknown",
+    }
+}
+
+impl std::fmt::Display for Device {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        try!(writeln!(f, "{:?}", self.name));
+        try!(writeln!(f, "  Driver version: {}.{}.{}", self.driver_version.0, self.driver_version.1, self.driver_version.2));
+        if let Some(ref phys) = self.phys {
+            try!(writeln!(f, "  Physical address: {:?}", phys));
+        }
+        if let Some(ref uniq) = self.uniq {
+            try!(writeln!(f, "  Unique name: {:?}", uniq));
+        }
+
+        try!(writeln!(f, "  Bus: {}", bus_name(self.id.bustype)));
+        try!(writeln!(f, "  Vendor: 0x{:x}", self.id.vendor));
+        try!(writeln!(f, "  Product: 0x{:x}", self.id.product));
+        try!(writeln!(f, "  Version: 0x{:x}", self.id.version));
+        try!(writeln!(f, "  Properties: {:?}", self.props));
+
+        if self.ty.contains(SYNCHRONIZATION) {
+
+        }
+
+        if self.ty.contains(KEY) {
+            try!(writeln!(f, "  Keys supported:"));
+            for key_idx in (0..self.key_bits.len()) {
+                if self.key_bits.contains(key_idx) {
+                    // Cross our fingers...
+                    try!(writeln!(f, "    {:?} ({}index {})",
+                                 unsafe { std::mem::transmute::<_, Key>(key_idx as libc::c_int) },
+                                 if self.key_vals.contains(key_idx) { "pressed, " } else { "" },
+                                 key_idx));
+                }
+            }
+        }
+        if self.ty.contains(RELATIVE) {
+            try!(writeln!(f, "  Relative Axes: {:?}", self.rel));
+        }
+        if self.ty.contains(ABSOLUTE) {
+            try!(writeln!(f, "  Absolute Axes:"));
+            for idx in (0..0x28) {
+                let abs = 1 << idx;
+                // ignore multitouch, we'll handle that later.
+                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
+                    // FIXME: abs val Debug is gross
+                    try!(writeln!(f, "    {:?} ({:?}, index {})",
+                         AbsoluteAxis::from_bits(abs).unwrap(),
+                         self.abs_vals[idx as usize],
+                         idx));
+                }
+            }
+        }
+        if self.ty.contains(MISC) {
+            try!(writeln!(f, "  Miscellaneous capabilities: {:?}", self.misc));
+        }
+        if self.ty.contains(SWITCH) {
+            try!(writeln!(f, "  Switches:"));
+            for idx in (0..0xf) {
+                let sw = 1 << idx;
+                if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
+                    try!(writeln!(f, "    {:?} ({:?}, index {})",
+                         Switch::from_bits(sw).unwrap(),
+                         self.switch_vals[idx as usize],
+                         idx));
+                }
+            }
+        }
+        if self.ty.contains(LED) {
+            try!(writeln!(f, "  LEDs:"));
+            for idx in (0..0xf) {
+                let led = 1 << idx;
+                if led < LED_MAX.bits() && self.led.bits() & led == 1 {
+                    try!(writeln!(f, "    {:?} ({:?}, index {})",
+                         Led::from_bits(led).unwrap(),
+                         self.led_vals[idx as usize],
+                         idx));
+                }
+            }
+        }
+        if self.ty.contains(SOUND) {
+            try!(writeln!(f, "  Sound: {:?}", self.snd));
+        }
+        if self.ty.contains(REPEAT) {
+            try!(writeln!(f, "  Repeats: {:?}", self.rep));
+        }
+        if self.ty.contains(FORCEFEEDBACK) {
+            try!(writeln!(f, "  Force Feedback supported"));
+        }
+        if self.ty.contains(POWER) {
+            try!(writeln!(f, "  Power supported"));
+        }
+        if self.ty.contains(FORCEFEEDBACKSTATUS) {
+            try!(writeln!(f, "  Force Feedback status supported"));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        unsafe { libc::close(self.fd); } // yes yes I know EINTR, close(2) isn't portable etc.
+    }
+}
+
+fn ffs<T: num::FromPrimitive>(x: u32) -> T {
+    T::from_u32(31 - x.leading_zeros()).unwrap()
 }
 
 impl Device {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Device, Error> {
+    pub fn fd(&self) -> RawFd {
+        self.fd
+    }
+
+    pub fn events_supported(&self) -> Types {
+        self.ty
+    }
+
+    pub fn name(&self) -> &CString {
+        &self.name
+    }
+
+    pub fn physical_path(&self) -> &Option<CString> {
+        &self.phys
+    }
+
+    pub fn unique_name(&self) -> &Option<CString> {
+        &self.uniq
+    }
+
+    pub fn input_id(&self) -> ioctl::input_id {
+        self.id
+    }
+
+    pub fn properties(&self) -> Props {
+        self.props
+    }
+
+    pub fn driver_version(&self) -> (u8, u8, u8) {
+        self.driver_version
+    }
+
+    pub fn keys_supported(&self) -> &FixedBitSet {
+        &self.key_bits
+    }
+
+    pub fn keys_pressed(&self) -> &FixedBitSet {
+        &self.key_vals
+    }
+
+    pub fn relative_axes_supported(&self) -> RelativeAxis {
+        self.rel
+    }
+
+    pub fn absolute_axes_supported(&self) -> AbsoluteAxis {
+        self.abs
+    }
+
+    pub fn absolute_axes_values(&self) -> &[ioctl::input_absinfo] {
+        &self.abs_vals
+    }
+
+    pub fn switches_supported(&self) -> Switch {
+        self.switch
+    }
+
+    pub fn switches_pressed(&self) -> &FixedBitSet {
+        &self.switch_vals
+    }
+
+    pub fn leds_supported(&self) -> Led {
+        self.led
+    }
+
+    pub fn leds_lit(&self) -> &FixedBitSet {
+        &self.led_vals
+    }
+
+    pub fn misc_properties(&self) -> Misc {
+        self.misc
+    }
+
+    pub fn repeats_supported(&self) -> Repeat {
+        self.rep
+    }
+
+    pub fn sounds_supported(&self) -> Sound {
+        self.snd
+    }
+
+    pub fn open(path: &AsRef<Path>) -> Result<Device, Error> {
         let cstr = match CString::new(path.as_ref().as_os_str().as_bytes()) {
             Ok(s) => s,
             Err(e) => return Err(Error::NulError(e))
@@ -797,22 +1076,25 @@ impl Device {
         // later.
         let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR, 0) });
         if *fd == -1 {
+            std::mem::forget(fd);
             return Err(Error::LibcError(errno::errno()))
         }
-        do_ioctl!(fioclex(*fd));
+        do_ioctl!(fioclex(*fd)); // non-atomic :( but no O_CLOEXEC yet.
+
         let mut dev = Device {
             fd: *fd,
             ty: Types::empty(),
             name: unsafe { CString::from_vec_unchecked(Vec::new()) },
-            phys: unsafe { CString::from_vec_unchecked(Vec::new()) },
-            uniq: unsafe { CString::from_vec_unchecked(Vec::new()) },
+            phys: None,
+            uniq: None,
             id: unsafe { std::mem::zeroed() },
             props: Props::empty(),
-            driver_version: 0,
-            key_bits: FixedBitSet::with_capacity(Key::KEY_MAX as usize + 1),
-            key_vals: FixedBitSet::with_capacity(Key::KEY_MAX as usize + 1),
+            driver_version: (0, 0, 0),
+            key_bits: FixedBitSet::with_capacity(Key::KEY_MAX as usize),
+            key_vals: FixedBitSet::with_capacity(Key::KEY_MAX as usize),
             rel: RelativeAxis::empty(),
             abs: AbsoluteAxis::empty(),
+            abs_vals: vec![],
             switch: Switch::empty(),
             switch_vals: FixedBitSet::with_capacity(0x10),
             led: Led::empty(),
@@ -822,48 +1104,197 @@ impl Device {
             ff_stat: FFStatus::empty(),
             rep: Repeat::empty(),
             snd: Sound::empty(),
+            pending_events: Vec::with_capacity(64),
         };
+
         let mut bits: u32 = 0;
+        let mut bits64: u64 = 0;
         let mut vec = Vec::with_capacity(256);
+
         do_ioctl!(eviocgbit(*fd, 0, 4, &mut bits as *mut _ as *mut u8));
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
+
         let dev_len = do_ioctl!(eviocgname(*fd, vec.as_mut_ptr(), 255));
         unsafe { vec.set_len(dev_len as usize - 1) };
         dev.name = CString::new(vec.clone()).unwrap();
+
         let phys_len = unsafe { ioctl::eviocgphys(*fd, vec.as_mut_ptr(), 255) };
         if phys_len > 0 {
             unsafe { vec.set_len(phys_len as usize - 1) };
-            dev.phys = CString::new(vec.clone()).unwrap();
+            dev.phys = Some(CString::new(vec.clone()).unwrap());
         }
+
         let uniq_len = unsafe { ioctl::eviocguniq(*fd, vec.as_mut_ptr(), 255) };
         if uniq_len > 0 {
             unsafe { vec.set_len(uniq_len as usize - 1) };
-            dev.uniq = CString::new(vec.clone()).unwrap();
+            dev.uniq = Some(CString::new(vec.clone()).unwrap());
         }
+
         do_ioctl!(eviocgid(*fd, &mut dev.id));
-        do_ioctl!(eviocgversion(*fd, &mut dev.driver_version));
-        do_ioctl!(eviocgprop(*fd, &mut bits as *mut _ as *mut u8, 4)); // todo: handle old kernel
+        let mut driver_version: i32 = 0;
+        do_ioctl!(eviocgversion(*fd, &mut driver_version));
+        dev.driver_version =
+            (((driver_version >> 16) & 0xff) as u8,
+             ((driver_version >> 8) & 0xff) as u8,
+              (driver_version & 0xff) as u8);
+
+        do_ioctl!(eviocgprop(*fd, &mut bits as *mut _ as *mut u8, 0x1f)); // todo: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
-        do_ioctl!(eviocgbit(*fd, 31 - KEY.bits().leading_zeros(), (dev.key_bits.len() / 8) as libc::c_int, &mut dev.key_bits.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8));
-        do_ioctl!(eviocgbit(*fd, 31 - RELATIVE.bits().leading_zeros(), 4, &mut bits as *mut _ as *mut u8));
-        dev.rel = RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
-        let mut bits64: u64 = 0;
-        do_ioctl!(eviocgbit(*fd, 31 - ABSOLUTE.bits().leading_zeros(), 8, &mut bits64 as *mut _ as *mut u8));
-        dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
-        do_ioctl!(eviocgbit(*fd, 31 - SWITCH.bits().leading_zeros(), 4, &mut bits as *mut _ as *mut u8));
-        dev.switch = Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
-        do_ioctl!(eviocgbit(*fd, 31 - LED.bits().leading_zeros(), 4, &mut bits as *mut _ as *mut u8));
-        dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
-        do_ioctl!(eviocgbit(*fd, 31 - MISC.bits().leading_zeros(), 4, &mut bits as *mut _ as *mut u8));
-        dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
-        do_ioctl!(eviocgbit(*fd, 31 - FORCEFEEDBACK.bits().leading_zeros(), FFEffect::FF_MAX as libc::c_int + 1, &mut bits as *mut _ as *mut u8));
-        do_ioctl!(eviocgbit(*fd, 31 - SOUND.bits().leading_zeros(), 4, &mut bits as *mut _ as *mut u8));
-        dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
-        do_ioctl!(eviocgkey(*fd, &mut dev.key_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, dev.key_vals.len() / 8));
-        do_ioctl!(eviocgled(*fd, &mut dev.led_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, dev.led_vals.len() / 8));
-        do_ioctl!(eviocgsw(*fd, &mut dev.switch_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, dev.switch_vals.len() / 8));
-        unsafe { std::mem::forget(fd) };
+
+        if dev.ty.contains(KEY) {
+            do_ioctl!(eviocgbit(*fd, ffs(KEY.bits()), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
+        }
+
+        if dev.ty.contains(RELATIVE) {
+            do_ioctl!(eviocgbit(*fd, ffs(RELATIVE.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            dev.rel = RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
+        }
+
+        if dev.ty.contains(ABSOLUTE) {
+            do_ioctl!(eviocgbit(*fd, 31 - ABSOLUTE.bits().leading_zeros(), 0x3f, &mut bits64 as *mut _ as *mut u8));
+            dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
+            dev.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
+        }
+
+        if dev.ty.contains(SWITCH) {
+            do_ioctl!(eviocgbit(*fd, ffs(SWITCH.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            dev.switch = Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
+        }
+
+        if dev.ty.contains(LED) {
+            do_ioctl!(eviocgbit(*fd, ffs(LED.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
+        }
+
+        if dev.ty.contains(MISC) {
+            do_ioctl!(eviocgbit(*fd, ffs(MISC.bits()), 0x7, &mut bits as *mut _ as *mut u8));
+            dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
+        }
+
+        //do_ioctl!(eviocgbit(*fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut _ as *mut u8));
+
+        if dev.ty.contains(SOUND) {
+            do_ioctl!(eviocgbit(*fd, 31 - SOUND.bits().leading_zeros(), 0x7, &mut bits as *mut _ as *mut u8));
+            dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
+        }
+
+        try!(dev.sync());
+
+        std::mem::forget(fd);
         Ok(dev)
+    }
+
+    /// Synchronize the `Device` state with the kernel device state.
+    ///
+    /// If there is an error at any point, the state will not be synchronized completely.
+    pub fn sync(&mut self) -> Result<(), Error> {
+        if self.ty.contains(KEY) {
+            do_ioctl!(eviocgkey(self.fd, self.key_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.key_vals.len()));
+        }
+        if self.ty.contains(ABSOLUTE) {
+            for idx in (0..0x28) {
+                let abs = 1 << idx;
+                // ignore multitouch, we'll handle that later.
+                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
+                    do_ioctl!(eviocgabs(self.fd, idx, &mut self.abs_vals[idx as usize]));
+                }
+            }
+        }
+        if self.ty.contains(SWITCH) {
+            do_ioctl!(eviocgsw(self.fd, &mut self.switch_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.switch_vals.len()));
+        }
+        if self.ty.contains(LED) {
+            do_ioctl!(eviocgled(self.fd, &mut self.led_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.led_vals.len()));
+        }
+
+        Ok(())
+    }
+
+    fn fill_events(&mut self) {
+        let mut buf = &mut self.pending_events;
+        loop {
+            buf.reserve(20);
+            let pre_len = buf.len();
+            let sz = unsafe {
+                libc::read(self.fd,
+                           buf.as_mut_ptr()
+                              .offset(pre_len as isize) as *mut libc::c_void,
+                           (size_of::<ioctl::input_event>() * (buf.capacity() - pre_len)) as libc::size_t)
+            };
+            if sz == -1 {
+                let errno = errno::errno();
+                if errno != errno::Errno(libc::EAGAIN) {
+                    println!("ERROR! evdev needs to figure out how to expose this :( {}", errno);
+                } else {
+                    break;
+                }
+            } else {
+                unsafe {
+                    buf.set_len(pre_len + (sz as usize / size_of::<ioctl::input_event>()));
+                }
+            }
+        }
+    }
+
+    /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
+    pub fn raw_events(&mut self) -> RawEvents {
+        self.fill_events();
+        RawEvents::new(self)
+    }
+
+
+    pub fn events(&mut self) -> Events {
+        Events(self)
+    }
+}
+
+pub struct Events<'a>(&'a mut Device);
+
+#[cfg(feature = "unstable")]
+pub struct RawEvents<'a>(std::vec::Drain<'a, ioctl::input_event>);
+
+#[cfg(not(feature = "unstable"))]
+pub struct RawEvents<'a>(&'a mut Device);
+
+#[cfg(feature = "unstable")]
+impl<'a> RawEvents<'a> {
+    fn new(dev: &'a mut Device) -> RawEvents<'a> {
+        RawEvents(dev.pending_events.drain(..))
+    }
+}
+
+#[cfg(not(feature = "unstable"))]
+impl<'a> RawEvents<'a> {
+    fn new(dev: &'a mut Device) -> RawEvents<'a> {
+        dev.pending_events.reverse();
+        RawEvents(dev)
+    }
+}
+
+#[cfg(not(feature = "unstable"))]
+impl<'a> Drop for RawEvents<'a> {
+    fn drop(&mut self) {
+        self.0.pending_events.reverse();
+    }
+}
+
+#[cfg(feature = "unstable")]
+impl<'a> Iterator for RawEvents<'a> {
+    type Item = ioctl::input_event;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<ioctl::input_event> {
+        self.0.next()
+    }
+}
+
+#[cfg(not(feature = "unstable"))]
+impl<'a> Iterator for RawEvents<'a> {
+    type Item = ioctl::input_event;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<ioctl::input_event> {
+        self.0.pending_events.pop()
     }
 }
 
@@ -876,7 +1307,7 @@ pub fn enumerate() -> Vec<Device> {
     if let Ok(dir) = std::fs::read_dir("/dev/input") {
         for entry in dir {
             if let Ok(entry) = entry {
-                if let Ok(dev) = Device::open(entry.path()) {
+                if let Ok(dev) = Device::open(&entry.path()) {
                     res.push(dev)
                 }
             }
