@@ -1210,7 +1210,7 @@ impl Device {
         Ok(())
     }
 
-    fn fill_events(&mut self) {
+    fn fill_events(&mut self) -> Result<(), Error> {
         let mut buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
@@ -1224,7 +1224,7 @@ impl Device {
             if sz == -1 {
                 let errno = errno::errno();
                 if errno != errno::Errno(libc::EAGAIN) {
-                    println!("ERROR! evdev needs to figure out how to expose this :( {}", errno);
+                    return Err(Error::LibcError(errno));
                 } else {
                     break;
                 }
@@ -1234,14 +1234,14 @@ impl Device {
                 }
             }
         }
+        Ok(())
     }
 
     /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
-    pub fn raw_events(&mut self) -> RawEvents {
-        self.fill_events();
-        RawEvents::new(self)
+    pub fn raw_events(&mut self) -> Result<RawEvents, Error> {
+        try!(self.fill_events());
+        Ok(RawEvents::new(self))
     }
-
 
     pub fn events(&mut self) -> Events {
         Events(self)
