@@ -817,10 +817,10 @@ impl std::fmt::Debug for Device {
         }
         if self.ty.contains(ABSOLUTE) {
             ds.field("abs", &self.abs);
-            for idx in (0..0x28) {
+            for idx in (0..0x3f) {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
-                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
+                if (self.abs.bits() & abs) == 1 {
                     // eugh.
                     ds.field(&format!("abs_{:x}", idx), &self.abs_vals[idx as usize]);
                 }
@@ -918,10 +918,9 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(ABSOLUTE) {
             try!(writeln!(f, "  Absolute Axes:"));
-            for idx in (0..0x28) {
-                let abs = 1 << idx;
-                // ignore multitouch, we'll handle that later.
-                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
+            for idx in (0..0x3f) {
+                let abs = 1<< idx;
+                if self.abs.bits() & abs != 0 {
                     // FIXME: abs val Debug is gross
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          AbsoluteAxis::from_bits(abs).unwrap(),
@@ -1151,7 +1150,8 @@ impl Device {
         }
 
         if dev.ty.contains(ABSOLUTE) {
-            do_ioctl!(eviocgbit(*fd, 31 - ABSOLUTE.bits().leading_zeros(), 0x3f, &mut bits64 as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, ffs(ABSOLUTE.bits()), 0x3f, &mut bits64 as *mut _ as *mut u8));
+            println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
         }
@@ -1195,8 +1195,8 @@ impl Device {
             for idx in (0..0x28) {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
-                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs == 1 {
-                    do_ioctl!(eviocgabs(self.fd, idx, &mut self.abs_vals[idx as usize]));
+                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 1 {
+                    do_ioctl!(eviocgabs(self.fd, idx as u32, &mut self.abs_vals[idx as usize]));
                 }
             }
         }
