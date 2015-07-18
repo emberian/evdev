@@ -1,4 +1,4 @@
-`ioctl`
+`evdev`
 =======
 
 [![Travis](https://img.shields.io/travis/cmr/evdev.svg?style=flat-square)](https://travis-ci.org/cmr/ioctl)
