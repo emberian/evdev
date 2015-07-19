@@ -42,6 +42,10 @@ use std::ffi::CString;
 use std::mem::size_of;
 use fixedbitset::FixedBitSet;
 
+pub use Key::*;
+pub use FFEffect::*;
+pub use Synchronization::*;
+
 #[derive(Debug)]
 pub enum Error {
     NulError(std::ffi::NulError),
