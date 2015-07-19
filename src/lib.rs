@@ -360,6 +360,13 @@ pub enum Synchronization {
     SYN_MAX = 0xf,
 }
 
+pub struct DeviceState {
+    pub key_vals: FixedBitSet,
+    pub abs_vals: Vec<ioctl::input_absinfo>,
+    pub switch_vals: FixedBitSet,
+    pub led_vals: FixedBitSet,
+}
+
 pub struct Device {
     fd: RawFd,
     ty: Types,
@@ -370,20 +377,18 @@ pub struct Device {
     props: Props,
     driver_version: (u8, u8, u8),
     key_bits: FixedBitSet,
-    key_vals: FixedBitSet,
     rel: RelativeAxis,
     abs: AbsoluteAxis,
-    abs_vals: Vec<ioctl::input_absinfo>,
     switch: Switch,
-    switch_vals: FixedBitSet,
     led: Led,
-    led_vals: FixedBitSet,
     misc: Misc,
     ff: FixedBitSet,
     ff_stat: FFStatus,
     rep: Repeat,
     snd: Sound,
     pending_events: Vec<ioctl::input_event>,
+    last_seen: usize,
+    state: DeviceState,
 }
 
 impl std::fmt::Debug for Device {
@@ -405,7 +410,7 @@ impl std::fmt::Debug for Device {
         }
         if self.ty.contains(KEY) {
             ds.field("key_bits", &self.key_bits)
-              .field("key_vals", &self.key_vals);
+              .field("key_vals", &self.state.key_vals);
         }
         if self.ty.contains(RELATIVE) {
             ds.field("rel", &self.rel);
@@ -417,7 +422,7 @@ impl std::fmt::Debug for Device {
                 // ignore multitouch, we'll handle that later.
                 if (self.abs.bits() & abs) == 1 {
                     // eugh.
-                    ds.field(&format!("abs_{:x}", idx), &self.abs_vals[idx as usize]);
+                    ds.field(&format!("abs_{:x}", idx), &self.state.abs_vals[idx as usize]);
                 }
             }
         }
@@ -426,11 +431,11 @@ impl std::fmt::Debug for Device {
         }
         if self.ty.contains(SWITCH) {
             ds.field("switch", &self.switch)
-              .field("switch_vals", &self.switch_vals);
+              .field("switch_vals", &self.state.switch_vals);
         }
         if self.ty.contains(LED) {
             ds.field("led", &self.led)
-              .field("led_vals", &self.led_vals);
+              .field("led_vals", &self.state.led_vals);
         }
         if self.ty.contains(SOUND) {
             ds.field("snd", &self.snd);
@@ -503,7 +508,7 @@ impl std::fmt::Display for Device {
                     // Cross our fingers...
                     try!(writeln!(f, "    {:?} ({}index {})",
                                  unsafe { std::mem::transmute::<_, Key>(key_idx as libc::c_int) },
-                                 if self.key_vals.contains(key_idx) { "pressed, " } else { "" },
+                                 if self.state.key_vals.contains(key_idx) { "pressed, " } else { "" },
                                  key_idx));
                 }
             }
@@ -519,7 +524,7 @@ impl std::fmt::Display for Device {
                     // FIXME: abs val Debug is gross
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          AbsoluteAxis::from_bits(abs).unwrap(),
-                         self.abs_vals[idx as usize],
+                         self.state.abs_vals[idx as usize],
                          idx));
                 }
             }
@@ -534,7 +539,7 @@ impl std::fmt::Display for Device {
                 if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          Switch::from_bits(sw).unwrap(),
-                         self.switch_vals[idx as usize],
+                         self.state.switch_vals[idx as usize],
                          idx));
                 }
             }
@@ -546,7 +551,7 @@ impl std::fmt::Display for Device {
                 if led < LED_MAX.bits() && self.led.bits() & led == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          Led::from_bits(led).unwrap(),
-                         self.led_vals[idx as usize],
+                         self.state.led_vals[idx as usize],
                          idx));
                 }
             }
@@ -617,10 +622,6 @@ impl Device {
         &self.key_bits
     }
 
-    pub fn keys_pressed(&self) -> &FixedBitSet {
-        &self.key_vals
-    }
-
     pub fn relative_axes_supported(&self) -> RelativeAxis {
         self.rel
     }
@@ -629,24 +630,12 @@ impl Device {
         self.abs
     }
 
-    pub fn absolute_axes_values(&self) -> &[ioctl::input_absinfo] {
-        &self.abs_vals
-    }
-
     pub fn switches_supported(&self) -> Switch {
         self.switch
     }
 
-    pub fn switches_pressed(&self) -> &FixedBitSet {
-        &self.switch_vals
-    }
-
     pub fn leds_supported(&self) -> Led {
         self.led
-    }
-
-    pub fn leds_lit(&self) -> &FixedBitSet {
-        &self.led_vals
     }
 
     pub fn misc_properties(&self) -> Misc {
@@ -659,6 +648,10 @@ impl Device {
 
     pub fn sounds_supported(&self) -> Sound {
         self.snd
+    }
+
+    pub fn state(&self) -> &DeviceState {
+        &self.state
     }
 
     pub fn open(path: &AsRef<Path>) -> Result<Device, Error> {
@@ -685,14 +678,10 @@ impl Device {
             props: Props::empty(),
             driver_version: (0, 0, 0),
             key_bits: FixedBitSet::with_capacity(KEY_MAX as usize),
-            key_vals: FixedBitSet::with_capacity(KEY_MAX as usize),
             rel: RelativeAxis::empty(),
             abs: AbsoluteAxis::empty(),
-            abs_vals: vec![],
             switch: Switch::empty(),
-            switch_vals: FixedBitSet::with_capacity(0x10),
             led: Led::empty(),
-            led_vals: FixedBitSet::with_capacity(0x10),
             misc: Misc::empty(),
             ff: FixedBitSet::with_capacity(FF_MAX as usize + 1),
             ff_stat: FFStatus::empty(),
@@ -700,6 +689,12 @@ impl Device {
             snd: Sound::empty(),
             pending_events: Vec::with_capacity(64),
             last_seen: 0,
+            state: DeviceState {
+                key_vals: FixedBitSet::with_capacity(KEY_MAX as usize),
+                abs_vals: vec![],
+                switch_vals: FixedBitSet::with_capacity(0x10),
+                led_vals: FixedBitSet::with_capacity(0x10),
+            },
         };
 
         let mut bits: u32 = 0;
@@ -749,7 +744,7 @@ impl Device {
             do_ioctl!(eviocgbit(*fd, ffs(ABSOLUTE.bits()), 0x3f, &mut bits64 as *mut _ as *mut u8));
             println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
-            dev.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
+            dev.state.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
         }
 
         if dev.ty.contains(SWITCH) {
@@ -774,7 +769,7 @@ impl Device {
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
-        try!(dev.sync_device_state());
+        try!(dev.sync_state());
 
         std::mem::forget(fd);
         Ok(dev)
@@ -783,24 +778,28 @@ impl Device {
     /// Synchronize the `Device` state with the kernel device state.
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
-    pub fn sync_device_state(&mut self) -> Result<(), Error> {
+    pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(KEY) {
-            do_ioctl!(eviocgkey(self.fd, self.key_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.key_vals.len()));
+            do_ioctl!(eviocgkey(self.fd, self.state.key_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.state.key_vals.len()));
         }
         if self.ty.contains(ABSOLUTE) {
             for idx in (0..0x28) {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
                 if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 1 {
-                    do_ioctl!(eviocgabs(self.fd, idx as u32, &mut self.abs_vals[idx as usize]));
+                    do_ioctl!(eviocgabs(self.fd, idx as u32, &mut self.state.abs_vals[idx as usize]));
                 }
             }
         }
         if self.ty.contains(SWITCH) {
-            do_ioctl!(eviocgsw(self.fd, &mut self.switch_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.switch_vals.len()));
+            do_ioctl!(eviocgsw(self.fd, &mut self.state.switch_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.state.switch_vals.len()));
         }
         if self.ty.contains(LED) {
-            do_ioctl!(eviocgled(self.fd, &mut self.led_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.led_vals.len()));
+            do_ioctl!(eviocgled(self.fd, &mut self.state.led_vals.as_mut_slice().as_mut_ptr() as *mut _ as *mut u8, self.state.led_vals.len()));
+        }
+
+        Ok(())
+    }
         }
 
         Ok(())
