@@ -852,6 +852,8 @@ impl Device {
                 break
             }
         }
+        // FIXME: see if we can *not* drop EV_REL events. EV_REL doesn't have any state, so
+        // dropping its events isn't really helping much.
         if let Some(idx) = drop_from {
             // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
             let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
