@@ -844,7 +844,7 @@ impl Device {
     /// Do SYN_DROPPED synchronization, and compensate for missing events by inserting events into
     /// the stream which, when applied to any state being kept outside of this `Device`, will
     /// synchronize it with the kernel state.
-    pub fn compensate_dropped(&mut self) -> Result<(), Error> {
+    fn compensate_dropped(&mut self) -> Result<(), Error> {
         let mut drop_from = None;
         for (idx, event) in self.pending_events[self.last_seen..].iter().enumerate() {
             if event._type == SYN_DROPPED as u16 {
