@@ -138,23 +138,6 @@ bitflags! {
     }
 }
 
-impl Types {
-    /// Given a bitflag with only a single flag set, returns the event code corresponding to that
-    /// event. If multiple flags are set, the one with the most significant bit wins. In debug
-    /// mode,
-    #[inline(always)]
-    pub fn number<T: num::FromPrimitive>(&self) -> T {
-        let val = ffs::<u32>(self.bits());
-        if cfg!(debug_assertions) {
-            if self.bits() != 1 << val {
-                panic!("{:?} ought to have only one flag set to be used with .number()", self);
-            }
-        }
-        T::from_u32(val).unwrap()
-    }
-}
-
-
 bitflags! {
     /// Device properties.
     flags Props: u32 {
@@ -374,6 +357,29 @@ bitflags! {
         const SND_TONE = 1 << 0x02,
     }
 }
+
+macro_rules! impl_number {
+    ($($t:ident),*) => {
+        $(impl $t {
+            /// Given a bitflag with only a single flag set, returns the event code corresponding to that
+            /// event. If multiple flags are set, the one with the most significant bit wins. In debug
+            /// mode,
+            #[inline(always)]
+            pub fn number<T: num::FromPrimitive>(&self) -> T {
+                if cfg!(debug_assertions) {
+                    let val = ffs(self.bits());
+                    self.bits() == val; // hack to induce the constraint typeof(self.bits()) = typeof(val)
+                    if self.bits() != 1 << val {
+                        panic!("{:?} ought to have only one flag set to be used with .number()", self);
+                    }
+                }
+                T::from_u32(ffs(self.bits())).unwrap()
+            }
+        })*
+    }
+}
+
+impl_number!(Types, Props, RelativeAxis, AbsoluteAxis, Switch, Led, Misc, FFStatus, Repeat, Sound);
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -619,8 +625,8 @@ impl Drop for Device {
     }
 }
 
-fn ffs<T: num::FromPrimitive>(x: u32) -> T {
-    T::from_u32(31 - x.leading_zeros()).unwrap()
+fn ffs<T: num::FromPrimitive, U: num::ToPrimitive>(x: U) -> T {
+    T::from_u32(31 - U::to_u64(&x).unwrap().leading_zeros()).unwrap()
 }
 
 impl Device {
