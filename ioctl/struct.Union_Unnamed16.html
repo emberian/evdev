@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Union_Unnamed16` struct in crate `ioctl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Union_Unnamed16">
+
+    <title>ioctl::Union_Unnamed16 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>ioctl</a></p><script>window.sidebarCurrent = {name: 'Union_Unnamed16', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>ioctl</a>::<wbr><a class='struct' href=''>Union_Unnamed16</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-607' class='srclink' href='../src/ioctl/platform/linux.rs.html#249-251' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Union_Unnamed16 {
+    pub _bindgen_data_: <a href='http://doc.rust-lang.org/nightly/std/primitive.array.html'>[<a href='http://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>; 4usize]</a>,
+}</pre><h2 class='fields'>Fields</h2>
+<table><tr class='stab '>
+                                  <td id='structfield._bindgen_data_'><code>_bindgen_data_</code></td><td></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../ioctl/struct.Union_Unnamed16.html' title='ioctl::Union_Unnamed16'>Union_Unnamed16</a></code></h3><div class='impl-items'><h4 id='method.constant' class='method'><code>unsafe fn <a href='#method.constant' class='fnname'>constant</a>(&amp;mut self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut <a class='struct' href='../ioctl/struct.ff_constant_effect.html' title='ioctl::ff_constant_effect'>ff_constant_effect</a></a></code></h4>
+<h4 id='method.ramp' class='method'><code>unsafe fn <a href='#method.ramp' class='fnname'>ramp</a>(&amp;mut self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut <a class='struct' href='../ioctl/struct.ff_ramp_effect.html' title='ioctl::ff_ramp_effect'>ff_ramp_effect</a></a></code></h4>
+<h4 id='method.periodic' class='method'><code>unsafe fn <a href='#method.periodic' class='fnname'>periodic</a>(&amp;mut self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut <a class='struct' href='../ioctl/struct.ff_periodic_effect.html' title='ioctl::ff_periodic_effect'>ff_periodic_effect</a></a></code></h4>
+<h4 id='method.condition' class='method'><code>unsafe fn <a href='#method.condition' class='fnname'>condition</a>(&amp;mut self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut <a href='http://doc.rust-lang.org/nightly/std/primitive.array.html'>[<a class='struct' href='../ioctl/struct.ff_condition_effect.html' title='ioctl::ff_condition_effect'>ff_condition_effect</a>; 2usize]</a></a></code></h4>
+<h4 id='method.rumble' class='method'><code>unsafe fn <a href='#method.rumble' class='fnname'>rumble</a>(&amp;mut self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.pointer.html'>*mut <a class='struct' href='../ioctl/struct.ff_rumble_effect.html' title='ioctl::ff_rumble_effect'>ff_rumble_effect</a></a></code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/default/trait.Default.html' title='core::default::Default'>Default</a> for <a class='struct' href='../ioctl/struct.Union_Unnamed16.html' title='ioctl::Union_Unnamed16'>Union_Unnamed16</a></code></h3><div class='impl-items'><h4 id='method.default' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/default/trait.Default.html#method.default' class='fnname'>default</a>() -&gt; Self</code></h4>
+</div><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../ioctl/struct.Union_Unnamed16.html' title='ioctl::Union_Unnamed16'>Union_Unnamed16</a></code></h3><div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../ioctl/struct.Union_Unnamed16.html' title='ioctl::Union_Unnamed16'>Union_Unnamed16</a></code></h4>
+<h4 id='method.clone_from' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code></h4>
+</div><h3 class='impl'><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> for <a class='struct' href='../ioctl/struct.Union_Unnamed16.html' title='ioctl::Union_Unnamed16'>Union_Unnamed16</a></code></h3><div class='impl-items'></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "ioctl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `evdev` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, evdev">
+
+    <title>evdev - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'evdev', ty: 'mod', relpath: '../'};</script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>evdev</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-0' class='srclink' href='../src/evdev/lib.rs.html#1-1045' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Linux event device handling.</p>
+
+<p>The Linux kernel&#39;s &quot;evdev&quot; subsystem exposes input devices to userspace in a generic,
+consistent way. I&#39;ll try to explain the device model as completely as possible. The upstream
+kernel documentation is split across two files:</p>
+
+<ul>
+<li><a href="https://www.kernel.org/doc/Documentation/input/event-codes.txt">https://www.kernel.org/doc/Documentation/input/event-codes.txt</a></li>
+<li><a href="https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt">https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt</a></li>
+</ul>
+
+<p>Devices can expose a few different kinds of events, specified by the <code>Types</code> bitflag. Each
+event type (except for RELATIVE and SYNCHRONIZATION) also has some associated state. See the documentation for
+<code>Types</code> on what each type corresponds to.</p>
+
+<p>This state can be queried. For example, the <code>DeviceState::led_vals</code> field will tell you which
+LEDs are currently lit on the device. This state is not automatically synchronized with the
+kernel. However, as the application reads events, this state will be updated if the event is
+newer than the state timestamp (maintained internally).  Additionally, you can call
+<code>Device::sync_state</code> to explicitly synchronize with the kernel state.</p>
+
+<p>As the state changes, the kernel will write events into a ring buffer. The application can read
+from this ring buffer, thus retreiving events. However, if the ring buffer becomes full, the
+kernel will <em>drop</em> every event in the ring buffer and leave an event telling userspace that it
+did so. At this point, if the application were using the events it received to update its
+internal idea of what state the hardware device is in, it will be wrong: it is missing some
+events. This library tries to ease that pain, but it is best-effort. Events can never be
+recovered once lost. For example, if a switch is toggled twice, there will be two switch events
+in the buffer. However if the kernel needs to drop events, when the device goes to synchronize
+state with the kernel, only one (or zero, if the switch is in the same state as it was before
+the sync) switch events will be emulated.</p>
+
+<p>It is recommended that you dedicate a thread to processing input events, or use epoll with the
+fd returned by <code>Device::fd</code> to process events when they are ready.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use <a class='enum' href='../evdev/enum.Key.html' title='evdev::Key'>Key</a>::*;</code></td></tr><tr><td><code>pub use <a class='enum' href='../evdev/enum.FFEffect.html' title='evdev::FFEffect'>FFEffect</a>::*;</code></td></tr><tr><td><code>pub use <a class='enum' href='../evdev/enum.Synchronization.html' title='evdev::Synchronization'>Synchronization</a>::*;</code></td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.AbsoluteAxis.html'
+                               title='evdev::AbsoluteAxis'>AbsoluteAxis</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Device.html'
+                               title='evdev::Device'>Device</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.DeviceState.html'
+                               title='evdev::DeviceState'>DeviceState</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Events.html'
+                               title='evdev::Events'>Events</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.FFStatus.html'
+                               title='evdev::FFStatus'>FFStatus</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Led.html'
+                               title='evdev::Led'>Led</a></td>
+                        <td class='docblock short'>
+                             <p>/// LEDs specified by USB HID.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Misc.html'
+                               title='evdev::Misc'>Misc</a></td>
+                        <td class='docblock short'>
+                             <p>/// Various miscellaneous event types. Current as of kernel 4.1.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Props.html'
+                               title='evdev::Props'>Props</a></td>
+                        <td class='docblock short'>
+                             <p>/// Device properties.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.RawEvents.html'
+                               title='evdev::RawEvents'>RawEvents</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.RelativeAxis.html'
+                               title='evdev::RelativeAxis'>RelativeAxis</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Repeat.html'
+                               title='evdev::Repeat'>Repeat</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Sound.html'
+                               title='evdev::Sound'>Sound</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Switch.html'
+                               title='evdev::Switch'>Switch</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Types.html'
+                               title='evdev::Types'>Types</a></td>
+                        <td class='docblock short'>
+                             <p>/// Event types supported by the device.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Error.html'
+                               title='evdev::Error'>Error</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.FFEffect.html'
+                               title='evdev::FFEffect'>FFEffect</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Key.html'
+                               title='evdev::Key'>Key</a></td>
+                        <td class='docblock short'>
+                             <p>Scancodes for key presses.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Synchronization.html'
+                               title='evdev::Synchronization'>Synchronization</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                </table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABSOLUTE.html'
+                               title='evdev::ABSOLUTE'>ABSOLUTE</a></td>
+                        <td class='docblock short'>
+                             <p>/// Movement on an absolute axis. Used for things such as touch events and joysticks.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_BRAKE.html'
+                               title='evdev::ABS_BRAKE'>ABS_BRAKE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_DISTANCE.html'
+                               title='evdev::ABS_DISTANCE'>ABS_DISTANCE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_GAS.html'
+                               title='evdev::ABS_GAS'>ABS_GAS</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT0X.html'
+                               title='evdev::ABS_HAT0X'>ABS_HAT0X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT0Y.html'
+                               title='evdev::ABS_HAT0Y'>ABS_HAT0Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT1X.html'
+                               title='evdev::ABS_HAT1X'>ABS_HAT1X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT1Y.html'
+                               title='evdev::ABS_HAT1Y'>ABS_HAT1Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT2X.html'
+                               title='evdev::ABS_HAT2X'>ABS_HAT2X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT2Y.html'
+                               title='evdev::ABS_HAT2Y'>ABS_HAT2Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT3X.html'
+                               title='evdev::ABS_HAT3X'>ABS_HAT3X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_HAT3Y.html'
+                               title='evdev::ABS_HAT3Y'>ABS_HAT3Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MAX.html'
+                               title='evdev::ABS_MAX'>ABS_MAX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MISC.html'
+                               title='evdev::ABS_MISC'>ABS_MISC</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_BLOB_ID.html'
+                               title='evdev::ABS_MT_BLOB_ID'>ABS_MT_BLOB_ID</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Group a set of packets as a blob&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_DISTANCE.html'
+                               title='evdev::ABS_MT_DISTANCE'>ABS_MT_DISTANCE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Contact over distance&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_ORIENTATION.html'
+                               title='evdev::ABS_MT_ORIENTATION'>ABS_MT_ORIENTATION</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Ellipse orientation&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_POSITION_X.html'
+                               title='evdev::ABS_MT_POSITION_X'>ABS_MT_POSITION_X</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Center X touch position&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_POSITION_Y.html'
+                               title='evdev::ABS_MT_POSITION_Y'>ABS_MT_POSITION_Y</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Center Y touch position&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_PRESSURE.html'
+                               title='evdev::ABS_MT_PRESSURE'>ABS_MT_PRESSURE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Pressure on contact area&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_SLOT.html'
+                               title='evdev::ABS_MT_SLOT'>ABS_MT_SLOT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;MT slot being modified&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TOOL_TYPE.html'
+                               title='evdev::ABS_MT_TOOL_TYPE'>ABS_MT_TOOL_TYPE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Type of touching device&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TOOL_X.html'
+                               title='evdev::ABS_MT_TOOL_X'>ABS_MT_TOOL_X</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Center X tool position&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TOOL_Y.html'
+                               title='evdev::ABS_MT_TOOL_Y'>ABS_MT_TOOL_Y</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Center Y tool position&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TOUCH_MAJOR.html'
+                               title='evdev::ABS_MT_TOUCH_MAJOR'>ABS_MT_TOUCH_MAJOR</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Major axis of touching ellipse&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TOUCH_MINOR.html'
+                               title='evdev::ABS_MT_TOUCH_MINOR'>ABS_MT_TOUCH_MINOR</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Minor axis (omit if circular)&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_TRACKING_ID.html'
+                               title='evdev::ABS_MT_TRACKING_ID'>ABS_MT_TRACKING_ID</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Unique ID of the initiated contact&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_WIDTH_MAJOR.html'
+                               title='evdev::ABS_MT_WIDTH_MAJOR'>ABS_MT_WIDTH_MAJOR</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Major axis of approaching ellipse&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_MT_WIDTH_MINOR.html'
+                               title='evdev::ABS_MT_WIDTH_MINOR'>ABS_MT_WIDTH_MINOR</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Minor axis (omit if circular)&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_PRESSURE.html'
+                               title='evdev::ABS_PRESSURE'>ABS_PRESSURE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_RUDDER.html'
+                               title='evdev::ABS_RUDDER'>ABS_RUDDER</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_RX.html'
+                               title='evdev::ABS_RX'>ABS_RX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_RY.html'
+                               title='evdev::ABS_RY'>ABS_RY</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_RZ.html'
+                               title='evdev::ABS_RZ'>ABS_RZ</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_THROTTLE.html'
+                               title='evdev::ABS_THROTTLE'>ABS_THROTTLE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_TILT_X.html'
+                               title='evdev::ABS_TILT_X'>ABS_TILT_X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_TILT_Y.html'
+                               title='evdev::ABS_TILT_Y'>ABS_TILT_Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_TOOL_WIDTH.html'
+                               title='evdev::ABS_TOOL_WIDTH'>ABS_TOOL_WIDTH</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_VOLUME.html'
+                               title='evdev::ABS_VOLUME'>ABS_VOLUME</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_WHEEL.html'
+                               title='evdev::ABS_WHEEL'>ABS_WHEEL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_X.html'
+                               title='evdev::ABS_X'>ABS_X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_Y.html'
+                               title='evdev::ABS_Y'>ABS_Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ABS_Z.html'
+                               title='evdev::ABS_Z'>ABS_Z</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.ACCELEROMETER.html'
+                               title='evdev::ACCELEROMETER'>ACCELEROMETER</a></td>
+                        <td class='docblock short'>
+                             <p>/// Has an accelerometer. Probably reports relative events in that case?</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.BUTTONPAD.html'
+                               title='evdev::BUTTONPAD'>BUTTONPAD</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;has button(s) under pad&quot;, according to the header.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.DIRECT.html'
+                               title='evdev::DIRECT'>DIRECT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;direct input devices&quot;, according to the header.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.FF_STATUS_PLAYING.html'
+                               title='evdev::FF_STATUS_PLAYING'>FF_STATUS_PLAYING</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.FF_STATUS_STOPPED.html'
+                               title='evdev::FF_STATUS_STOPPED'>FF_STATUS_STOPPED</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.FORCEFEEDBACK.html'
+                               title='evdev::FORCEFEEDBACK'>FORCEFEEDBACK</a></td>
+                        <td class='docblock short'>
+                             <p>/// I believe there are no events of this type, but rather this is used to represent that
+/// the device can create haptic effects.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.FORCEFEEDBACKSTATUS.html'
+                               title='evdev::FORCEFEEDBACKSTATUS'>FORCEFEEDBACKSTATUS</a></td>
+                        <td class='docblock short'>
+                             <p>/// A force feedback effect&#39;s state changed.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.KEY.html'
+                               title='evdev::KEY'>KEY</a></td>
+                        <td class='docblock short'>
+                             <p>/// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
+/// states: down, or up. There are events for when keys are pressed (become down) and
+/// released (become up). There are also &quot;key repeats&quot;, where multiple events are sent
+/// while a key is down.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED.html'
+                               title='evdev::LED'>LED</a></td>
+                        <td class='docblock short'>
+                             <p>/// An LED was toggled.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_CAPSL.html'
+                               title='evdev::LED_CAPSL'>LED_CAPSL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_CHARGING.html'
+                               title='evdev::LED_CHARGING'>LED_CHARGING</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;External power connected&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_KANA.html'
+                               title='evdev::LED_KANA'>LED_KANA</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_MAIL.html'
+                               title='evdev::LED_MAIL'>LED_MAIL</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Message waiting&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_MAX.html'
+                               title='evdev::LED_MAX'>LED_MAX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_MISC.html'
+                               title='evdev::LED_MISC'>LED_MISC</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Generic indicator&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_MUTE.html'
+                               title='evdev::LED_MUTE'>LED_MUTE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_NUML.html'
+                               title='evdev::LED_NUML'>LED_NUML</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_SCROLLL.html'
+                               title='evdev::LED_SCROLLL'>LED_SCROLLL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_SLEEP.html'
+                               title='evdev::LED_SLEEP'>LED_SLEEP</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Stand-by&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.LED_SUSPEND.html'
+                               title='evdev::LED_SUSPEND'>LED_SUSPEND</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MISC.html'
+                               title='evdev::MISC'>MISC</a></td>
+                        <td class='docblock short'>
+                             <p>/// Miscellaneous events that don&#39;t fall into other categories. I&#39;m not quite sure when
+/// these happen or what they correspond to.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_GESTURE.html'
+                               title='evdev::MSC_GESTURE'>MSC_GESTURE</a></td>
+                        <td class='docblock short'>
+                             <p>/// Completely unused.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_MAX.html'
+                               title='evdev::MSC_MAX'>MSC_MAX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_PULSELED.html'
+                               title='evdev::MSC_PULSELED'>MSC_PULSELED</a></td>
+                        <td class='docblock short'>
+                             <p>/// Only used by the PowerMate driver, right now.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_RAW.html'
+                               title='evdev::MSC_RAW'>MSC_RAW</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;Raw&quot; event, rarely used.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_SCAN.html'
+                               title='evdev::MSC_SCAN'>MSC_SCAN</a></td>
+                        <td class='docblock short'>
+                             <p>/// Key scancode</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_SERIAL.html'
+                               title='evdev::MSC_SERIAL'>MSC_SERIAL</a></td>
+                        <td class='docblock short'>
+                             <p>/// Serial number, only exported for tablets (&quot;Transducer Serial Number&quot;)</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.MSC_TIMESTAMP.html'
+                               title='evdev::MSC_TIMESTAMP'>MSC_TIMESTAMP</a></td>
+                        <td class='docblock short'>
+                             <p>/// Completely unused.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.POINTER.html'
+                               title='evdev::POINTER'>POINTER</a></td>
+                        <td class='docblock short'>
+                             <p>/// This input device needs a pointer (&quot;cursor&quot;) for the user to know its state.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.POINTING_STICK.html'
+                               title='evdev::POINTING_STICK'>POINTING_STICK</a></td>
+                        <td class='docblock short'>
+                             <p>/// Is a pointing stick (&quot;clit mouse&quot; etc, <a href="https://xkcd.com/243/">https://xkcd.com/243/</a>)</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.POWER.html'
+                               title='evdev::POWER'>POWER</a></td>
+                        <td class='docblock short'>
+                             <p>/// I think this is unused?</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.RELATIVE.html'
+                               title='evdev::RELATIVE'>RELATIVE</a></td>
+                        <td class='docblock short'>
+                             <p>/// Movement on a relative axis. There is no absolute coordinate frame, just the fact that
+/// there was a change of a certain amount of units. Used for things like mouse movement or
+/// scroll wheels.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_DIAL.html'
+                               title='evdev::REL_DIAL'>REL_DIAL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_HWHEEL.html'
+                               title='evdev::REL_HWHEEL'>REL_HWHEEL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_MISC.html'
+                               title='evdev::REL_MISC'>REL_MISC</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_RX.html'
+                               title='evdev::REL_RX'>REL_RX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_RY.html'
+                               title='evdev::REL_RY'>REL_RY</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_RZ.html'
+                               title='evdev::REL_RZ'>REL_RZ</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_WHEEL.html'
+                               title='evdev::REL_WHEEL'>REL_WHEEL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_X.html'
+                               title='evdev::REL_X'>REL_X</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_Y.html'
+                               title='evdev::REL_Y'>REL_Y</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REL_Z.html'
+                               title='evdev::REL_Z'>REL_Z</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REPEAT.html'
+                               title='evdev::REPEAT'>REPEAT</a></td>
+                        <td class='docblock short'>
+                             <p>/// There are no events of this type, to my knowledge, but represents metadata about key
+/// repeat configuration.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REP_DELAY.html'
+                               title='evdev::REP_DELAY'>REP_DELAY</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.REP_PERIOD.html'
+                               title='evdev::REP_PERIOD'>REP_PERIOD</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SEMI_MT.html'
+                               title='evdev::SEMI_MT'>SEMI_MT</a></td>
+                        <td class='docblock short'>
+                             <p>/// Touch rectangle only (I think this means that if there are multiple touches, then the
+/// bounding rectangle of all the touches is returned, not each touch).</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SND_BELL.html'
+                               title='evdev::SND_BELL'>SND_BELL</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SND_CLICK.html'
+                               title='evdev::SND_CLICK'>SND_CLICK</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SND_TONE.html'
+                               title='evdev::SND_TONE'>SND_TONE</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SOUND.html'
+                               title='evdev::SOUND'>SOUND</a></td>
+                        <td class='docblock short'>
+                             <p>/// A sound was made.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SWITCH.html'
+                               title='evdev::SWITCH'>SWITCH</a></td>
+                        <td class='docblock short'>
+                             <p>/// Change in a switch value. Switches are boolean conditions and usually correspond to a
+/// toggle switch of some kind in hardware.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_CAMERA_LENS_COVER.html'
+                               title='evdev::SW_CAMERA_LENS_COVER'>SW_CAMERA_LENS_COVER</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = lens covered&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_DOCK.html'
+                               title='evdev::SW_DOCK'>SW_DOCK</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = plugged into doc&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_FRONT_PROXIMITY.html'
+                               title='evdev::SW_FRONT_PROXIMITY'>SW_FRONT_PROXIMITY</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = front proximity sensor active&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_HEADPHONE_INSERT.html'
+                               title='evdev::SW_HEADPHONE_INSERT'>SW_HEADPHONE_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = inserted&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_JACK_PHYSICAL_INSERT.html'
+                               title='evdev::SW_JACK_PHYSICAL_INSERT'>SW_JACK_PHYSICAL_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = mechanical switch set&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_KEYPAD_SLIDE.html'
+                               title='evdev::SW_KEYPAD_SLIDE'>SW_KEYPAD_SLIDE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = keypad slide out&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_LID.html'
+                               title='evdev::SW_LID'>SW_LID</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = lid shut&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_LINEIN_INSERT.html'
+                               title='evdev::SW_LINEIN_INSERT'>SW_LINEIN_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = inserted&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_LINEOUT_INSERT.html'
+                               title='evdev::SW_LINEOUT_INSERT'>SW_LINEOUT_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = inserted&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_MAX.html'
+                               title='evdev::SW_MAX'>SW_MAX</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_MICROPHONE_INSERT.html'
+                               title='evdev::SW_MICROPHONE_INSERT'>SW_MICROPHONE_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = inserted&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_MUTE_DEVICE.html'
+                               title='evdev::SW_MUTE_DEVICE'>SW_MUTE_DEVICE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = device disabled&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_RFKILL_ALL.html'
+                               title='evdev::SW_RFKILL_ALL'>SW_RFKILL_ALL</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;rfkill master switch, type &#39;any&#39;&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_ROTATE_LOCK.html'
+                               title='evdev::SW_ROTATE_LOCK'>SW_ROTATE_LOCK</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = rotate locked/disabled&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_TABLET_MODE.html'
+                               title='evdev::SW_TABLET_MODE'>SW_TABLET_MODE</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set = tablet mode&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SW_VIDEOOUT_INSERT.html'
+                               title='evdev::SW_VIDEOOUT_INSERT'>SW_VIDEOOUT_INSERT</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;set  = inserted&quot;</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.SYNCHRONIZATION.html'
+                               title='evdev::SYNCHRONIZATION'>SYNCHRONIZATION</a></td>
+                        <td class='docblock short'>
+                             <p>/// A bookkeeping event. Usually not important to applications.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.TOPBUTTONPAD.html'
+                               title='evdev::TOPBUTTONPAD'>TOPBUTTONPAD</a></td>
+                        <td class='docblock short'>
+                             <p>/// &quot;softbuttons at top of pad&quot;, according to the header.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.enumerate.html'
+                               title='evdev::enumerate'>enumerate</a></td>
+                        <td class='docblock short'>
+                             <p>Crawls <code>/dev/input</code> for evdev devices.</p>
+
+                        </td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "evdev";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
