@@ -1,8 +1,8 @@
 `evdev`
 =======
 
-[![Travis](https://img.shields.io/travis/cmr/evdev.svg?style=flat-square)](https://travis-ci.org/cmr/ioctl)
-[![Crates.io](https://img.shields.io/crates/v/evdev.svg?style=flat-square)](https://crates.io/crates/ioctl)
+[![Travis](https://img.shields.io/travis/cmr/evdev.svg?style=flat-square)](https://travis-ci.org/cmr/evdev)
+[![Crates.io](https://img.shields.io/crates/v/evdev.svg?style=flat-square)](https://crates.io/crates/evdev)
 
 [Documentation](https://cmr.github.io/evdev)
 
