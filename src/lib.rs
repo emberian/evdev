@@ -899,7 +899,7 @@ impl Device {
                             time: time,
                             _type: ABSOLUTE.number(),
                             code: idx as u16,
-                            value: self.state.abs_vals[idx as usize],
+                            value: self.state.abs_vals[idx as usize].value,
                         });
                     }
                 }
