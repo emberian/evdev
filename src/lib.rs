@@ -7,25 +7,31 @@
 //! - https://www.kernel.org/doc/Documentation/input/event-codes.txt
 //! - https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt
 //!
-//! # Device capabilities
-//!
 //! Devices can expose a few different kinds of events, specified by the `Types` bitflag. Each
 //! event type (except for RELATIVE and SYNCHRONIZATION) also has some associated state. See the documentation for
 //! `Types` on what each type corresponds to.
 //!
-//! This state can be queried. For
-//! example, the `Device::leds_lit` method will tell you which LEDs are currentl lit on the input
-//! device. This state is not automatically synchronized with the kernel. However, as the
-//! application reads events, this state will be updated if it is older than the event.
+//! This state can be queried. For example, the `DeviceState::led_vals` field will tell you which
+//! LEDs are currently lit on the device. This state is not automatically synchronized with the
+//! kernel. However, as the application reads events, this state will be updated if the event is
+//! newer than the state timestamp (maintained internally).  Additionally, you can call
+//! `Device::sync_state` to explicitly synchronize with the kernel state.
 //!
+//! As the state changes, the kernel will write events into a ring buffer. The application can read
+//! from this ring buffer, thus retreiving events. However, if the ring buffer becomes full, the
+//! kernel will *drop* every event in the ring buffer and leave an event telling userspace that it
+//! did so. At this point, if the application were using the events it received to update its
+//! internal idea of what state the hardware device is in, it will be wrong: it is missing some
+//! events. This library tries to ease that pain, but it is best-effort. Events can never be
+//! recovered once lost. For example, if a switch is toggled twice, there will be two switch events
+//! in the buffer. However if the kernel needs to drop events, when the device goes to synchronize
+//! state with the kernel, only one (or zero, if the switch is in the same state as it was before
+//! the sync) switch events will be emulated.
 //!
-//! As the state changes, the
-//! kernel will write events into a ring buffer. The application can read from this ring buffer,
-//! thus retreiving events. However, if the ring buffer becomes full, the kernel will *drop* every
-//! event in the ring buffer and leave an event telling userspace that it did so. At this point, if
-//! the application were using the events it received to update its internal idea of what state the
-//! hardware device is in, it will be wrong: it is missing some events. This library tries to ease
-//! that pain.
+//! It is recommended that you dedicate a thread to processing input events, or use epoll with the
+//! fd returned by `Device::fd` to process events when they are ready.
+
+#![cfg(any(target_os = "linux", target_os = "android"))]
 
 #[macro_use]
 extern crate bitflags;
