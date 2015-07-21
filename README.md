@@ -6,7 +6,7 @@
 
 [Documentation](https://cmr.github.io/evdev)
 
-Nice(r) access to `evdev`.
+Nice(r) access to `evdev`. Works on Rust >= 1.2.0.
 
 What is `evdev`?
 ===================
