@@ -132,6 +132,24 @@ bitflags! {
         const FORCEFEEDBACKSTATUS = 1 << 0x17,
     }
 }
+
+impl Types {
+    /// Given a bitflag with only a single flag set, returns the event code corresponding to that
+    /// event. If multiple flags are set, the one with the most significant bit wins. In debug
+    /// mode,
+    #[inline(always)]
+    pub fn number<T: num::FromPrimitive>(&self) -> T {
+        let val = ffs::<u32>(self.bits());
+        if cfg!(debug_assertions) {
+            if self.bits() != 1 << val {
+                panic!("{:?} ought to have only one flag set to be used with .number()", self);
+            }
+        }
+        T::from_u32(val).unwrap()
+    }
+}
+
+
 bitflags! {
     /// Device properties.
     flags Props: u32 {
@@ -734,44 +752,44 @@ impl Device {
              ((driver_version >> 8) & 0xff) as u8,
               (driver_version & 0xff) as u8);
 
-        do_ioctl!(eviocgprop(*fd, &mut bits as *mut _ as *mut u8, 0x1f)); // todo: handle old kernel
+        do_ioctl!(eviocgprop(*fd, &mut bits as *mut _ as *mut u8, 0x1f)); // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(KEY) {
-            do_ioctl!(eviocgbit(*fd, ffs(KEY.bits()), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
+            do_ioctl!(eviocgbit(*fd, KEY.number(), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
         }
 
         if dev.ty.contains(RELATIVE) {
-            do_ioctl!(eviocgbit(*fd, ffs(RELATIVE.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, RELATIVE.number(), 0xf, &mut bits as *mut _ as *mut u8));
             dev.rel = RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
         }
 
         if dev.ty.contains(ABSOLUTE) {
-            do_ioctl!(eviocgbit(*fd, ffs(ABSOLUTE.bits()), 0x3f, &mut bits64 as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut _ as *mut u8));
             println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
         }
 
         if dev.ty.contains(SWITCH) {
-            do_ioctl!(eviocgbit(*fd, ffs(SWITCH.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, SWITCH.number(), 0xf, &mut bits as *mut _ as *mut u8));
             dev.switch = Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
         }
 
         if dev.ty.contains(LED) {
-            do_ioctl!(eviocgbit(*fd, ffs(LED.bits()), 0xf, &mut bits as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, LED.number(), 0xf, &mut bits as *mut _ as *mut u8));
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(MISC) {
-            do_ioctl!(eviocgbit(*fd, ffs(MISC.bits()), 0x7, &mut bits as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, MISC.number(), 0x7, &mut bits as *mut _ as *mut u8));
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
         //do_ioctl!(eviocgbit(*fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut _ as *mut u8));
 
         if dev.ty.contains(SOUND) {
-            do_ioctl!(eviocgbit(*fd, 31 - SOUND.bits().leading_zeros(), 0x7, &mut bits as *mut _ as *mut u8));
+            do_ioctl!(eviocgbit(*fd, SOUND.number(), 0x7, &mut bits as *mut _ as *mut u8));
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
