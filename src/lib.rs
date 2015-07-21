@@ -52,6 +52,11 @@ pub use Key::*;
 pub use FFEffect::*;
 pub use Synchronization::*;
 
+#[link(name = "rt")]
+extern {
+    fn clock_gettime(clkid: libc::c_int, res: *mut libc::timespec);
+}
+
 #[derive(Debug)]
 pub enum Error {
     NulError(std::ffi::NulError),
@@ -384,10 +389,16 @@ pub enum Synchronization {
     SYN_MAX = 0xf,
 }
 
+#[derive(Clone)]
 pub struct DeviceState {
+    /// The state corresponds to kernel state at this timestamp.
+    pub timestamp: libc::timeval,
+    /// Set = key pressed
     pub key_vals: FixedBitSet,
     pub abs_vals: Vec<ioctl::input_absinfo>,
+    /// Set = switch enabled (closed)
     pub switch_vals: FixedBitSet,
+    /// Set = LED lit
     pub led_vals: FixedBitSet,
 }
 
@@ -411,6 +422,8 @@ pub struct Device {
     rep: Repeat,
     snd: Sound,
     pending_events: Vec<ioctl::input_event>,
+    clock: libc::c_int,
+    // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
     state: DeviceState,
 }
@@ -529,7 +542,7 @@ impl std::fmt::Display for Device {
             try!(writeln!(f, "  Keys supported:"));
             for key_idx in (0..self.key_bits.len()) {
                 if self.key_bits.contains(key_idx) {
-                    // Cross our fingers...
+                    // Cross our fingers... (what did this mean?)
                     try!(writeln!(f, "    {:?} ({}index {})",
                                  unsafe { std::mem::transmute::<_, Key>(key_idx as libc::c_int) },
                                  if self.state.key_vals.contains(key_idx) { "pressed, " } else { "" },
@@ -601,7 +614,8 @@ impl std::fmt::Display for Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
-        unsafe { libc::close(self.fd); } // yes yes I know EINTR, close(2) isn't portable etc.
+        // Linux close(2) can fail, but there is nothing to do if it does.
+        unsafe { libc::close(self.fd); }
     }
 }
 
@@ -714,11 +728,13 @@ impl Device {
             pending_events: Vec::with_capacity(64),
             last_seen: 0,
             state: DeviceState {
+                timestamp: libc::timeval { tv_sec: 0, tv_usec: 0 },
                 key_vals: FixedBitSet::with_capacity(KEY_MAX as usize),
                 abs_vals: vec![],
                 switch_vals: FixedBitSet::with_capacity(0x10),
                 led_vals: FixedBitSet::with_capacity(0x10),
             },
+            clock: libc::CLOCK_REALTIME
         };
 
         let mut bits: u32 = 0;
@@ -824,8 +840,108 @@ impl Device {
 
         Ok(())
     }
+
+    /// Do SYN_DROPPED synchronization, and compensate for missing events by inserting events into
+    /// the stream which, when applied to any state being kept outside of this `Device`, will
+    /// synchronize it with the kernel state.
+    pub fn compensate_dropped(&mut self) -> Result<(), Error> {
+        let mut drop_from = None;
+        for (idx, event) in self.pending_events[self.last_seen..].iter().enumerate() {
+            if event._type == SYN_DROPPED as u16 {
+                drop_from = Some(idx);
+                break
+            }
+        }
+        if let Some(idx) = drop_from {
+            // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
+            let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
+            for (idx, event) in self.pending_events[..idx].iter().enumerate().rev() {
+                if event._type == SYN_REPORT as u16 {
+                    prev_report = idx;
+                    break;
+                }
+            }
+            self.pending_events.truncate(prev_report);
         }
 
+        // Alright, pending_events is in a sane state. Now, let's sync the local state. We will
+        // create a phony packet that contains deltas from the previous device state to the current
+        // device state.
+        let old_state = self.state.clone();
+        try!(self.sync_state());
+        let mut time = unsafe { std::mem::zeroed() };
+        unsafe { clock_gettime(self.clock, &mut time); }
+        let time = libc::timeval {
+            tv_sec: time.tv_sec,
+            tv_usec: time.tv_nsec * 1000,
+        };
+
+        if self.ty.contains(KEY) {
+            for key_idx in (0..self.key_bits.len()) {
+                if self.key_bits.contains(key_idx) {
+                    if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
+                        self.pending_events.push(ioctl::input_event {
+                            time: time,
+                            _type: KEY.number(),
+                            code: key_idx as u16,
+                            value: if self.state.key_vals[key_idx] { 1 } else { 0 },
+                        });
+                    }
+                }
+            }
+        }
+        if self.ty.contains(ABSOLUTE) {
+            for idx in (0..0x3f) {
+                let abs = 1 << idx;
+                if self.abs.bits() & abs != 0 {
+                    if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
+                        self.pending_events.push(ioctl::input_event {
+                            time: time,
+                            _type: ABSOLUTE.number(),
+                            code: idx as u16,
+                            value: 0, // I think this is correct; code gets used as an index into abs_vals
+                        });
+                    }
+                }
+            }
+        }
+        if self.ty.contains(SWITCH) {
+            for idx in (0..0xf) {
+                let sw = 1 << idx;
+                if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
+                    if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
+                        self.pending_events.push(ioctl::input_event {
+                            time: time,
+                            _type: SWITCH.number(),
+                            code: idx as u16,
+                            value: if self.state.switch_vals[idx as usize] { 1 } else { 0 },
+                        });
+                    }
+                }
+            }
+        }
+        if self.ty.contains(LED) {
+            for idx in (0..0xf) {
+                let led = 1 << idx;
+                if led < LED_MAX.bits() && self.led.bits() & led == 1 {
+                    if old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize] {
+                        self.pending_events.push(ioctl::input_event {
+                            time: time,
+                            _type: LED.number(),
+                            code: idx as u16,
+                            value: if self.state.led_vals[idx as usize] { 1 } else { 0 },
+                        });
+                    }
+                }
+            }
+        }
+
+        self.pending_events.push(ioctl::input_event {
+            time: time,
+            _type: SYNCHRONIZATION.number(),
+            code: SYN_REPORT as u16,
+            value: 0,
+        });
         Ok(())
     }
 
