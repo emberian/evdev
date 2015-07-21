@@ -899,7 +899,7 @@ impl Device {
                             time: time,
                             _type: ABSOLUTE.number(),
                             code: idx as u16,
-                            value: 0, // I think this is correct; code gets used as an index into abs_vals
+                            value: self.state.abs_vals[idx as usize],
                         });
                     }
                 }
@@ -1033,3 +1033,5 @@ pub fn enumerate() -> Vec<Device> {
     }
     res
 }
+
+#[cfg(test)] mod test { include!("tests.rs"); }
