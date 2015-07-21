@@ -23,7 +23,7 @@ fn main() {
     println!("{}", d);
     println!("Events:");
     loop {
-        for ev in d.raw_events() {
+        for ev in d.events_no_sync().unwrap() {
             println!("{:?}", ev);
         }
     }

@@ -6,7 +6,7 @@
 
 [Documentation](https://cmr.github.io/evdev)
 
-Nice access to `evdev`.
+Nice(r) access to `evdev`.
 
 What is `evdev`?
 ===================
@@ -16,16 +16,16 @@ What is `evdev`?
 What does this library support?
 ===============================
 
-Device enumeration (by scanning), capability querying, event polling,
-multitouch, and force feedback. Everything that `evdev` supports.
+This library exposes raw evdev events, but uses the Rust `Iterator` trait to
+do so, and will handle `SYN_DROPPED` events properly for the client. I try to
+match [libevdev](http://www.freedesktop.org/software/libevdev/doc/latest/)
+closely, where possible.
+
+Writing to devices is not yet supported (eg, turning LEDs on).
 
 Example
 =======
 
-```rust
-extern crate evdev;
-
-fn main() {
-    // fixme
-}
-```
+See <examples/evtest.rs> for an example of using this library (which roughly
+corresponds to the userspace [evtest](http://cgit.freedesktop.org/evtest/)
+tool.
