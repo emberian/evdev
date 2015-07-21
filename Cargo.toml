@@ -8,7 +8,7 @@ repository = "https://github.com/cmr/evdev"
 documentation = "https://cmr.github.io/evdev"
 
 [dependencies]
-ioctl = { path = "/home/cmr/ioctl" }
+ioctl = "0.3.3"
 bitflags = "*"
 errno = "*"
 libc = "*"
