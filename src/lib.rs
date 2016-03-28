@@ -101,7 +101,7 @@ impl std::ops::Deref for Fd {
 
 bitflags! {
     /// Event types supported by the device.
-    flags Types: u32 {
+    pub flags Types: u32 {
         /// A bookkeeping event. Usually not important to applications.
         const SYNCHRONIZATION = 1 << 0x00,
         /// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
@@ -140,7 +140,7 @@ bitflags! {
 
 bitflags! {
     /// Device properties.
-    flags Props: u32 {
+    pub flags Props: u32 {
         /// This input device needs a pointer ("cursor") for the user to know its state.
         const POINTER = 1 << 0x00,
         /// "direct input devices", according to the header.
@@ -162,7 +162,7 @@ bitflags! {
 include!("scancodes.rs"); // it's a huge glob of text that I'm tired of skipping over.
 
 bitflags! {
-    flags RelativeAxis: u32 {
+    pub flags RelativeAxis: u32 {
         const REL_X = 1 << 0x00,
         const REL_Y = 1 << 0x01,
         const REL_Z = 1 << 0x02,
@@ -177,7 +177,7 @@ bitflags! {
 }
 
 bitflags! {
-    flags AbsoluteAxis: u64 {
+    pub flags AbsoluteAxis: u64 {
         const ABS_X = 1 << 0x00,
         const ABS_Y = 1 << 0x01,
         const ABS_Z = 1 << 0x02,
@@ -239,7 +239,7 @@ bitflags! {
 }
 
 bitflags! {
-    flags Switch: u32 {
+    pub flags Switch: u32 {
         /// "set = lid shut"
         const SW_LID = 1 << 0x00,
         /// "set = tablet mode"
@@ -276,7 +276,7 @@ bitflags! {
 
 bitflags! {
     /// LEDs specified by USB HID.
-    flags Led: u32 {
+    pub flags Led: u32 {
         const LED_NUML = 1 << 0x00,
         const LED_CAPSL = 1 << 0x01,
         const LED_SCROLLL = 1 << 0x02,
@@ -297,7 +297,7 @@ bitflags! {
 
 bitflags! {
     /// Various miscellaneous event types. Current as of kernel 4.1.
-    flags Misc: u32 {
+    pub flags Misc: u32 {
         /// Serial number, only exported for tablets ("Transducer Serial Number")
         const MSC_SERIAL = 1 << 0x00,
         /// Only used by the PowerMate driver, right now.
@@ -344,14 +344,14 @@ pub enum FFEffect {
 }
 
 bitflags! {
-    flags Repeat: u32 {
+    pub flags Repeat: u32 {
         const REP_DELAY = 1 << 0x00,
         const REP_PERIOD = 1 << 0x01,
     }
 }
 
 bitflags! {
-    flags Sound: u32 {
+    pub flags Sound: u32 {
         const SND_CLICK = 1 << 0x00,
         const SND_BELL = 1 << 0x01,
         const SND_TONE = 1 << 0x02,
