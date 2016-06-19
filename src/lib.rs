@@ -705,7 +705,8 @@ impl Device {
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR, 0) });
+        // let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR, 0) });
+        let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_RDWR, 0) });
         if *fd == -1 {
             std::mem::forget(fd);
             return Err(Error::LibcError(errno::errno()))
