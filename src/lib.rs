@@ -46,6 +46,7 @@ use std::os::unix::ffi::*;
 use std::path::Path;
 use std::ffi::CString;
 use std::mem::size_of;
+use num::traits::WrappingSub;
 use fixedbitset::FixedBitSet;
 
 pub use Key::*;
@@ -626,7 +627,7 @@ impl Drop for Device {
 }
 
 fn ffs<T: num::FromPrimitive, U: num::ToPrimitive>(x: U) -> T {
-    T::from_u32(31 - U::to_u64(&x).unwrap().leading_zeros()).unwrap()
+    T::from_u32(31.wrapping_sub(&U::to_u64(&x).unwrap().leading_zeros())).unwrap()
 }
 
 impl Device {
