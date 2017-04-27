@@ -4,14 +4,16 @@
 [![Travis](https://img.shields.io/travis/cmr/evdev.svg?style=flat-square)](https://travis-ci.org/cmr/evdev)
 [![Crates.io](https://img.shields.io/crates/v/evdev.svg?style=flat-square)](https://crates.io/crates/evdev)
 
-[Documentation](https://cmr.github.io/evdev)
+[Documentation](https://docs.rs/evdev)
 
-Nice(r) access to `evdev`. Works on Rust >= 1.2.0.
+Nice(r) access to `evdev` devices.
 
 What is `evdev`?
 ===================
 
-`evdev` is the Linux kernel's generic input interface.
+`evdev` is the Linux kernel's generic input interface. This crate exposes
+access to these sorts of input devices. There is some trickery involved, so
+please read the crate documentation.
 
 What does this library support?
 ===============================
@@ -22,6 +24,10 @@ match [libevdev](http://www.freedesktop.org/software/libevdev/doc/latest/)
 closely, where possible.
 
 Writing to devices is not yet supported (eg, turning LEDs on).
+
+There is no abstraction for gamepad-like devices that allows mapping button
+numbers to logical buttons, nor is one planned. Such a thing should take place
+in a higher-level crate, likely supporting multiple platforms.
 
 Example
 =======

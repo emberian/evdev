@@ -18,7 +18,7 @@
 //! `Device::sync_state` to explicitly synchronize with the kernel state.
 //!
 //! As the state changes, the kernel will write events into a ring buffer. The application can read
-//! from this ring buffer, thus retreiving events. However, if the ring buffer becomes full, the
+//! from this ring buffer, thus retrieving events. However, if the ring buffer becomes full, the
 //! kernel will *drop* every event in the ring buffer and leave an event telling userspace that it
 //! did so. At this point, if the application were using the events it received to update its
 //! internal idea of what state the hardware device is in, it will be wrong: it is missing some
@@ -32,6 +32,7 @@
 //! fd returned by `Device::fd` to process events when they are ready.
 
 #![cfg(any(target_os = "linux", target_os = "android"))]
+#![allow(non_camel_case_types)]
 
 #[macro_use]
 extern crate bitflags;
@@ -47,6 +48,7 @@ use std::path::Path;
 use std::ffi::CString;
 use std::mem::size_of;
 use fixedbitset::FixedBitSet;
+use num::traits::WrappingSub;
 
 pub use Key::*;
 pub use FFEffect::*;
@@ -101,7 +103,7 @@ impl std::ops::Deref for Fd {
 
 bitflags! {
     /// Event types supported by the device.
-    flags Types: u32 {
+    pub flags Types: u32 {
         /// A bookkeeping event. Usually not important to applications.
         const SYNCHRONIZATION = 1 << 0x00,
         /// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
@@ -140,7 +142,7 @@ bitflags! {
 
 bitflags! {
     /// Device properties.
-    flags Props: u32 {
+    pub flags Props: u32 {
         /// This input device needs a pointer ("cursor") for the user to know its state.
         const POINTER = 1 << 0x00,
         /// "direct input devices", according to the header.
@@ -162,7 +164,7 @@ bitflags! {
 include!("scancodes.rs"); // it's a huge glob of text that I'm tired of skipping over.
 
 bitflags! {
-    flags RelativeAxis: u32 {
+    pub flags RelativeAxis: u32 {
         const REL_X = 1 << 0x00,
         const REL_Y = 1 << 0x01,
         const REL_Z = 1 << 0x02,
@@ -177,7 +179,7 @@ bitflags! {
 }
 
 bitflags! {
-    flags AbsoluteAxis: u64 {
+    pub flags AbsoluteAxis: u64 {
         const ABS_X = 1 << 0x00,
         const ABS_Y = 1 << 0x01,
         const ABS_Z = 1 << 0x02,
@@ -234,12 +236,11 @@ bitflags! {
         const ABS_MT_TOOL_X = 1 << 0x3c,
         /// "Center Y tool position"
         const ABS_MT_TOOL_Y = 1 << 0x3d,
-        const ABS_MAX = 1 << 0x3f,
     }
 }
 
 bitflags! {
-    flags Switch: u32 {
+    pub flags Switch: u32 {
         /// "set = lid shut"
         const SW_LID = 1 << 0x00,
         /// "set = tablet mode"
@@ -270,16 +271,19 @@ bitflags! {
         const SW_LINEIN_INSERT = 1 << 0x0d,
         /// "set = device disabled"
         const SW_MUTE_DEVICE = 1 << 0x0e,
-        const SW_MAX = 1 << 0x0f,
+        /// "set = pen inserted"
+        const SW_PEN_INSERTED = 1 << 0x0f,
+        const SW_MAX = 0xf,
     }
 }
 
 bitflags! {
     /// LEDs specified by USB HID.
-    flags Led: u32 {
+    pub flags Led: u32 {
         const LED_NUML = 1 << 0x00,
         const LED_CAPSL = 1 << 0x01,
         const LED_SCROLLL = 1 << 0x02,
+        const LED_COMPOSE = 1 << 0x03,
         const LED_KANA = 1 << 0x04,
         /// "Stand-by"
         const LED_SLEEP = 1 << 0x05,
@@ -297,7 +301,7 @@ bitflags! {
 
 bitflags! {
     /// Various miscellaneous event types. Current as of kernel 4.1.
-    flags Misc: u32 {
+    pub flags Misc: u32 {
         /// Serial number, only exported for tablets ("Transducer Serial Number")
         const MSC_SERIAL = 1 << 0x00,
         /// Only used by the PowerMate driver, right now.
@@ -315,7 +319,7 @@ bitflags! {
 }
 
 bitflags! {
-    flags FFStatus: u32 {
+    pub flags FFStatus: u32 {
         const FF_STATUS_STOPPED	= 1 << 0x00,
         const FF_STATUS_PLAYING	= 1 << 0x01,
     }
@@ -344,14 +348,14 @@ pub enum FFEffect {
 }
 
 bitflags! {
-    flags Repeat: u32 {
+    pub flags Repeat: u32 {
         const REP_DELAY = 1 << 0x00,
         const REP_PERIOD = 1 << 0x01,
     }
 }
 
 bitflags! {
-    flags Sound: u32 {
+    pub flags Sound: u32 {
         const SND_CLICK = 1 << 0x00,
         const SND_BELL = 1 << 0x01,
         const SND_TONE = 1 << 0x02,
@@ -366,14 +370,9 @@ macro_rules! impl_number {
             /// mode,
             #[inline(always)]
             pub fn number<T: num::FromPrimitive>(&self) -> T {
-                if cfg!(debug_assertions) {
-                    let val = ffs(self.bits());
-                    self.bits() == val; // hack to induce the constraint typeof(self.bits()) = typeof(val)
-                    if self.bits() != 1 << val {
-                        panic!("{:?} ought to have only one flag set to be used with .number()", self);
-                    }
-                }
-                T::from_u32(ffs(self.bits())).unwrap()
+                let val = self.bits().trailing_zeros();
+                debug_assert!(self.bits() == 1 << val, "{:?} ought to have only one flag set to be used with .number()", self);
+                T::from_u32(val).unwrap()
             }
         })*
     }
@@ -392,7 +391,6 @@ pub enum Synchronization {
     SYN_MT_REPORT = 2,
     /// Ring buffer filled, events were dropped.
     SYN_DROPPED = 3,
-    SYN_MAX = 0xf,
 }
 
 #[derive(Clone)]
@@ -460,7 +458,7 @@ impl std::fmt::Debug for Device {
         }
         if self.ty.contains(ABSOLUTE) {
             ds.field("abs", &self.abs);
-            for idx in (0..0x3f) {
+            for idx in 0..0x3f {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
                 if (self.abs.bits() & abs) == 1 {
@@ -546,7 +544,7 @@ impl std::fmt::Display for Device {
 
         if self.ty.contains(KEY) {
             try!(writeln!(f, "  Keys supported:"));
-            for key_idx in (0..self.key_bits.len()) {
+            for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
                     // Cross our fingers... (what did this mean?)
                     try!(writeln!(f, "    {:?} ({}index {})",
@@ -561,7 +559,7 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(ABSOLUTE) {
             try!(writeln!(f, "  Absolute Axes:"));
-            for idx in (0..0x3f) {
+            for idx in 0..0x3f {
                 let abs = 1<< idx;
                 if self.abs.bits() & abs != 0 {
                     // FIXME: abs val Debug is gross
@@ -577,7 +575,7 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(SWITCH) {
             try!(writeln!(f, "  Switches:"));
-            for idx in (0..0xf) {
+            for idx in 0..0xf {
                 let sw = 1 << idx;
                 if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
@@ -589,7 +587,7 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(LED) {
             try!(writeln!(f, "  LEDs:"));
-            for idx in (0..0xf) {
+            for idx in 0..0xf {
                 let led = 1 << idx;
                 if led < LED_MAX.bits() && self.led.bits() & led == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
@@ -623,10 +621,6 @@ impl Drop for Device {
         // Linux close(2) can fail, but there is nothing to do if it does.
         unsafe { libc::close(self.fd); }
     }
-}
-
-fn ffs<T: num::FromPrimitive, U: num::ToPrimitive>(x: U) -> T {
-    T::from_u32(31 - U::to_u64(&x).unwrap().leading_zeros()).unwrap()
 }
 
 impl Device {
@@ -800,6 +794,7 @@ impl Device {
 
         if dev.ty.contains(LED) {
             do_ioctl!(eviocgbit(*fd, LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+            println!("{:b}", bits);
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
@@ -829,7 +824,7 @@ impl Device {
             do_ioctl!(eviocgkey(self.fd, self.state.key_vals.as_mut_slice().as_mut_ptr() as *mut u32 as *mut u8, self.state.key_vals.len()));
         }
         if self.ty.contains(ABSOLUTE) {
-            for idx in (0..0x28) {
+            for idx in 0..0x28 {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
                 if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 1 {
@@ -885,7 +880,7 @@ impl Device {
         };
 
         if self.ty.contains(KEY) {
-            for key_idx in (0..self.key_bits.len()) {
+            for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
                     if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
                         self.pending_events.push(ioctl::input_event {
@@ -899,7 +894,7 @@ impl Device {
             }
         }
         if self.ty.contains(ABSOLUTE) {
-            for idx in (0..0x3f) {
+            for idx in 0..0x3f {
                 let abs = 1 << idx;
                 if self.abs.bits() & abs != 0 {
                     if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
@@ -914,7 +909,7 @@ impl Device {
             }
         }
         if self.ty.contains(SWITCH) {
-            for idx in (0..0xf) {
+            for idx in 0..0xf {
                 let sw = 1 << idx;
                 if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
@@ -929,7 +924,7 @@ impl Device {
             }
         }
         if self.ty.contains(LED) {
-            for idx in (0..0xf) {
+            for idx in 0..0xf {
                 let led = 1 << idx;
                 if led < LED_MAX.bits() && self.led.bits() & led == 1 {
                     if old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize] {
