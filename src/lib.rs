@@ -699,12 +699,11 @@ impl Device {
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR, 0) });
+        let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) });
         if *fd == -1 {
             std::mem::forget(fd);
             return Err(Error::LibcError(errno::errno()))
         }
-        do_ioctl!(fioclex(*fd)); // non-atomic :( but no O_CLOEXEC yet.
 
         let mut dev = Device {
             fd: *fd,
