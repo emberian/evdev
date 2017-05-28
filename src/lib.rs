@@ -36,11 +36,13 @@
 
 #[macro_use]
 extern crate bitflags;
-extern crate ioctl;
+#[macro_use]
+extern crate nix;
 extern crate libc;
-extern crate errno;
 extern crate fixedbitset;
 extern crate num;
+
+pub mod raw;
 
 use std::os::unix::io::*;
 use std::os::unix::ffi::*;
@@ -50,41 +52,22 @@ use std::mem::size_of;
 use fixedbitset::FixedBitSet;
 use num::traits::WrappingSub;
 
+use nix::Error;
+
 pub use Key::*;
 pub use FFEffect::*;
 pub use Synchronization::*;
+
+use raw::*;
 
 #[link(name = "rt")]
 extern {
     fn clock_gettime(clkid: libc::c_int, res: *mut libc::timespec);
 }
 
-#[derive(Debug)]
-pub enum Error {
-    NulError(std::ffi::NulError),
-    LibcError(errno::Errno),
-    IoctlError(&'static str, errno::Errno),
-}
-
-impl From<std::ffi::NulError> for Error {
-    fn from(e: std::ffi::NulError) -> Error {
-        Error::NulError(e)
-    }
-}
-
-impl From<errno::Errno> for Error {
-    fn from(e: errno::Errno) -> Error {
-        Error::LibcError(e)
-    }
-}
-
 macro_rules! do_ioctl {
     ($name:ident($($arg:expr),+)) => {{
-        let rc = unsafe { ::ioctl::$name($($arg,)+) };
-        if rc < 0 {
-            return Err(Error::IoctlError(stringify!($name), errno::errno()))
-        }
-        rc
+        unsafe { ::raw::$name($($arg,)+) }?
     }}
 }
 
@@ -399,7 +382,7 @@ pub struct DeviceState {
     pub timestamp: libc::timeval,
     /// Set = key pressed
     pub key_vals: FixedBitSet,
-    pub abs_vals: Vec<ioctl::input_absinfo>,
+    pub abs_vals: Vec<input_absinfo>,
     /// Set = switch enabled (closed)
     pub switch_vals: FixedBitSet,
     /// Set = LED lit
@@ -412,7 +395,7 @@ pub struct Device {
     name: CString,
     phys: Option<CString>,
     uniq: Option<CString>,
-    id: ioctl::input_id,
+    id: input_id,
     props: Props,
     driver_version: (u8, u8, u8),
     key_bits: FixedBitSet,
@@ -425,7 +408,7 @@ pub struct Device {
     ff_stat: FFStatus,
     rep: Repeat,
     snd: Sound,
-    pending_events: Vec<ioctl::input_event>,
+    pending_events: Vec<input_event>,
     clock: libc::c_int,
     // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
@@ -644,7 +627,7 @@ impl Device {
         &self.uniq
     }
 
-    pub fn input_id(&self) -> ioctl::input_id {
+    pub fn input_id(&self) -> input_id {
         self.id
     }
 
@@ -695,14 +678,14 @@ impl Device {
     pub fn open(path: &AsRef<Path>) -> Result<Device, Error> {
         let cstr = match CString::new(path.as_ref().as_os_str().as_bytes()) {
             Ok(s) => s,
-            Err(e) => return Err(Error::NulError(e))
+            Err(e) => return Err(Error::InvalidPath),
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
         let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) });
         if *fd == -1 {
             std::mem::forget(fd);
-            return Err(Error::LibcError(errno::errno()))
+            return Err(Error::from_errno(::nix::Errno::last()));
         }
 
         let mut dev = Device {
@@ -747,13 +730,13 @@ impl Device {
         unsafe { vec.set_len(dev_len as usize - 1) };
         dev.name = CString::new(vec.clone()).unwrap();
 
-        let phys_len = unsafe { ioctl::eviocgphys(*fd, vec.as_mut_ptr(), 255) };
+        let phys_len = unsafe { eviocgphys(*fd, vec.as_mut_ptr(), 255) }?;
         if phys_len > 0 {
             unsafe { vec.set_len(phys_len as usize - 1) };
             dev.phys = Some(CString::new(vec.clone()).unwrap());
         }
 
-        let uniq_len = unsafe { ioctl::eviocguniq(*fd, vec.as_mut_ptr(), 255) };
+        let uniq_len = unsafe { eviocguniq(*fd, vec.as_mut_ptr(), 255) }?;
         if uniq_len > 0 {
             unsafe { vec.set_len(uniq_len as usize - 1) };
             dev.uniq = Some(CString::new(vec.clone()).unwrap());
@@ -783,7 +766,7 @@ impl Device {
             do_ioctl!(eviocgbit(*fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
             println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
-            dev.state.abs_vals = vec![ioctl::input_absinfo::default(); 0x3f];
+            dev.state.abs_vals = vec![input_absinfo::default(); 0x3f];
         }
 
         if dev.ty.contains(SWITCH) {
@@ -882,7 +865,7 @@ impl Device {
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
                     if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
-                        self.pending_events.push(ioctl::input_event {
+                        self.pending_events.push(raw::input_event {
                             time: time,
                             _type: KEY.number(),
                             code: key_idx as u16,
@@ -897,7 +880,7 @@ impl Device {
                 let abs = 1 << idx;
                 if self.abs.bits() & abs != 0 {
                     if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
-                        self.pending_events.push(ioctl::input_event {
+                        self.pending_events.push(raw::input_event {
                             time: time,
                             _type: ABSOLUTE.number(),
                             code: idx as u16,
@@ -912,7 +895,7 @@ impl Device {
                 let sw = 1 << idx;
                 if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
-                        self.pending_events.push(ioctl::input_event {
+                        self.pending_events.push(raw::input_event {
                             time: time,
                             _type: SWITCH.number(),
                             code: idx as u16,
@@ -927,7 +910,7 @@ impl Device {
                 let led = 1 << idx;
                 if led < LED_MAX.bits() && self.led.bits() & led == 1 {
                     if old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize] {
-                        self.pending_events.push(ioctl::input_event {
+                        self.pending_events.push(raw::input_event {
                             time: time,
                             _type: LED.number(),
                             code: idx as u16,
@@ -938,7 +921,7 @@ impl Device {
             }
         }
 
-        self.pending_events.push(ioctl::input_event {
+        self.pending_events.push(raw::input_event {
             time: time,
             _type: SYNCHRONIZATION.number(),
             code: SYN_REPORT as u16,
@@ -956,18 +939,18 @@ impl Device {
                 libc::read(self.fd,
                            buf.as_mut_ptr()
                               .offset(pre_len as isize) as *mut libc::c_void,
-                           (size_of::<ioctl::input_event>() * (buf.capacity() - pre_len)) as libc::size_t)
+                           (size_of::<raw::input_event>() * (buf.capacity() - pre_len)) as libc::size_t)
             };
             if sz == -1 {
-                let errno = errno::errno();
-                if errno != errno::Errno(libc::EAGAIN) {
-                    return Err(Error::LibcError(errno));
+                let errno = ::nix::Errno::last();
+                if errno != ::nix::Errno::EAGAIN {
+                    return Err(Error::from_errno(errno));
                 } else {
                     break;
                 }
             } else {
                 unsafe {
-                    buf.set_len(pre_len + (sz as usize / size_of::<ioctl::input_event>()));
+                    buf.set_len(pre_len + (sz as usize / size_of::<raw::input_event>()));
                 }
             }
         }
@@ -1010,10 +993,10 @@ impl<'a> Drop for RawEvents<'a> {
 }
 
 impl<'a> Iterator for RawEvents<'a> {
-    type Item = ioctl::input_event;
+    type Item = raw::input_event;
 
     #[inline(always)]
-    fn next(&mut self) -> Option<ioctl::input_event> {
+    fn next(&mut self) -> Option<raw::input_event> {
         self.0.pending_events.pop()
     }
 }

@@ -8,12 +8,11 @@ repository = "https://github.com/cmr/evdev"
 documentation = "https://docs.rs/evdev"
 
 [dependencies]
-ioctl = "0.3.3"
 bitflags = "0.8.2"
-errno = "0.2.3"
 libc = "0.2.22"
 fixedbitset = "0.1.6"
 num = "0.1.37"
+nix = "0.8.1"
 
 [features]
 unstable = []
