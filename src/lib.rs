@@ -851,7 +851,7 @@ impl Device {
         unsafe { clock_gettime(self.clock, &mut time); }
         let time = libc::timeval {
             tv_sec: time.tv_sec,
-            tv_usec: time.tv_nsec * 1000,
+            tv_usec: time.tv_nsec / 1000,
         };
 
         if self.ty.contains(KEY) {
