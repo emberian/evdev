@@ -758,7 +758,6 @@ impl Device {
 
         if dev.ty.contains(ABSOLUTE) {
             do_ioctl!(eviocgbit(fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
-            println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo::default(); 0x3f];
         }
@@ -770,7 +769,6 @@ impl Device {
 
         if dev.ty.contains(LED) {
             do_ioctl!(eviocgbit(fd, LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
-            println!("{:b}", bits);
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
