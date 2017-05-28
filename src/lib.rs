@@ -722,10 +722,14 @@ impl Device {
             dev.phys = Some(CString::new(vec.clone()).unwrap());
         }
 
-        let uniq_len = unsafe { eviocguniq(fd, vec.as_mut_ptr(), 255) }?;
-        if uniq_len > 0 {
-            unsafe { vec.set_len(uniq_len as usize - 1) };
-            dev.uniq = Some(CString::new(vec.clone()).unwrap());
+        match unsafe { eviocguniq(fd, vec.as_mut_ptr(), 255) } {
+            Ok(uniq_len) => {
+                if uniq_len > 0 {
+                    unsafe { vec.set_len(uniq_len as usize - 1) };
+                    dev.uniq = Some(CString::new(vec.clone()).unwrap());
+                }
+            },
+            Err(_) => { /* it's not essential */ }
         }
 
         do_ioctl!(eviocgid(fd, &mut dev.id));
