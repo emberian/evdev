@@ -838,6 +838,8 @@ impl Device {
                 }
             }
             self.pending_events.truncate(prev_report);
+        } else {
+            return Ok(())
         }
 
         // Alright, pending_events is in a sane state. Now, let's sync the local state. We will
