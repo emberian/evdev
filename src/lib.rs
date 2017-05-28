@@ -71,19 +71,6 @@ macro_rules! do_ioctl {
     }}
 }
 
-struct Fd(libc::c_int);
-impl Drop for Fd {
-    fn drop(&mut self) {
-        unsafe { libc::close(self.0); }
-    }
-}
-impl std::ops::Deref for Fd {
-    type Target = libc::c_int;
-    fn deref(&self) -> &libc::c_int {
-        &self.0
-    }
-}
-
 bitflags! {
     /// Event types supported by the device.
     pub flags Types: u32 {
@@ -682,14 +669,13 @@ impl Device {
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let fd = Fd(unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) });
-        if *fd == -1 {
-            std::mem::forget(fd);
+        let fd = unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) };
+        if fd == -1 {
             return Err(Error::from_errno(::nix::Errno::last()));
         }
 
         let mut dev = Device {
-            fd: *fd,
+            fd: fd,
             ty: Types::empty(),
             name: unsafe { CString::from_vec_unchecked(Vec::new()) },
             phys: None,
@@ -723,78 +709,77 @@ impl Device {
         let mut bits64: u64 = 0;
         let mut vec = Vec::with_capacity(256);
 
-        do_ioctl!(eviocgbit(*fd, 0, 4, &mut bits as *mut u32 as *mut u8));
+        do_ioctl!(eviocgbit(fd, 0, 4, &mut bits as *mut u32 as *mut u8));
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        let dev_len = do_ioctl!(eviocgname(*fd, vec.as_mut_ptr(), 255));
+        let dev_len = do_ioctl!(eviocgname(fd, vec.as_mut_ptr(), 255));
         unsafe { vec.set_len(dev_len as usize - 1) };
         dev.name = CString::new(vec.clone()).unwrap();
 
-        let phys_len = unsafe { eviocgphys(*fd, vec.as_mut_ptr(), 255) }?;
+        let phys_len = unsafe { eviocgphys(fd, vec.as_mut_ptr(), 255) }?;
         if phys_len > 0 {
             unsafe { vec.set_len(phys_len as usize - 1) };
             dev.phys = Some(CString::new(vec.clone()).unwrap());
         }
 
-        let uniq_len = unsafe { eviocguniq(*fd, vec.as_mut_ptr(), 255) }?;
+        let uniq_len = unsafe { eviocguniq(fd, vec.as_mut_ptr(), 255) }?;
         if uniq_len > 0 {
             unsafe { vec.set_len(uniq_len as usize - 1) };
             dev.uniq = Some(CString::new(vec.clone()).unwrap());
         }
 
-        do_ioctl!(eviocgid(*fd, &mut dev.id));
+        do_ioctl!(eviocgid(fd, &mut dev.id));
         let mut driver_version: i32 = 0;
-        do_ioctl!(eviocgversion(*fd, &mut driver_version));
+        do_ioctl!(eviocgversion(fd, &mut driver_version));
         dev.driver_version =
             (((driver_version >> 16) & 0xff) as u8,
              ((driver_version >> 8) & 0xff) as u8,
               (driver_version & 0xff) as u8);
 
-        do_ioctl!(eviocgprop(*fd, &mut bits as *mut u32 as *mut u8, 0x1f)); // FIXME: handle old kernel
+        do_ioctl!(eviocgprop(fd, &mut bits as *mut u32 as *mut u8, 0x1f)); // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(KEY) {
-            do_ioctl!(eviocgbit(*fd, KEY.number(), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
+            do_ioctl!(eviocgbit(fd, KEY.number(), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
         }
 
         if dev.ty.contains(RELATIVE) {
-            do_ioctl!(eviocgbit(*fd, RELATIVE.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+            do_ioctl!(eviocgbit(fd, RELATIVE.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             dev.rel = RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
         }
 
         if dev.ty.contains(ABSOLUTE) {
-            do_ioctl!(eviocgbit(*fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
+            do_ioctl!(eviocgbit(fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
             println!("abs bits: {:b}", bits64);
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo::default(); 0x3f];
         }
 
         if dev.ty.contains(SWITCH) {
-            do_ioctl!(eviocgbit(*fd, SWITCH.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+            do_ioctl!(eviocgbit(fd, SWITCH.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             dev.switch = Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
         }
 
         if dev.ty.contains(LED) {
-            do_ioctl!(eviocgbit(*fd, LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+            do_ioctl!(eviocgbit(fd, LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             println!("{:b}", bits);
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(MISC) {
-            do_ioctl!(eviocgbit(*fd, MISC.number(), 0x7, &mut bits as *mut u32 as *mut u8));
+            do_ioctl!(eviocgbit(fd, MISC.number(), 0x7, &mut bits as *mut u32 as *mut u8));
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
-        //do_ioctl!(eviocgbit(*fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8));
+        //do_ioctl!(eviocgbit(fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8));
 
         if dev.ty.contains(SOUND) {
-            do_ioctl!(eviocgbit(*fd, SOUND.number(), 0x7, &mut bits as *mut u32 as *mut u8));
+            do_ioctl!(eviocgbit(fd, SOUND.number(), 0x7, &mut bits as *mut u32 as *mut u8));
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
         try!(dev.sync_state());
 
-        std::mem::forget(fd);
         Ok(dev)
     }
 
