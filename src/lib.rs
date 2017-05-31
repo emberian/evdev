@@ -800,7 +800,7 @@ impl Device {
             for idx in 0..0x28 {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
-                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 1 {
+                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 0 {
                     do_ioctl!(eviocgabs(self.fd, idx as u32, &mut self.state.abs_vals[idx as usize]));
                 }
             }
