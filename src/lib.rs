@@ -31,7 +31,7 @@
 //! It is recommended that you dedicate a thread to processing input events, or use epoll with the
 //! fd returned by `Device::fd` to process events when they are ready.
 
-#![cfg(any(target_os = "linux", target_os = "android"))]
+#![cfg(any(unix, target_os = "android"))]
 #![allow(non_camel_case_types)]
 
 #[macro_use]
@@ -47,8 +47,8 @@ pub mod raw;
 use std::os::unix::io::*;
 use std::os::unix::ffi::*;
 use std::path::Path;
-use std::ffi::CString;
-use std::mem::size_of;
+use std::ffi::{CString, CStr};
+use std::mem::{size_of, transmute};
 use fixedbitset::FixedBitSet;
 use num::traits::WrappingSub;
 
@@ -69,6 +69,21 @@ macro_rules! do_ioctl {
     ($name:ident($($arg:expr),+)) => {{
         unsafe { ::raw::$name($($arg,)+) }?
     }}
+}
+
+macro_rules! do_ioctl_buf {
+    ($buf:ident, $name:ident, $fd:expr) => {
+        unsafe {
+            let blen = $buf.len();
+            match ::raw::$name($fd, &mut $buf[..]) {
+                Ok(len) if len >= 0 => {
+                    $buf[blen - 1] = 0;
+                    Some(CStr::from_ptr(&mut $buf[0] as *mut u8 as *mut _).to_owned())
+                },
+                _ => None
+            }
+        }
+    }
 }
 
 bitflags! {
@@ -707,34 +722,14 @@ impl Device {
 
         let mut bits: u32 = 0;
         let mut bits64: u64 = 0;
-        let mut vec = Vec::with_capacity(256);
+        let mut buf = [0u8; 256];
 
         do_ioctl!(eviocgbit(fd, 0, 4, &mut bits as *mut u32 as *mut u8));
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        let dev_len = do_ioctl!(eviocgname(fd, vec.as_mut_ptr(), 255));
-        unsafe { vec.set_len(dev_len as usize - 1) };
-        dev.name = CString::new(vec.clone()).unwrap();
-
-        match unsafe { eviocgphys(fd, vec.as_mut_ptr(), 255) } {
-            Ok(phys_len) => {
-                if phys_len > 0 {
-                    unsafe { vec.set_len(phys_len as usize - 1) };
-                    dev.phys = Some(CString::new(vec.clone()).unwrap());
-                }
-            },
-            Err(_) => { /* not essential */ }
-        }
-
-        match unsafe { eviocguniq(fd, vec.as_mut_ptr(), 255) } {
-            Ok(uniq_len) => {
-                if uniq_len > 0 {
-                    unsafe { vec.set_len(uniq_len as usize - 1) };
-                    dev.uniq = Some(CString::new(vec.clone()).unwrap());
-                }
-            },
-            Err(_) => { /* not essential */ }
-        }
+        dev.name = do_ioctl_buf!(buf, eviocgname, fd).unwrap_or(CString::default());
+        dev.phys = do_ioctl_buf!(buf, eviocgphys, fd);
+        dev.uniq = do_ioctl_buf!(buf, eviocguniq, fd);
 
         do_ioctl!(eviocgid(fd, &mut dev.id));
         let mut driver_version: i32 = 0;
@@ -744,7 +739,7 @@ impl Device {
              ((driver_version >> 8) & 0xff) as u8,
               (driver_version & 0xff) as u8);
 
-        do_ioctl!(eviocgprop(fd, &mut bits as *mut u32 as *mut u8, 0x1f)); // FIXME: handle old kernel
+        do_ioctl!(eviocgprop(fd, std::slice::from_raw_parts_mut(&mut bits as *mut u32 as *mut u8, 0x1f))); // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(KEY) {
@@ -794,7 +789,7 @@ impl Device {
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(KEY) {
-            do_ioctl!(eviocgkey(self.fd, self.state.key_vals.as_mut_slice().as_mut_ptr() as *mut u32 as *mut u8, self.state.key_vals.len()));
+            do_ioctl!(eviocgkey(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.key_vals.as_mut_slice())));
         }
         if self.ty.contains(ABSOLUTE) {
             for idx in 0..0x28 {
@@ -806,10 +801,10 @@ impl Device {
             }
         }
         if self.ty.contains(SWITCH) {
-            do_ioctl!(eviocgsw(self.fd, self.state.switch_vals.as_mut_slice().as_mut_ptr() as *mut u32 as *mut u8, self.state.switch_vals.len()));
+            do_ioctl!(eviocgsw(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.switch_vals.as_mut_slice())));
         }
         if self.ty.contains(LED) {
-            do_ioctl!(eviocgled(self.fd, self.state.led_vals.as_mut_slice().as_mut_ptr() as *mut u32 as *mut u8, self.state.led_vals.len()));
+            do_ioctl!(eviocgled(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.led_vals.as_mut_slice())));
         }
 
         Ok(())

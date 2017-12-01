@@ -11,16 +11,18 @@ Nice(r) access to `evdev` devices.
 What is `evdev`?
 ===================
 
-`evdev` is the Linux kernel's generic input interface. This crate exposes
-access to these sorts of input devices. There is some trickery involved, so
-please read the crate documentation.
+`evdev` is the Linux kernel's generic input interface, also implemented by other
+kernels such as FreeBSD.
+
+This crate exposes access to these sorts of input devices. There is some trickery
+involved, so please read the crate documentation.
 
 What does this library support?
 ===============================
 
 This library exposes raw evdev events, but uses the Rust `Iterator` trait to
 do so, and will handle `SYN_DROPPED` events properly for the client. I try to
-match [libevdev](http://www.freedesktop.org/software/libevdev/doc/latest/)
+match [libevdev](https://www.freedesktop.org/software/libevdev/doc/latest/)
 closely, where possible.
 
 Writing to devices is not yet supported (eg, turning LEDs on).
@@ -33,5 +35,5 @@ Example
 =======
 
 See <examples/evtest.rs> for an example of using this library (which roughly
-corresponds to the userspace [evtest](http://cgit.freedesktop.org/evtest/)
+corresponds to the userspace [evtest](https://cgit.freedesktop.org/evtest/)
 tool.
