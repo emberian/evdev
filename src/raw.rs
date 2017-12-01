@@ -168,7 +168,6 @@ impl ::std::default::Default for ff_condition_effect {
 }
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-#[allow(raw_pointer_derive)]
 pub struct ff_periodic_effect {
     pub waveform: u16,
     pub period: u16,

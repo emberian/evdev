@@ -50,7 +50,6 @@ use std::path::Path;
 use std::ffi::{CString, CStr};
 use std::mem::{size_of, transmute};
 use fixedbitset::FixedBitSet;
-use num::traits::WrappingSub;
 
 use nix::Error;
 
@@ -680,7 +679,7 @@ impl Device {
     pub fn open(path: &AsRef<Path>) -> Result<Device, Error> {
         let cstr = match CString::new(path.as_ref().as_os_str().as_bytes()) {
             Ok(s) => s,
-            Err(e) => return Err(Error::InvalidPath),
+            Err(_) => return Err(Error::InvalidPath),
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
@@ -919,7 +918,7 @@ impl Device {
     }
 
     fn fill_events(&mut self) -> Result<(), Error> {
-        let mut buf = &mut self.pending_events;
+        let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
             let pre_len = buf.len();
