@@ -669,7 +669,7 @@ impl Device {
         };
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let fd = unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) };
+        let fd = unsafe { libc::open(cstr.as_ptr(), libc::O_RDWR | libc::O_CLOEXEC, 0) };
         if fd == -1 {
             return Err(Error::from_errno(::nix::Errno::last()));
         }
