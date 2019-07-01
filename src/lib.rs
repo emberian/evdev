@@ -145,6 +145,10 @@ bitflags! {
         const REL_DIAL = 1 << 0x07,
         const REL_WHEEL = 1 << 0x08,
         const REL_MISC = 1 << 0x09,
+        const REL_RESERVED = 1 << 0x0a,
+        const REL_WHEEL_HI_RES = 1 << 0x0b,
+        const REL_HWHEEL_HI_RES = 1 << 0x0c,
+        const REL_MAX = 1 << 0x0f,
     }
 }
 
