@@ -60,7 +60,7 @@ pub use Synchronization::*;
 
 use raw::*;
 
-#[link(name = "rt")]
+//#[link(name = "rt")]
 extern {
     fn clock_gettime(clkid: libc::c_int, res: *mut libc::timespec);
 }
