@@ -3,12 +3,12 @@ ioctl!(read eviocgid with b'E', 0x02; /*struct*/ input_id);
 ioctl!(read eviocgkeycode with b'E', 0x04; [::libc::c_uint; 2]);
 ioctl!(read eviocgrep with b'E', 0x03; [::libc::c_uint; 2]);
 ioctl!(read eviocgversion with b'E', 0x01; ::libc::c_int);
-ioctl!(write eviocrmff with b'E', 0x81; ::libc::c_int);
+ioctl!(write_int eviocrmff with b'E', 0x81);
 // ioctl!(read eviocgkeycode_v2 with b'E', 0x04; /*struct*/ input_keymap_entry);
 // TODO #define EVIOCSFF _IOC ( _IOC_WRITE , 'E' , 0x80 , sizeof ( struct ff_effect ) )
-ioctl!(write eviocskeycode with b'E', 0x04; [::libc::c_uint; 2]);
-// ioctl!(write eviocskeycode_v2 with b'E', 0x04; /*struct*/ input_keymap_entry);
-ioctl!(write eviocsrep with b'E', 0x03; [::libc::c_uint; 2]);
+ioctl!(write_ptr eviocskeycode with b'E', 0x04; [::libc::c_uint; 2]);
+// ioctl!(write_int eviocskeycode_v2 with b'E', 0x04; /*struct*/ input_keymap_entry);
+ioctl!(write_ptr eviocsrep with b'E', 0x03; [::libc::c_uint; 2]);
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -168,7 +168,6 @@ impl ::std::default::Default for ff_condition_effect {
 }
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-#[allow(raw_pointer_derive)]
 pub struct ff_periodic_effect {
     pub waveform: u16,
     pub period: u16,
@@ -192,26 +191,26 @@ impl ::std::default::Default for ff_rumble_effect {
     fn default() -> Self { unsafe { ::std::mem::zeroed() } }
 }
 
-ioctl!(read buf eviocgname with b'E', 0x06; u8);
-ioctl!(read buf eviocgphys with b'E', 0x07; u8);
-ioctl!(read buf eviocguniq with b'E', 0x08; u8);
-ioctl!(read buf eviocgprop with b'E', 0x09; u8);
-ioctl!(read buf eviocgmtslots with b'E', 0x0a; u8);
-ioctl!(read buf eviocgkey with b'E', 0x18; u8);
-ioctl!(read buf eviocgled with b'E', 0x19; u8);
-ioctl!(read buf eviocgsnd with b'E', 0x1a; u8);
-ioctl!(read buf eviocgsw with b'E', 0x1b; u8);
+ioctl!(read_buf eviocgname with b'E', 0x06; u8);
+ioctl!(read_buf eviocgphys with b'E', 0x07; u8);
+ioctl!(read_buf eviocguniq with b'E', 0x08; u8);
+ioctl!(read_buf eviocgprop with b'E', 0x09; u8);
+ioctl!(read_buf eviocgmtslots with b'E', 0x0a; u8);
+ioctl!(read_buf eviocgkey with b'E', 0x18; u8);
+ioctl!(read_buf eviocgled with b'E', 0x19; u8);
+ioctl!(read_buf eviocgsnd with b'E', 0x1a; u8);
+ioctl!(read_buf eviocgsw with b'E', 0x1b; u8);
 
-ioctl!(write eviocsff with b'E', 0x80; ff_effect);
-ioctl!(write eviocgrab with b'E', 0x90; ::libc::c_int);
-ioctl!(write eviocrevoke with b'E', 0x91; ::libc::c_int);
-ioctl!(write eviocsclockid with b'E', 0xa0; ::libc::c_int);
+ioctl!(write_ptr eviocsff with b'E', 0x80; ff_effect);
+ioctl!(write_int eviocgrab with b'E', 0x90);
+ioctl!(write_int eviocrevoke with b'E', 0x91);
+ioctl!(write_int eviocsclockid with b'E', 0xa0);
 
 pub unsafe fn eviocgbit(fd: ::libc::c_int, ev: u32, len: ::libc::c_int, buf: *mut u8) -> ::nix::Result<i32> {
-    convert_ioctl_res!(::nix::sys::ioctl::ioctl(fd, ior!(b'E', 0x20 + ev, len) as ::libc::c_ulong, buf))
+    convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x20 + ev, len) as ::libc::c_ulong, buf))
 }
 
 pub unsafe fn eviocgabs(fd: ::libc::c_int, abs: u32, buf: *mut input_absinfo) -> ::nix::Result<i32> {
-    convert_ioctl_res!(::nix::sys::ioctl::ioctl(fd, ior!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()) as ::libc::c_ulong, buf))
+    convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()) as ::libc::c_ulong, buf))
 }
 
