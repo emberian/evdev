@@ -522,33 +522,33 @@ fn bus_name(x: u16) -> &'static str {
 
 impl std::fmt::Display for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        try!(writeln!(f, "{:?}", self.name));
-        try!(writeln!(
+        writeln!(f, "{:?}", self.name)?;
+        writeln!(
             f,
             "  Driver version: {}.{}.{}",
             self.driver_version.0, self.driver_version.1, self.driver_version.2
-        ));
+        )?;
         if let Some(ref phys) = self.phys {
-            try!(writeln!(f, "  Physical address: {:?}", phys));
+            writeln!(f, "  Physical address: {:?}", phys)?;
         }
         if let Some(ref uniq) = self.uniq {
-            try!(writeln!(f, "  Unique name: {:?}", uniq));
+            writeln!(f, "  Unique name: {:?}", uniq)?;
         }
 
-        try!(writeln!(f, "  Bus: {}", bus_name(self.id.bustype)));
-        try!(writeln!(f, "  Vendor: 0x{:x}", self.id.vendor));
-        try!(writeln!(f, "  Product: 0x{:x}", self.id.product));
-        try!(writeln!(f, "  Version: 0x{:x}", self.id.version));
-        try!(writeln!(f, "  Properties: {:?}", self.props));
+        writeln!(f, "  Bus: {}", bus_name(self.id.bustype))?;
+        writeln!(f, "  Vendor: 0x{:x}", self.id.vendor)?;
+        writeln!(f, "  Product: 0x{:x}", self.id.product)?;
+        writeln!(f, "  Version: 0x{:x}", self.id.version)?;
+        writeln!(f, "  Properties: {:?}", self.props)?;
 
         if self.ty.contains(SYNCHRONIZATION) {}
 
         if self.ty.contains(KEY) {
-            try!(writeln!(f, "  Keys supported:"));
+            writeln!(f, "  Keys supported:")?;
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
                     // Cross our fingers... (what did this mean?)
-                    try!(writeln!(
+                    writeln!(
                         f,
                         "    {:?} ({}index {})",
                         unsafe { std::mem::transmute::<_, Key>(key_idx as libc::c_int) },
@@ -558,76 +558,76 @@ impl std::fmt::Display for Device {
                             ""
                         },
                         key_idx
-                    ));
+                    )?;
                 }
             }
         }
         if self.ty.contains(RELATIVE) {
-            try!(writeln!(f, "  Relative Axes: {:?}", self.rel));
+            writeln!(f, "  Relative Axes: {:?}", self.rel)?;
         }
         if self.ty.contains(ABSOLUTE) {
-            try!(writeln!(f, "  Absolute Axes:"));
+            writeln!(f, "  Absolute Axes:")?;
             for idx in 0..0x3f {
                 let abs = 1 << idx;
                 if self.abs.bits() & abs != 0 {
                     // FIXME: abs val Debug is gross
-                    try!(writeln!(
+                    writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
                         AbsoluteAxis::from_bits(abs).unwrap(),
                         self.state.abs_vals[idx as usize],
                         idx
-                    ));
+                    )?;
                 }
             }
         }
         if self.ty.contains(MISC) {
-            try!(writeln!(f, "  Miscellaneous capabilities: {:?}", self.misc));
+            writeln!(f, "  Miscellaneous capabilities: {:?}", self.misc)?;
         }
         if self.ty.contains(SWITCH) {
-            try!(writeln!(f, "  Switches:"));
+            writeln!(f, "  Switches:")?;
             for idx in 0..0xf {
                 let sw = 1 << idx;
                 if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
-                    try!(writeln!(
+                    writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
                         Switch::from_bits(sw).unwrap(),
                         self.state.switch_vals[idx as usize],
                         idx
-                    ));
+                    )?;
                 }
             }
         }
         if self.ty.contains(LED) {
-            try!(writeln!(f, "  LEDs:"));
+            writeln!(f, "  LEDs:")?;
             for idx in 0..0xf {
                 let led = 1 << idx;
                 if led < LED_MAX.bits() && self.led.bits() & led == 1 {
-                    try!(writeln!(
+                    writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
                         Led::from_bits(led).unwrap(),
                         self.state.led_vals[idx as usize],
                         idx
-                    ));
+                    )?;
                 }
             }
         }
         if self.ty.contains(SOUND) {
-            try!(writeln!(f, "  Sound: {:?}", self.snd));
+            writeln!(f, "  Sound: {:?}", self.snd)?;
         }
         if self.ty.contains(REPEAT) {
-            try!(writeln!(f, "  Repeats: {:?}", self.rep));
+            writeln!(f, "  Repeats: {:?}", self.rep)?;
         }
         if self.ty.contains(FORCEFEEDBACK) {
-            try!(writeln!(f, "  Force Feedback supported"));
+            writeln!(f, "  Force Feedback supported")?;
         }
         if self.ty.contains(POWER) {
-            try!(writeln!(f, "  Power supported"));
+            writeln!(f, "  Power supported")?;
         }
         if self.ty.contains(FORCEFEEDBACKSTATUS) {
-            try!(writeln!(f, "  Force Feedback status supported"));
+            writeln!(f, "  Force Feedback status supported")?;
         }
         Ok(())
     }
@@ -711,7 +711,7 @@ impl Device {
         &self.state
     }
 
-    pub fn open(path: &AsRef<Path>) -> Result<Device, Error> {
+    pub fn open(path: &dyn AsRef<Path>) -> Result<Device, Error> {
         let cstr = match CString::new(path.as_ref().as_os_str().as_bytes()) {
             Ok(s) => s,
             Err(_) => return Err(Error::InvalidPath),
@@ -864,7 +864,7 @@ impl Device {
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
-        try!(dev.sync_state());
+        dev.sync_state()?;
 
         Ok(dev)
     }
@@ -939,7 +939,7 @@ impl Device {
         // create a phony packet that contains deltas from the previous device state to the current
         // device state.
         let old_state = self.state.clone();
-        try!(self.sync_state());
+        self.sync_state()?;
         let mut time = unsafe { std::mem::zeroed() };
         unsafe {
             clock_gettime(self.clock, &mut time);
@@ -1056,7 +1056,7 @@ impl Device {
 
     /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
     pub fn events_no_sync(&mut self) -> Result<RawEvents, Error> {
-        try!(self.fill_events());
+        self.fill_events()?;
         Ok(RawEvents::new(self))
     }
 
@@ -1064,8 +1064,8 @@ impl Device {
     ///
     /// Will insert "fake" events
     pub fn events(&mut self) -> Result<RawEvents, Error> {
-        try!(self.fill_events());
-        try!(self.compensate_dropped());
+        self.fill_events()?;
+        self.compensate_dropped()?;
 
         Ok(RawEvents(self))
     }
