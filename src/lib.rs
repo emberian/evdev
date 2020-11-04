@@ -795,10 +795,13 @@ impl Device {
             do_ioctl!(eviocgkey(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.key_vals.as_mut_slice())));
         }
         if self.ty.contains(ABSOLUTE) {
-            for idx in 0..0x28 {
+            for idx in 0..0x3f {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
-                if abs < ABS_MT_SLOT.bits() && self.abs.bits() & abs != 0 {
+                //
+                // handling later removed. not sure what the intention of "handling that later" was
+                // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
+                if self.abs.bits() & abs != 0 {
                     do_ioctl!(eviocgabs(self.fd, idx as u32, &mut self.state.abs_vals[idx as usize]));
                 }
             }
