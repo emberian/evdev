@@ -206,10 +206,22 @@ ioctl!(write_int eviocgrab with b'E', 0x90);
 ioctl!(write_int eviocrevoke with b'E', 0x91);
 ioctl!(write_int eviocsclockid with b'E', 0xa0);
 
+#[cfg(target_arch = "arm")]
+pub unsafe fn eviocgbit(fd: ::libc::c_int, ev: u32, len: ::libc::c_int, buf: *mut u8) -> ::nix::Result<i32> {
+    convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x20 + ev, len) as ::libc::c_long, buf))
+}
+
+#[cfg(not(target_arch = "arm"))]
 pub unsafe fn eviocgbit(fd: ::libc::c_int, ev: u32, len: ::libc::c_int, buf: *mut u8) -> ::nix::Result<i32> {
     convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x20 + ev, len) as ::libc::c_ulong, buf))
 }
 
+#[cfg(target_arch = "arm")]
+pub unsafe fn eviocgabs(fd: ::libc::c_int, abs: u32, buf: *mut input_absinfo) -> ::nix::Result<i32> {
+    convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()) as ::libc::c_long, buf))
+}
+
+#[cfg(not(target_arch = "arm"))]
 pub unsafe fn eviocgabs(fd: ::libc::c_int, abs: u32, buf: *mut input_absinfo) -> ::nix::Result<i32> {
     convert_ioctl_res!(::nix::libc::ioctl(fd, ior!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()) as ::libc::c_ulong, buf))
 }
