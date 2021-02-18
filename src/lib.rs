@@ -40,12 +40,11 @@ extern crate bitflags;
 extern crate nix;
 extern crate libc;
 extern crate fixedbitset;
-extern crate num;
+extern crate num_traits;
 
 pub mod raw;
 
-use std::os::unix::io::*;
-use std::os::unix::ffi::*;
+use std::os::unix::{io::RawFd, ffi::*};
 use std::path::Path;
 use std::ffi::{CString, CStr};
 use std::mem::{size_of, transmute};
@@ -87,229 +86,229 @@ macro_rules! do_ioctl_buf {
 
 bitflags! {
     /// Event types supported by the device.
-    pub flags Types: u32 {
+    pub struct Types: u32 {
         /// A bookkeeping event. Usually not important to applications.
-        const SYNCHRONIZATION = 1 << 0x00,
+        const SYNCHRONIZATION = 1 << 0x00;
         /// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
         /// states: down, or up. There are events for when keys are pressed (become down) and
         /// released (become up). There are also "key repeats", where multiple events are sent
         /// while a key is down.
-        const KEY = 1 << 0x01,
+        const KEY = 1 << 0x01;
         /// Movement on a relative axis. There is no absolute coordinate frame, just the fact that
         /// there was a change of a certain amount of units. Used for things like mouse movement or
         /// scroll wheels.
-        const RELATIVE = 1 << 0x02,
+        const RELATIVE = 1 << 0x02;
         /// Movement on an absolute axis. Used for things such as touch events and joysticks.
-        const ABSOLUTE = 1 << 0x03,
+        const ABSOLUTE = 1 << 0x03;
         /// Miscellaneous events that don't fall into other categories. I'm not quite sure when
         /// these happen or what they correspond to.
-        const MISC = 1 << 0x04,
+        const MISC = 1 << 0x04;
         /// Change in a switch value. Switches are boolean conditions and usually correspond to a
         /// toggle switch of some kind in hardware.
-        const SWITCH = 1 << 0x05,
+        const SWITCH = 1 << 0x05;
         /// An LED was toggled.
-        const LED = 1 << 0x11,
+        const LED = 1 << 0x11;
         /// A sound was made.
-        const SOUND = 1 << 0x12,
+        const SOUND = 1 << 0x12;
         /// There are no events of this type, to my knowledge, but represents metadata about key
         /// repeat configuration.
-        const REPEAT = 1 << 0x14,
+        const REPEAT = 1 << 0x14;
         /// I believe there are no events of this type, but rather this is used to represent that
         /// the device can create haptic effects.
-        const FORCEFEEDBACK = 1 << 0x15,
+        const FORCEFEEDBACK = 1 << 0x15;
         /// I think this is unused?
-        const POWER = 1 << 0x16,
+        const POWER = 1 << 0x16;
         /// A force feedback effect's state changed.
-        const FORCEFEEDBACKSTATUS = 1 << 0x17,
+        const FORCEFEEDBACKSTATUS = 1 << 0x17;
     }
 }
 
 bitflags! {
     /// Device properties.
-    pub flags Props: u32 {
+    pub struct Props: u32 {
         /// This input device needs a pointer ("cursor") for the user to know its state.
-        const POINTER = 1 << 0x00,
+        const POINTER = 1 << 0x00;
         /// "direct input devices", according to the header.
-        const DIRECT = 1 << 0x01,
+        const DIRECT = 1 << 0x01;
         /// "has button(s) under pad", according to the header.
-        const BUTTONPAD = 1 << 0x02,
+        const BUTTONPAD = 1 << 0x02;
         /// Touch rectangle only (I think this means that if there are multiple touches, then the
         /// bounding rectangle of all the touches is returned, not each touch).
-        const SEMI_MT = 1 << 0x03,
+        const SEMI_MT = 1 << 0x03;
         /// "softbuttons at top of pad", according to the header.
-        const TOPBUTTONPAD = 1 << 0x04,
+        const TOPBUTTONPAD = 1 << 0x04;
         /// Is a pointing stick ("clit mouse" etc, https://xkcd.com/243/)
-        const POINTING_STICK = 1 << 0x05,
+        const POINTING_STICK = 1 << 0x05;
         /// Has an accelerometer. Probably reports relative events in that case?
-        const ACCELEROMETER = 1 << 0x06
+        const ACCELEROMETER = 1 << 0x06;
     }
 }
 
 include!("scancodes.rs"); // it's a huge glob of text that I'm tired of skipping over.
 
 bitflags! {
-    pub flags RelativeAxis: u32 {
-        const REL_X = 1 << 0x00,
-        const REL_Y = 1 << 0x01,
-        const REL_Z = 1 << 0x02,
-        const REL_RX = 1 << 0x03,
-        const REL_RY = 1 << 0x04,
-        const REL_RZ = 1 << 0x05,
-        const REL_HWHEEL = 1 << 0x06,
-        const REL_DIAL = 1 << 0x07,
-        const REL_WHEEL = 1 << 0x08,
-        const REL_MISC = 1 << 0x09,
-        const REL_RESERVED = 1 << 0x0a,
-        const REL_WHEEL_HI_RES = 1 << 0x0b,
-        const REL_HWHEEL_HI_RES = 1 << 0x0c,
-        const REL_MAX = 1 << 0x0f,
+    pub struct RelativeAxis: u32 {
+        const REL_X = 1 << 0x00;
+        const REL_Y = 1 << 0x01;
+        const REL_Z = 1 << 0x02;
+        const REL_RX = 1 << 0x03;
+        const REL_RY = 1 << 0x04;
+        const REL_RZ = 1 << 0x05;
+        const REL_HWHEEL = 1 << 0x06;
+        const REL_DIAL = 1 << 0x07;
+        const REL_WHEEL = 1 << 0x08;
+        const REL_MISC = 1 << 0x09;
+        const REL_RESERVED = 1 << 0x0a;
+        const REL_WHEEL_HI_RES = 1 << 0x0b;
+        const REL_HWHEEL_HI_RES = 1 << 0x0c;
+        const REL_MAX = 1 << 0x0f;
     }
 }
 
 bitflags! {
-    pub flags AbsoluteAxis: u64 {
-        const ABS_X = 1 << 0x00,
-        const ABS_Y = 1 << 0x01,
-        const ABS_Z = 1 << 0x02,
-        const ABS_RX = 1 << 0x03,
-        const ABS_RY = 1 << 0x04,
-        const ABS_RZ = 1 << 0x05,
-        const ABS_THROTTLE = 1 << 0x06,
-        const ABS_RUDDER = 1 << 0x07,
-        const ABS_WHEEL = 1 << 0x08,
-        const ABS_GAS = 1 << 0x09,
-        const ABS_BRAKE = 1 << 0x0a,
-        const ABS_HAT0X = 1 << 0x10,
-        const ABS_HAT0Y = 1 << 0x11,
-        const ABS_HAT1X = 1 << 0x12,
-        const ABS_HAT1Y = 1 << 0x13,
-        const ABS_HAT2X = 1 << 0x14,
-        const ABS_HAT2Y = 1 << 0x15,
-        const ABS_HAT3X = 1 << 0x16,
-        const ABS_HAT3Y = 1 << 0x17,
-        const ABS_PRESSURE = 1 << 0x18,
-        const ABS_DISTANCE = 1 << 0x19,
-        const ABS_TILT_X = 1 << 0x1a,
-        const ABS_TILT_Y = 1 << 0x1b,
-        const ABS_TOOL_WIDTH = 1 << 0x1c,
-        const ABS_VOLUME = 1 << 0x20,
-        const ABS_MISC = 1 << 0x28,
+    pub struct AbsoluteAxis: u64 {
+        const ABS_X = 1 << 0x00;
+        const ABS_Y = 1 << 0x01;
+        const ABS_Z = 1 << 0x02;
+        const ABS_RX = 1 << 0x03;
+        const ABS_RY = 1 << 0x04;
+        const ABS_RZ = 1 << 0x05;
+        const ABS_THROTTLE = 1 << 0x06;
+        const ABS_RUDDER = 1 << 0x07;
+        const ABS_WHEEL = 1 << 0x08;
+        const ABS_GAS = 1 << 0x09;
+        const ABS_BRAKE = 1 << 0x0a;
+        const ABS_HAT0X = 1 << 0x10;
+        const ABS_HAT0Y = 1 << 0x11;
+        const ABS_HAT1X = 1 << 0x12;
+        const ABS_HAT1Y = 1 << 0x13;
+        const ABS_HAT2X = 1 << 0x14;
+        const ABS_HAT2Y = 1 << 0x15;
+        const ABS_HAT3X = 1 << 0x16;
+        const ABS_HAT3Y = 1 << 0x17;
+        const ABS_PRESSURE = 1 << 0x18;
+        const ABS_DISTANCE = 1 << 0x19;
+        const ABS_TILT_X = 1 << 0x1a;
+        const ABS_TILT_Y = 1 << 0x1b;
+        const ABS_TOOL_WIDTH = 1 << 0x1c;
+        const ABS_VOLUME = 1 << 0x20;
+        const ABS_MISC = 1 << 0x28;
         /// "MT slot being modified"
-        const ABS_MT_SLOT = 1 << 0x2f,
+        const ABS_MT_SLOT = 1 << 0x2f;
         /// "Major axis of touching ellipse"
-        const ABS_MT_TOUCH_MAJOR = 1 << 0x30,
+        const ABS_MT_TOUCH_MAJOR = 1 << 0x30;
         /// "Minor axis (omit if circular)"
-        const ABS_MT_TOUCH_MINOR = 1 << 0x31,
+        const ABS_MT_TOUCH_MINOR = 1 << 0x31;
         /// "Major axis of approaching ellipse"
-        const ABS_MT_WIDTH_MAJOR = 1 << 0x32,
+        const ABS_MT_WIDTH_MAJOR = 1 << 0x32;
         /// "Minor axis (omit if circular)"
-        const ABS_MT_WIDTH_MINOR = 1 << 0x33,
+        const ABS_MT_WIDTH_MINOR = 1 << 0x33;
         /// "Ellipse orientation"
-        const ABS_MT_ORIENTATION = 1 << 0x34,
+        const ABS_MT_ORIENTATION = 1 << 0x34;
         /// "Center X touch position"
-        const ABS_MT_POSITION_X = 1 << 0x35,
+        const ABS_MT_POSITION_X = 1 << 0x35;
         /// "Center Y touch position"
-        const ABS_MT_POSITION_Y = 1 << 0x36,
+        const ABS_MT_POSITION_Y = 1 << 0x36;
         /// "Type of touching device"
-        const ABS_MT_TOOL_TYPE = 1 << 0x37,
+        const ABS_MT_TOOL_TYPE = 1 << 0x37;
         /// "Group a set of packets as a blob"
-        const ABS_MT_BLOB_ID = 1 << 0x38,
+        const ABS_MT_BLOB_ID = 1 << 0x38;
         /// "Unique ID of the initiated contact"
-        const ABS_MT_TRACKING_ID = 1 << 0x39,
+        const ABS_MT_TRACKING_ID = 1 << 0x39;
         /// "Pressure on contact area"
-        const ABS_MT_PRESSURE = 1 << 0x3a,
+        const ABS_MT_PRESSURE = 1 << 0x3a;
         /// "Contact over distance"
-        const ABS_MT_DISTANCE = 1 << 0x3b,
+        const ABS_MT_DISTANCE = 1 << 0x3b;
         /// "Center X tool position"
-        const ABS_MT_TOOL_X = 1 << 0x3c,
+        const ABS_MT_TOOL_X = 1 << 0x3c;
         /// "Center Y tool position"
-        const ABS_MT_TOOL_Y = 1 << 0x3d,
+        const ABS_MT_TOOL_Y = 1 << 0x3d;
     }
 }
 
 bitflags! {
-    pub flags Switch: u32 {
+    pub struct Switch: u32 {
         /// "set = lid shut"
-        const SW_LID = 1 << 0x00,
+        const SW_LID = 1 << 0x00;
         /// "set = tablet mode"
-        const SW_TABLET_MODE = 1 << 0x01,
+        const SW_TABLET_MODE = 1 << 0x01;
         /// "set = inserted"
-        const SW_HEADPHONE_INSERT = 1 << 0x02,
+        const SW_HEADPHONE_INSERT = 1 << 0x02;
         /// "rfkill master switch, type 'any'"
-        const SW_RFKILL_ALL = 1 << 0x03,
+        const SW_RFKILL_ALL = 1 << 0x03;
         /// "set = inserted"
-        const SW_MICROPHONE_INSERT = 1 << 0x04,
+        const SW_MICROPHONE_INSERT = 1 << 0x04;
         /// "set = plugged into doc"
-        const SW_DOCK = 1 << 0x05,
+        const SW_DOCK = 1 << 0x05;
         /// "set = inserted"
-        const SW_LINEOUT_INSERT = 1 << 0x06,
+        const SW_LINEOUT_INSERT = 1 << 0x06;
         /// "set = mechanical switch set"
-        const SW_JACK_PHYSICAL_INSERT = 1 << 0x07,
+        const SW_JACK_PHYSICAL_INSERT = 1 << 0x07;
         /// "set  = inserted"
-        const SW_VIDEOOUT_INSERT = 1 << 0x08,
+        const SW_VIDEOOUT_INSERT = 1 << 0x08;
         /// "set = lens covered"
-        const SW_CAMERA_LENS_COVER = 1 << 0x09,
+        const SW_CAMERA_LENS_COVER = 1 << 0x09;
         /// "set = keypad slide out"
-        const SW_KEYPAD_SLIDE = 1 << 0x0a,
+        const SW_KEYPAD_SLIDE = 1 << 0x0a;
         /// "set = front proximity sensor active"
-        const SW_FRONT_PROXIMITY = 1 << 0x0b,
+        const SW_FRONT_PROXIMITY = 1 << 0x0b;
         /// "set = rotate locked/disabled"
-        const SW_ROTATE_LOCK = 1 << 0x0c,
+        const SW_ROTATE_LOCK = 1 << 0x0c;
         /// "set = inserted"
-        const SW_LINEIN_INSERT = 1 << 0x0d,
+        const SW_LINEIN_INSERT = 1 << 0x0d;
         /// "set = device disabled"
-        const SW_MUTE_DEVICE = 1 << 0x0e,
+        const SW_MUTE_DEVICE = 1 << 0x0e;
         /// "set = pen inserted"
-        const SW_PEN_INSERTED = 1 << 0x0f,
-        const SW_MAX = 0xf,
+        const SW_PEN_INSERTED = 1 << 0x0f;
+        const SW_MAX = 0xf;
     }
 }
 
 bitflags! {
     /// LEDs specified by USB HID.
-    pub flags Led: u32 {
-        const LED_NUML = 1 << 0x00,
-        const LED_CAPSL = 1 << 0x01,
-        const LED_SCROLLL = 1 << 0x02,
-        const LED_COMPOSE = 1 << 0x03,
-        const LED_KANA = 1 << 0x04,
+    pub struct Led: u32 {
+        const LED_NUML = 1 << 0x00;
+        const LED_CAPSL = 1 << 0x01;
+        const LED_SCROLLL = 1 << 0x02;
+        const LED_COMPOSE = 1 << 0x03;
+        const LED_KANA = 1 << 0x04;
         /// "Stand-by"
-        const LED_SLEEP = 1 << 0x05,
-        const LED_SUSPEND = 1 << 0x06,
-        const LED_MUTE = 1 << 0x07,
+        const LED_SLEEP = 1 << 0x05;
+        const LED_SUSPEND = 1 << 0x06;
+        const LED_MUTE = 1 << 0x07;
         /// "Generic indicator"
-        const LED_MISC = 1 << 0x08,
+        const LED_MISC = 1 << 0x08;
         /// "Message waiting"
-        const LED_MAIL = 1 << 0x09,
+        const LED_MAIL = 1 << 0x09;
         /// "External power connected"
-        const LED_CHARGING = 1 << 0x0a,
-        const LED_MAX = 1 << 0x0f,
+        const LED_CHARGING = 1 << 0x0a;
+        const LED_MAX = 1 << 0x0f;
     }
 }
 
 bitflags! {
     /// Various miscellaneous event types. Current as of kernel 4.1.
-    pub flags Misc: u32 {
+    pub struct Misc: u32 {
         /// Serial number, only exported for tablets ("Transducer Serial Number")
-        const MSC_SERIAL = 1 << 0x00,
+        const MSC_SERIAL = 1 << 0x00;
         /// Only used by the PowerMate driver, right now.
-        const MSC_PULSELED = 1 << 0x01,
+        const MSC_PULSELED = 1 << 0x01;
         /// Completely unused.
-        const MSC_GESTURE = 1 << 0x02,
+        const MSC_GESTURE = 1 << 0x02;
         /// "Raw" event, rarely used.
-        const MSC_RAW = 1 << 0x03,
+        const MSC_RAW = 1 << 0x03;
         /// Key scancode
-        const MSC_SCAN = 1 << 0x04,
+        const MSC_SCAN = 1 << 0x04;
         /// Completely unused.
-        const MSC_TIMESTAMP = 1 << 0x05,
-        const MSC_MAX = 1 << 0x07,
+        const MSC_TIMESTAMP = 1 << 0x05;
+        const MSC_MAX = 1 << 0x07;
     }
 }
 
 bitflags! {
-    pub flags FFStatus: u32 {
-        const FF_STATUS_STOPPED	= 1 << 0x00,
-        const FF_STATUS_PLAYING	= 1 << 0x01,
+    pub struct FFStatus: u32 {
+        const FF_STATUS_STOPPED	= 1 << 0x00;
+        const FF_STATUS_PLAYING	= 1 << 0x01;
     }
 }
 
@@ -336,17 +335,17 @@ pub enum FFEffect {
 }
 
 bitflags! {
-    pub flags Repeat: u32 {
-        const REP_DELAY = 1 << 0x00,
-        const REP_PERIOD = 1 << 0x01,
+    pub struct Repeat: u32 {
+        const REP_DELAY = 1 << 0x00;
+        const REP_PERIOD = 1 << 0x01;
     }
 }
 
 bitflags! {
-    pub flags Sound: u32 {
-        const SND_CLICK = 1 << 0x00,
-        const SND_BELL = 1 << 0x01,
-        const SND_TONE = 1 << 0x02,
+    pub struct Sound: u32 {
+        const SND_CLICK = 1 << 0x00;
+        const SND_BELL = 1 << 0x01;
+        const SND_TONE = 1 << 0x02;
     }
 }
 
@@ -357,7 +356,7 @@ macro_rules! impl_number {
             /// event. If multiple flags are set, the one with the most significant bit wins. In debug
             /// mode,
             #[inline(always)]
-            pub fn number<T: num::FromPrimitive>(&self) -> T {
+            pub fn number<T: num_traits::FromPrimitive>(&self) -> T {
                 let val = self.bits().trailing_zeros();
                 debug_assert!(self.bits() == 1 << val, "{:?} ought to have only one flag set to be used with .number()", self);
                 T::from_u32(val).unwrap()
@@ -434,17 +433,17 @@ impl std::fmt::Debug for Device {
           .field("id", &self.id)
           .field("props", &self.props)
           .field("driver_version", &self.driver_version);
-        if self.ty.contains(SYNCHRONIZATION) {
+        if self.ty.contains(Types::SYNCHRONIZATION) {
 
         }
-        if self.ty.contains(KEY) {
+        if self.ty.contains(Types::KEY) {
             ds.field("key_bits", &self.key_bits)
               .field("key_vals", &self.state.key_vals);
         }
-        if self.ty.contains(RELATIVE) {
+        if self.ty.contains(Types::RELATIVE) {
             ds.field("rel", &self.rel);
         }
-        if self.ty.contains(ABSOLUTE) {
+        if self.ty.contains(Types::ABSOLUTE) {
             ds.field("abs", &self.abs);
             for idx in 0..0x3f {
                 let abs = 1 << idx;
@@ -455,29 +454,29 @@ impl std::fmt::Debug for Device {
                 }
             }
         }
-        if self.ty.contains(MISC) {
+        if self.ty.contains(Types::MISC) {
 
         }
-        if self.ty.contains(SWITCH) {
+        if self.ty.contains(Types::SWITCH) {
             ds.field("switch", &self.switch)
               .field("switch_vals", &self.state.switch_vals);
         }
-        if self.ty.contains(LED) {
+        if self.ty.contains(Types::LED) {
             ds.field("led", &self.led)
               .field("led_vals", &self.state.led_vals);
         }
-        if self.ty.contains(SOUND) {
+        if self.ty.contains(Types::SOUND) {
             ds.field("snd", &self.snd);
         }
-        if self.ty.contains(REPEAT) {
+        if self.ty.contains(Types::REPEAT) {
             ds.field("rep", &self.rep);
         }
-        if self.ty.contains(FORCEFEEDBACK) {
+        if self.ty.contains(Types::FORCEFEEDBACK) {
             ds.field("ff", &self.ff);
         }
-        if self.ty.contains(POWER) {
+        if self.ty.contains(Types::POWER) {
         }
-        if self.ty.contains(FORCEFEEDBACKSTATUS) {
+        if self.ty.contains(Types::FORCEFEEDBACKSTATUS) {
             ds.field("ff_stat", &self.ff_stat);
         }
         ds.finish()
@@ -526,11 +525,11 @@ impl std::fmt::Display for Device {
         try!(writeln!(f, "  Version: 0x{:x}", self.id.version));
         try!(writeln!(f, "  Properties: {:?}", self.props));
 
-        if self.ty.contains(SYNCHRONIZATION) {
+        if self.ty.contains(Types::SYNCHRONIZATION) {
 
         }
 
-        if self.ty.contains(KEY) {
+        if self.ty.contains(Types::KEY) {
             try!(writeln!(f, "  Keys supported:"));
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
@@ -542,10 +541,10 @@ impl std::fmt::Display for Device {
                 }
             }
         }
-        if self.ty.contains(RELATIVE) {
+        if self.ty.contains(Types::RELATIVE) {
             try!(writeln!(f, "  Relative Axes: {:?}", self.rel));
         }
-        if self.ty.contains(ABSOLUTE) {
+        if self.ty.contains(Types::ABSOLUTE) {
             try!(writeln!(f, "  Absolute Axes:"));
             for idx in 0..0x3f {
                 let abs = 1<< idx;
@@ -558,14 +557,14 @@ impl std::fmt::Display for Device {
                 }
             }
         }
-        if self.ty.contains(MISC) {
+        if self.ty.contains(Types::MISC) {
             try!(writeln!(f, "  Miscellaneous capabilities: {:?}", self.misc));
         }
-        if self.ty.contains(SWITCH) {
+        if self.ty.contains(Types::SWITCH) {
             try!(writeln!(f, "  Switches:"));
             for idx in 0..0xf {
                 let sw = 1 << idx;
-                if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
+                if sw < Switch::SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          Switch::from_bits(sw).unwrap(),
                          self.state.switch_vals[idx as usize],
@@ -573,11 +572,11 @@ impl std::fmt::Display for Device {
                 }
             }
         }
-        if self.ty.contains(LED) {
+        if self.ty.contains(Types::LED) {
             try!(writeln!(f, "  LEDs:"));
             for idx in 0..0xf {
                 let led = 1 << idx;
-                if led < LED_MAX.bits() && self.led.bits() & led == 1 {
+                if led < Led::LED_MAX.bits() && self.led.bits() & led == 1 {
                     try!(writeln!(f, "    {:?} ({:?}, index {})",
                          Led::from_bits(led).unwrap(),
                          self.state.led_vals[idx as usize],
@@ -585,19 +584,19 @@ impl std::fmt::Display for Device {
                 }
             }
         }
-        if self.ty.contains(SOUND) {
+        if self.ty.contains(Types::SOUND) {
             try!(writeln!(f, "  Sound: {:?}", self.snd));
         }
-        if self.ty.contains(REPEAT) {
+        if self.ty.contains(Types::REPEAT) {
             try!(writeln!(f, "  Repeats: {:?}", self.rep));
         }
-        if self.ty.contains(FORCEFEEDBACK) {
+        if self.ty.contains(Types::FORCEFEEDBACK) {
             try!(writeln!(f, "  Force Feedback supported"));
         }
-        if self.ty.contains(POWER) {
+        if self.ty.contains(Types::POWER) {
             try!(writeln!(f, "  Power supported"));
         }
-        if self.ty.contains(FORCEFEEDBACKSTATUS) {
+        if self.ty.contains(Types::FORCEFEEDBACKSTATUS) {
             try!(writeln!(f, "  Force Feedback status supported"));
         }
         Ok(())
@@ -689,7 +688,7 @@ impl Device {
         // later.
         let fd = unsafe { libc::open(cstr.as_ptr(), libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC, 0) };
         if fd == -1 {
-            return Err(Error::from_errno(::nix::Errno::last()));
+            return Err(Error::from_errno(::nix::errno::Errno::last()));
         }
 
         let mut dev = Device {
@@ -745,40 +744,40 @@ impl Device {
         do_ioctl!(eviocgprop(fd, std::slice::from_raw_parts_mut(&mut bits as *mut u32 as *mut u8, 0x1f))); // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
-        if dev.ty.contains(KEY) {
-            do_ioctl!(eviocgbit(fd, KEY.number(), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
+        if dev.ty.contains(Types::KEY) {
+            do_ioctl!(eviocgbit(fd, Types::KEY.number(), dev.key_bits.len() as libc::c_int, dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8));
         }
 
-        if dev.ty.contains(RELATIVE) {
-            do_ioctl!(eviocgbit(fd, RELATIVE.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+        if dev.ty.contains(Types::RELATIVE) {
+            do_ioctl!(eviocgbit(fd, Types::RELATIVE.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             dev.rel = RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
         }
 
-        if dev.ty.contains(ABSOLUTE) {
-            do_ioctl!(eviocgbit(fd, ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
+        if dev.ty.contains(Types::ABSOLUTE) {
+            do_ioctl!(eviocgbit(fd, Types::ABSOLUTE.number(), 0x3f, &mut bits64 as *mut u64 as *mut u8));
             dev.abs = AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo::default(); 0x3f];
         }
 
-        if dev.ty.contains(SWITCH) {
-            do_ioctl!(eviocgbit(fd, SWITCH.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+        if dev.ty.contains(Types::SWITCH) {
+            do_ioctl!(eviocgbit(fd, Types::SWITCH.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             dev.switch = Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
         }
 
-        if dev.ty.contains(LED) {
-            do_ioctl!(eviocgbit(fd, LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
+        if dev.ty.contains(Types::LED) {
+            do_ioctl!(eviocgbit(fd, Types::LED.number(), 0xf, &mut bits as *mut u32 as *mut u8));
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
-        if dev.ty.contains(MISC) {
-            do_ioctl!(eviocgbit(fd, MISC.number(), 0x7, &mut bits as *mut u32 as *mut u8));
+        if dev.ty.contains(Types::MISC) {
+            do_ioctl!(eviocgbit(fd, Types::MISC.number(), 0x7, &mut bits as *mut u32 as *mut u8));
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
         //do_ioctl!(eviocgbit(fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8));
 
-        if dev.ty.contains(SOUND) {
-            do_ioctl!(eviocgbit(fd, SOUND.number(), 0x7, &mut bits as *mut u32 as *mut u8));
+        if dev.ty.contains(Types::SOUND) {
+            do_ioctl!(eviocgbit(fd, Types::SOUND.number(), 0x7, &mut bits as *mut u32 as *mut u8));
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
@@ -791,10 +790,10 @@ impl Device {
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
-        if self.ty.contains(KEY) {
+        if self.ty.contains(Types::KEY) {
             do_ioctl!(eviocgkey(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.key_vals.as_mut_slice())));
         }
-        if self.ty.contains(ABSOLUTE) {
+        if self.ty.contains(Types::ABSOLUTE) {
             for idx in 0..0x3f {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
@@ -806,10 +805,10 @@ impl Device {
                 }
             }
         }
-        if self.ty.contains(SWITCH) {
+        if self.ty.contains(Types::SWITCH) {
             do_ioctl!(eviocgsw(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.switch_vals.as_mut_slice())));
         }
-        if self.ty.contains(LED) {
+        if self.ty.contains(Types::LED) {
             do_ioctl!(eviocgled(self.fd, transmute::<&mut [u32], &mut [u8]>(self.state.led_vals.as_mut_slice())));
         }
 
@@ -855,13 +854,13 @@ impl Device {
             tv_usec: time.tv_nsec / 1000,
         };
 
-        if self.ty.contains(KEY) {
+        if self.ty.contains(Types::KEY) {
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
                     if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
                         self.pending_events.push(raw::input_event {
                             time: time,
-                            _type: KEY.number(),
+                            _type: Types::KEY.number(),
                             code: key_idx as u16,
                             value: if self.state.key_vals[key_idx] { 1 } else { 0 },
                         });
@@ -869,14 +868,14 @@ impl Device {
                 }
             }
         }
-        if self.ty.contains(ABSOLUTE) {
+        if self.ty.contains(Types::ABSOLUTE) {
             for idx in 0..0x3f {
                 let abs = 1 << idx;
                 if self.abs.bits() & abs != 0 {
                     if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
                         self.pending_events.push(raw::input_event {
                             time: time,
-                            _type: ABSOLUTE.number(),
+                            _type: Types::ABSOLUTE.number(),
                             code: idx as u16,
                             value: self.state.abs_vals[idx as usize].value,
                         });
@@ -884,14 +883,14 @@ impl Device {
                 }
             }
         }
-        if self.ty.contains(SWITCH) {
+        if self.ty.contains(Types::SWITCH) {
             for idx in 0..0xf {
                 let sw = 1 << idx;
-                if sw < SW_MAX.bits() && self.switch.bits() & sw == 1 {
+                if sw < Switch::SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
                         self.pending_events.push(raw::input_event {
                             time: time,
-                            _type: SWITCH.number(),
+                            _type: Types::SWITCH.number(),
                             code: idx as u16,
                             value: if self.state.switch_vals[idx as usize] { 1 } else { 0 },
                         });
@@ -899,14 +898,14 @@ impl Device {
                 }
             }
         }
-        if self.ty.contains(LED) {
+        if self.ty.contains(Types::LED) {
             for idx in 0..0xf {
                 let led = 1 << idx;
-                if led < LED_MAX.bits() && self.led.bits() & led == 1 {
+                if led < Led::LED_MAX.bits() && self.led.bits() & led == 1 {
                     if old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize] {
                         self.pending_events.push(raw::input_event {
                             time: time,
-                            _type: LED.number(),
+                            _type: Types::LED.number(),
                             code: idx as u16,
                             value: if self.state.led_vals[idx as usize] { 1 } else { 0 },
                         });
@@ -917,7 +916,7 @@ impl Device {
 
         self.pending_events.push(raw::input_event {
             time: time,
-            _type: SYNCHRONIZATION.number(),
+            _type: Types::SYNCHRONIZATION.number(),
             code: SYN_REPORT as u16,
             value: 0,
         });
@@ -936,8 +935,8 @@ impl Device {
                            (size_of::<raw::input_event>() * (buf.capacity() - pre_len)) as libc::size_t)
             };
             if sz == -1 {
-                let errno = ::nix::Errno::last();
-                if errno != ::nix::Errno::EAGAIN {
+                let errno = ::nix::errno::Errno::last();
+                if errno != ::nix::errno::Errno::EAGAIN {
                     return Err(Error::from_errno(errno));
                 } else {
                     break;
@@ -1012,5 +1011,3 @@ pub fn enumerate() -> Vec<Device> {
     }
     res
 }
-
-#[cfg(test)] mod test { include!("tests.rs"); }
