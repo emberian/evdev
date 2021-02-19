@@ -1,3 +1,8 @@
+use nix::{
+    convert_ioctl_res, ioctl_read, ioctl_read_buf, ioctl_write_int, ioctl_write_ptr,
+    request_code_read,
+};
+
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
 ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);

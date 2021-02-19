@@ -523,5 +523,6 @@ pub enum Key {
     BTN_TRIGGER_HAPPY38 =	0x2e5,
     BTN_TRIGGER_HAPPY39 =	0x2e6,
     BTN_TRIGGER_HAPPY40 =	0x2e7,
-    KEY_MAX = 0x2ff,
 }
+
+pub const KEY_MAX: u32 = 0x2ff;

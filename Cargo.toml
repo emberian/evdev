@@ -6,6 +6,7 @@ description = "evdev interface for Linux"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/cmr/evdev"
 documentation = "https://docs.rs/evdev"
+edition = "2018"
 
 [dependencies]
 bitflags = "1.2"
