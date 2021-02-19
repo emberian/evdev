@@ -61,9 +61,15 @@ unsafe fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
     fd: RawFd,
 ) -> Option<CString> {
-    let mut buf = [0u8; 256];
-    match f(fd, &mut buf[..]) {
-        Ok(len) if len >= 0 => Some(CStr::from_bytes_with_nul(&buf[..]).ok()?.to_owned()),
+    let mut buf = Vec::with_capacity(256);
+    let capacity = buf.capacity();
+    match f(fd, buf.get_unchecked_mut(..capacity)) {
+        Ok(len) if len >= 0 => {
+            // Our ioctl string functions apparently return the number of bytes written, including
+            // trailing \0.
+            buf.set_len(len as usize);
+            Some(CStr::from_bytes_with_nul(&buf[..]).unwrap().to_owned())
+        },
         _ => None,
     }
 }
@@ -695,13 +701,14 @@ impl Device {
 
     pub fn open(path: &dyn AsRef<Path>) -> Result<Device, Error> {
         let mut options = OpenOptions::new();
-        // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
-        // later.
+
+        // Try to load read/write, then fall back to read-only.
         let file = options
             .read(true)
             .write(true)
             .custom_flags(libc::O_NONBLOCK)
-            .open(path)?;
+            .open(path)
+            .or_else(|_| options.write(false).open(path))?;
 
         let mut dev = Device {
             file,
