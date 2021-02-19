@@ -1,6 +1,6 @@
 [package]
 name = "evdev"
-version = "0.11.0-alpha.1"
+version = "0.11.0-alpha.2"
 authors = ["Corey Richardson <corey@octayn.net>"]
 description = "evdev interface for Linux"
 license = "Apache-2.0 OR MIT"
