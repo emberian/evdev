@@ -1,8 +1,10 @@
+use num_derive::FromPrimitive;
+
 /// Scancodes for key presses.
 ///
 /// Each represents a distinct key.
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[repr(u32)]
+#[derive(Copy, Clone, Debug, FromPrimitive)]
 pub enum Key {
     KEY_RESERVED = 0,
     KEY_ESC = 1,

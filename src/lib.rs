@@ -44,6 +44,7 @@ use std::ffi::{CStr, CString};
 use std::mem::{size_of, transmute};
 use std::os::unix::{ffi::*, io::RawFd};
 use std::path::Path;
+use num_traits::FromPrimitive;
 
 pub use crate::scancodes::*;
 pub use crate::FFEffect::*;
@@ -540,17 +541,10 @@ impl std::fmt::Display for Device {
             writeln!(f, "  Keys supported:")?;
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
-                    writeln!(
-                        f,
-                        "    {:?} ({}index {})",
-                        unsafe { std::mem::transmute::<_, Key>(key_idx as libc::c_int) },
-                        if self.state.key_vals.contains(key_idx) {
-                            "pressed, "
-                        } else {
-                            ""
-                        },
-                        key_idx
-                    )?;
+                    writeln!(f, "    {:?} ({}index {})",
+                        Key::from_u32(key_idx as u32).expect("Unsupported key"),
+                        if self.state.key_vals.contains(key_idx) { "pressed, " } else { "" },
+                        key_idx)?;
                 }
             }
         }
@@ -722,7 +716,7 @@ impl Device {
         }
 
         let mut dev = Device {
-            fd: fd,
+            fd,
             ty: Types::empty(),
             name: unsafe { CString::from_vec_unchecked(Vec::new()) },
             phys: None,
@@ -949,7 +943,7 @@ impl Device {
                 if self.key_bits.contains(key_idx) {
                     if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
                         self.pending_events.push(raw::input_event {
-                            time: time,
+                            time,
                             _type: Types::KEY.number(),
                             code: key_idx as u16,
                             value: if self.state.key_vals[key_idx] { 1 } else { 0 },
@@ -964,7 +958,7 @@ impl Device {
                 if self.abs.bits() & abs != 0 {
                     if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
                         self.pending_events.push(raw::input_event {
-                            time: time,
+                            time,
                             _type: Types::ABSOLUTE.number(),
                             code: idx as u16,
                             value: self.state.abs_vals[idx as usize].value,
@@ -979,7 +973,7 @@ impl Device {
                 if sw < Switch::SW_MAX.bits() && self.switch.bits() & sw == 1 {
                     if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
                         self.pending_events.push(raw::input_event {
-                            time: time,
+                            time,
                             _type: Types::SWITCH.number(),
                             code: idx as u16,
                             value: if self.state.switch_vals[idx as usize] {
