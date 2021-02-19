@@ -46,17 +46,13 @@ use std::ffi::{CStr, CString};
 use std::mem::size_of;
 use std::os::unix::{ffi::*, io::RawFd};
 use std::path::Path;
+use std::time::SystemTime;
 
 pub use crate::scancodes::*;
 pub use crate::FFEffect::*;
 pub use crate::Synchronization::*;
 
 use crate::raw::*;
-
-#[link(name = "rt")]
-extern "C" {
-    fn clock_gettime(clkid: libc::c_int, res: *mut libc::timespec);
-}
 
 macro_rules! do_ioctl {
     ($name:ident($($arg:expr),+)) => {{
@@ -420,7 +416,6 @@ pub struct Device {
     rep: Repeat,
     snd: Sound,
     pending_events: Vec<input_event>,
-    clock: libc::c_int,
     // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
     state: DeviceState,
@@ -726,10 +721,10 @@ impl Device {
         let mut dev = Device {
             fd,
             ty: Types::empty(),
-            name: unsafe { CString::from_vec_unchecked(Vec::new()) },
+            name: CString::default(),
             phys: None,
             uniq: None,
-            id: unsafe { std::mem::zeroed() },
+            id: input_id_default(),
             props: Props::empty(),
             driver_version: (0, 0, 0),
             key_bits: FixedBitSet::with_capacity(Key::MAX),
@@ -754,7 +749,6 @@ impl Device {
                 switch_vals: FixedBitSet::with_capacity(0x10),
                 led_vals: FixedBitSet::with_capacity(0x10),
             },
-            clock: libc::CLOCK_REALTIME,
         };
 
         let mut bits: u32 = 0;
@@ -944,14 +938,8 @@ impl Device {
         // device state.
         let old_state = self.state.clone();
         self.sync_state()?;
-        let mut time = unsafe { std::mem::zeroed() };
-        unsafe {
-            clock_gettime(self.clock, &mut time);
-        }
-        let time = libc::timeval {
-            tv_sec: time.tv_sec,
-            tv_usec: time.tv_nsec / 1000,
-        };
+
+        let time = into_timeval(&SystemTime::now()).unwrap();
 
         if self.ty.contains(Types::KEY) {
             for key_idx in 0..self.key_bits.len() {
@@ -1120,4 +1108,15 @@ pub fn enumerate() -> Vec<Device> {
         }
     }
     res
+}
+
+/// A safe Rust version of clock_gettime against CLOCK_REALTIME
+fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTimeError> {
+    let now_duration = time
+        .duration_since(SystemTime::UNIX_EPOCH)?;
+
+    Ok(libc::timeval {
+        tv_sec: now_duration.as_secs() as libc::time_t,
+        tv_usec: now_duration.subsec_micros() as libc::suseconds_t,
+    })
 }
