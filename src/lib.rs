@@ -69,7 +69,7 @@ unsafe fn ioctl_get_cstring(
             // trailing \0.
             buf.set_len(len as usize);
             Some(CStr::from_bytes_with_nul(&buf[..]).unwrap().to_owned())
-        },
+        }
         _ => None,
     }
 }
@@ -322,7 +322,8 @@ pub enum FFEffect {
 }
 
 impl FFEffect {
-    pub const MAX: usize = 0x7f;
+    // Needs to be a multiple of 8
+    pub const MAX: usize = 0x80;
 }
 
 bitflags! {
@@ -725,7 +726,7 @@ impl Device {
             switch: Switch::empty(),
             led: Led::empty(),
             misc: Misc::empty(),
-            ff: FixedBitSet::with_capacity(FFEffect::MAX + 1),
+            ff: FixedBitSet::with_capacity(FFEffect::MAX),
             ff_stat: FFStatus::empty(),
             rep: Repeat::empty(),
             snd: Sound::empty(),
@@ -742,6 +743,12 @@ impl Device {
                 led_vals: FixedBitSet::with_capacity(0x10),
             },
         };
+
+        // Sanity-check the FixedBitSet sizes. If they are not multiples of 8, odd things will happen.
+        debug_assert!(dev.key_bits.len() % 8 == 0);
+        debug_assert!(dev.ff.len() % 8 == 0);
+        debug_assert!(dev.state.key_vals.len() % 8 == 0);
+        debug_assert!(dev.state.led_vals.len() % 8 == 0);
 
         let mut bits: u32 = 0;
         let mut bits64: u64 = 0;
@@ -776,8 +783,9 @@ impl Device {
 
         if dev.ty.contains(Types::KEY) {
             unsafe {
-                let (_, key_bits_as_u8_slice, _) =
-                    std::slice::from_mut(&mut dev.key_bits).align_to_mut();
+                let key_slice = &mut dev.key_bits.as_mut_slice();
+                let (_, key_bits_as_u8_slice, _) = key_slice.align_to_mut();
+                debug_assert!(key_bits_as_u8_slice.len() == Key::MAX / 8);
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::KEY.number(),
@@ -867,8 +875,8 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(Types::KEY) {
             unsafe {
-                let (_, key_vals_as_u8_slice, _) =
-                    std::slice::from_mut(&mut self.state.key_vals).align_to_mut();
+                let key_slice = &mut self.key_bits.as_mut_slice();
+                let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
                 eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?
             };
         }
@@ -892,15 +900,15 @@ impl Device {
         }
         if self.ty.contains(Types::SWITCH) {
             unsafe {
-                let (_, switch_vals_as_u8_slice, _) =
-                    std::slice::from_mut(&mut self.state.switch_vals).align_to_mut();
+                let switch_slice = &mut self.state.switch_vals.as_mut_slice();
+                let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
                 eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?
             };
         }
         if self.ty.contains(Types::LED) {
             unsafe {
-                let (_, led_vals_as_u8_slice, _) =
-                    std::slice::from_mut(&mut self.state.led_vals).align_to_mut();
+                let led_slice = &mut self.state.led_vals.as_mut_slice();
+                let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
                 eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?
             };
         }
@@ -1128,13 +1136,14 @@ mod test {
     fn align_to_mut_is_sane() {
         // We assume align_to_mut -> u8 puts everything in inner. Let's double check.
         let mut bits: u32 = 0;
-        let (prefix, inner, suffix) = unsafe {std::slice::from_mut(&mut bits).align_to_mut::<u8>()};
+        let (prefix, inner, suffix) =
+            unsafe { std::slice::from_mut(&mut bits).align_to_mut::<u8>() };
         assert_eq!(prefix.len(), 0);
         assert_eq!(inner.len(), std::mem::size_of::<u32>());
         assert_eq!(suffix.len(), 0);
 
         let mut ev: MaybeUninit<libc::input_event> = MaybeUninit::uninit();
-        let (prefix, inner, suffix) = unsafe {std::slice::from_mut(&mut ev).align_to_mut::<u8>()};
+        let (prefix, inner, suffix) = unsafe { std::slice::from_mut(&mut ev).align_to_mut::<u8>() };
         assert_eq!(prefix.len(), 0);
         assert_eq!(inner.len(), std::mem::size_of::<libc::input_event>());
         assert_eq!(suffix.len(), 0);

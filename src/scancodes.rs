@@ -528,5 +528,6 @@ pub enum Key {
 }
 
 impl Key {
-    pub const MAX: usize = 0x2ff;
+    // This needs to be a multiple of 8, otherwise we fetch keys we can't process
+    pub const MAX: usize = 0x300;
 }
