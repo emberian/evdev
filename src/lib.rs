@@ -40,11 +40,12 @@ mod scancodes;
 use bitflags::bitflags;
 use fixedbitset::FixedBitSet;
 use nix::Error;
+use num_traits::FromPrimitive;
+use std::convert::TryInto;
 use std::ffi::{CStr, CString};
-use std::mem::{size_of, transmute};
+use std::mem::size_of;
 use std::os::unix::{ffi::*, io::RawFd};
 use std::path::Path;
-use num_traits::FromPrimitive;
 
 pub use crate::scancodes::*;
 pub use crate::FFEffect::*;
@@ -373,7 +374,7 @@ impl_number!(
     Sound
 );
 
-#[repr(C)]
+#[repr(u16)]
 #[derive(Copy, Clone, Debug)]
 pub enum Synchronization {
     /// Terminates a packet of events from the device.
@@ -541,10 +542,17 @@ impl std::fmt::Display for Device {
             writeln!(f, "  Keys supported:")?;
             for key_idx in 0..self.key_bits.len() {
                 if self.key_bits.contains(key_idx) {
-                    writeln!(f, "    {:?} ({}index {})",
+                    writeln!(
+                        f,
+                        "    {:?} ({}index {})",
                         Key::from_u32(key_idx as u32).expect("Unsupported key"),
-                        if self.state.key_vals.contains(key_idx) { "pressed, " } else { "" },
-                        key_idx)?;
+                        if self.state.key_vals.contains(key_idx) {
+                            "pressed, "
+                        } else {
+                            ""
+                        },
+                        key_idx
+                    )?;
                 }
             }
         }
@@ -753,10 +761,15 @@ impl Device {
         let mut bits64: u64 = 0;
         let mut buf = [0u8; 256];
 
-        do_ioctl!(eviocgbit(fd, 0, 4, &mut bits as *mut u32 as *mut u8));
+        do_ioctl!(eviocgbit(
+            fd,
+            0,
+            size_of::<u32>() as i32,
+            &mut bits as *mut u32 as *mut u8
+        ));
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name = do_ioctl_buf!(buf, eviocgname, fd).unwrap_or(CString::default());
+        dev.name = do_ioctl_buf!(buf, eviocgname, fd).unwrap_or_else(CString::default);
         dev.phys = do_ioctl_buf!(buf, eviocgphys, fd);
         dev.uniq = do_ioctl_buf!(buf, eviocguniq, fd);
 
@@ -779,7 +792,9 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::KEY.number(),
-                dev.key_bits.len() as libc::c_int,
+                std::mem::size_of_val(dev.key_bits.as_mut_slice())
+                    .try_into()
+                    .unwrap(),
                 dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8
             ));
         }
@@ -788,7 +803,7 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::RELATIVE.number(),
-                0xf,
+                size_of::<u32>() as i32,
                 &mut bits as *mut u32 as *mut u8
             ));
             dev.rel =
@@ -799,19 +814,19 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::ABSOLUTE.number(),
-                0x3f,
+                size_of::<u64>() as i32,
                 &mut bits64 as *mut u64 as *mut u8
             ));
             dev.abs =
                 AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
-            dev.state.abs_vals = vec![input_absinfo::default(); 0x3f];
+            dev.state.abs_vals = vec![input_absinfo_default(); 0x3f];
         }
 
         if dev.ty.contains(Types::SWITCH) {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::SWITCH.number(),
-                0xf,
+                size_of::<u32>() as i32,
                 &mut bits as *mut u32 as *mut u8
             ));
             dev.switch =
@@ -822,7 +837,7 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::LED.number(),
-                0xf,
+                size_of::<u32>() as i32,
                 &mut bits as *mut u32 as *mut u8
             ));
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
@@ -832,7 +847,7 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::MISC.number(),
-                0x7,
+                size_of::<u32>() as i32,
                 &mut bits as *mut u32 as *mut u8
             ));
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
@@ -844,7 +859,7 @@ impl Device {
             do_ioctl!(eviocgbit(
                 fd,
                 Types::SOUND.number(),
-                0x7,
+                size_of::<u32>() as i32,
                 &mut bits as *mut u32 as *mut u8
             ));
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
@@ -862,7 +877,7 @@ impl Device {
         if self.ty.contains(Types::KEY) {
             do_ioctl!(eviocgkey(
                 self.fd,
-                transmute::<&mut [u32], &mut [u8]>(self.state.key_vals.as_mut_slice())
+                &mut *(self.state.key_vals.as_mut_slice() as *mut [u32] as *mut [u8])
             ));
         }
         if self.ty.contains(Types::ABSOLUTE) {
@@ -884,13 +899,13 @@ impl Device {
         if self.ty.contains(Types::SWITCH) {
             do_ioctl!(eviocgsw(
                 self.fd,
-                transmute::<&mut [u32], &mut [u8]>(self.state.switch_vals.as_mut_slice())
+                &mut *(self.state.switch_vals.as_mut_slice() as *mut [u32] as *mut [u8])
             ));
         }
         if self.ty.contains(Types::LED) {
             do_ioctl!(eviocgled(
                 self.fd,
-                transmute::<&mut [u32], &mut [u8]>(self.state.led_vals.as_mut_slice())
+                &mut *(self.state.led_vals.as_mut_slice() as *mut [u32] as *mut [u8])
             ));
         }
 
@@ -903,7 +918,7 @@ impl Device {
     fn compensate_dropped(&mut self) -> Result<(), Error> {
         let mut drop_from = None;
         for (idx, event) in self.pending_events[self.last_seen..].iter().enumerate() {
-            if event._type == SYN_DROPPED as u16 {
+            if event.type_ == SYN_DROPPED as u16 {
                 drop_from = Some(idx);
                 break;
             }
@@ -914,7 +929,7 @@ impl Device {
             // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
             let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
             for (idx, event) in self.pending_events[..idx].iter().enumerate().rev() {
-                if event._type == SYN_REPORT as u16 {
+                if event.type_ == SYN_REPORT as u16 {
                     prev_report = idx;
                     break;
                 }
@@ -940,75 +955,77 @@ impl Device {
 
         if self.ty.contains(Types::KEY) {
             for key_idx in 0..self.key_bits.len() {
-                if self.key_bits.contains(key_idx) {
-                    if old_state.key_vals[key_idx] != self.state.key_vals[key_idx] {
-                        self.pending_events.push(raw::input_event {
-                            time,
-                            _type: Types::KEY.number(),
-                            code: key_idx as u16,
-                            value: if self.state.key_vals[key_idx] { 1 } else { 0 },
-                        });
-                    }
+                if self.key_bits.contains(key_idx)
+                    && old_state.key_vals[key_idx] != self.state.key_vals[key_idx]
+                {
+                    self.pending_events.push(raw::input_event {
+                        time,
+                        type_: Types::KEY.number(),
+                        code: key_idx as u16,
+                        value: if self.state.key_vals[key_idx] { 1 } else { 0 },
+                    });
                 }
             }
         }
         if self.ty.contains(Types::ABSOLUTE) {
             for idx in 0..0x3f {
                 let abs = 1 << idx;
-                if self.abs.bits() & abs != 0 {
-                    if old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize] {
-                        self.pending_events.push(raw::input_event {
-                            time,
-                            _type: Types::ABSOLUTE.number(),
-                            code: idx as u16,
-                            value: self.state.abs_vals[idx as usize].value,
-                        });
-                    }
+                if self.abs.bits() & abs != 0
+                    && old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize]
+                {
+                    self.pending_events.push(raw::input_event {
+                        time,
+                        type_: Types::ABSOLUTE.number(),
+                        code: idx as u16,
+                        value: self.state.abs_vals[idx as usize].value,
+                    });
                 }
             }
         }
         if self.ty.contains(Types::SWITCH) {
             for idx in 0..0xf {
                 let sw = 1 << idx;
-                if sw < Switch::SW_MAX.bits() && self.switch.bits() & sw == 1 {
-                    if old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize] {
-                        self.pending_events.push(raw::input_event {
-                            time,
-                            _type: Types::SWITCH.number(),
-                            code: idx as u16,
-                            value: if self.state.switch_vals[idx as usize] {
-                                1
-                            } else {
-                                0
-                            },
-                        });
-                    }
+                if sw < Switch::SW_MAX.bits()
+                    && self.switch.bits() & sw == 1
+                    && old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize]
+                {
+                    self.pending_events.push(raw::input_event {
+                        time,
+                        type_: Types::SWITCH.number(),
+                        code: idx as u16,
+                        value: if self.state.switch_vals[idx as usize] {
+                            1
+                        } else {
+                            0
+                        },
+                    });
                 }
             }
         }
         if self.ty.contains(Types::LED) {
             for idx in 0..0xf {
                 let led = 1 << idx;
-                if led < Led::LED_MAX.bits() && self.led.bits() & led == 1 {
-                    if old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize] {
-                        self.pending_events.push(raw::input_event {
-                            time: time,
-                            _type: Types::LED.number(),
-                            code: idx as u16,
-                            value: if self.state.led_vals[idx as usize] {
-                                1
-                            } else {
-                                0
-                            },
-                        });
-                    }
+                if led < Led::LED_MAX.bits()
+                    && self.led.bits() & led == 1
+                    && old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize]
+                {
+                    self.pending_events.push(raw::input_event {
+                        time,
+                        type_: Types::LED.number(),
+                        code: idx as u16,
+                        value: if self.state.led_vals[idx as usize] {
+                            1
+                        } else {
+                            0
+                        },
+                    });
                 }
             }
         }
 
         self.pending_events.push(raw::input_event {
-            time: time,
-            _type: Types::SYNCHRONIZATION.number(),
+            time,
+            type_: Types::SYNCHRONIZATION.number(),
             code: SYN_REPORT as u16,
             value: 0,
         });
@@ -1023,7 +1040,7 @@ impl Device {
             let sz = unsafe {
                 libc::read(
                     self.fd,
-                    buf.as_mut_ptr().offset(pre_len as isize) as *mut libc::c_void,
+                    buf.as_mut_ptr().add(pre_len) as *mut libc::c_void,
                     (size_of::<raw::input_event>() * (buf.capacity() - pre_len)) as libc::size_t,
                 )
             };
