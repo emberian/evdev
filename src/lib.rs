@@ -57,12 +57,12 @@ pub use crate::Synchronization::*;
 
 use crate::raw::*;
 
-fn ioctl_get_cstring(
+unsafe fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
     fd: RawFd,
 ) -> Option<CString> {
     let mut buf = [0u8; 256];
-    match unsafe { f(fd, &mut buf[..]) } {
+    match f(fd, &mut buf[..]) {
         Ok(len) if len >= 0 => Some(CStr::from_bytes_with_nul(&buf[..]).ok()?.to_owned()),
         _ => None,
     }
@@ -745,10 +745,12 @@ impl Device {
         }
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name =
-            ioctl_get_cstring(eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
-        dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
-        dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
+        unsafe {
+            dev.name = ioctl_get_cstring(eviocgname, dev.file.as_raw_fd())
+                .unwrap_or_else(CString::default);
+            dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
+            dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
+        }
 
         unsafe { eviocgid(dev.file.as_raw_fd(), &mut dev.id)? };
         let mut driver_version: i32 = 0;
