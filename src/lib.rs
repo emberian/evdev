@@ -40,11 +40,14 @@ mod scancodes;
 use bitflags::bitflags;
 use fixedbitset::FixedBitSet;
 use num_traits::FromPrimitive;
-use std::{convert::TryInto, fs::OpenOptions};
 use std::ffi::{CStr, CString};
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::mem::size_of;
-use std::os::unix::{fs::OpenOptionsExt, io::{AsRawFd, RawFd}};
+use std::os::unix::{
+    fs::OpenOptionsExt,
+    io::{AsRawFd, RawFd},
+};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -698,7 +701,11 @@ impl Device {
         let mut options = OpenOptions::new();
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let file = options.read(true).write(true).custom_flags(libc::O_NONBLOCK).open(path)?;
+        let file = options
+            .read(true)
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)?;
 
         let mut dev = Device {
             file,
@@ -738,16 +745,13 @@ impl Device {
         let mut buf = [0u8; 256];
 
         unsafe {
-            eviocgbit(
-                dev.file.as_raw_fd(),
-                0,
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8,
-            )?;
+            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
+            eviocgbit(dev.file.as_raw_fd(), 0, bits_as_u8_slice)?;
         }
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name = do_ioctl_buf!(buf, eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
+        dev.name =
+            do_ioctl_buf!(buf, eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
         dev.phys = do_ioctl_buf!(buf, eviocgphys, dev.file.as_raw_fd());
         dev.uniq = do_ioctl_buf!(buf, eviocguniq, dev.file.as_raw_fd());
 
@@ -761,33 +765,30 @@ impl Device {
         );
 
         unsafe {
-            eviocgprop(
-                dev.file.as_raw_fd(),
-                std::slice::from_raw_parts_mut(&mut bits as *mut u32 as *mut u8, 0x1f),
-            )?
+            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
+            eviocgprop(dev.file.as_raw_fd(), bits_as_u8_slice)?
         }; // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(Types::KEY) {
             unsafe {
+                let (_, key_bits_as_u8_slice, _) =
+                    std::slice::from_mut(&mut dev.key_bits).align_to_mut();
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::KEY.number(),
-                    std::mem::size_of_val(dev.key_bits.as_mut_slice())
-                        .try_into()
-                        .unwrap(),
-                    dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8,
+                    key_bits_as_u8_slice,
                 )?
             };
         }
 
         if dev.ty.contains(Types::RELATIVE) {
             unsafe {
+                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::RELATIVE.number(),
-                    size_of::<u32>() as i32,
-                    &mut bits as *mut u32 as *mut u8,
+                    bits_as_u8_slice,
                 )?
             };
             dev.rel =
@@ -796,11 +797,11 @@ impl Device {
 
         if dev.ty.contains(Types::ABSOLUTE) {
             unsafe {
+                let (_, bits64_as_u8_slice, _) = std::slice::from_mut(&mut bits64).align_to_mut();
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::ABSOLUTE.number(),
-                    size_of::<u64>() as i32,
-                    &mut bits64 as *mut u64 as *mut u8,
+                    bits64_as_u8_slice,
                 )?
             };
             dev.abs =
@@ -810,11 +811,11 @@ impl Device {
 
         if dev.ty.contains(Types::SWITCH) {
             unsafe {
+                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::SWITCH.number(),
-                    size_of::<u32>() as i32,
-                    &mut bits as *mut u32 as *mut u8,
+                    bits_as_u8_slice,
                 )?
             };
             dev.switch =
@@ -823,37 +824,29 @@ impl Device {
 
         if dev.ty.contains(Types::LED) {
             unsafe {
-                eviocgbit(
-                    dev.file.as_raw_fd(),
-                    Types::LED.number(),
-                    size_of::<u32>() as i32,
-                    &mut bits as *mut u32 as *mut u8,
-                )?
+                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
+                eviocgbit(dev.file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?
             };
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(Types::MISC) {
             unsafe {
-                eviocgbit(
-                    dev.file.as_raw_fd(),
-                    Types::MISC.number(),
-                    size_of::<u32>() as i32,
-                    &mut bits as *mut u32 as *mut u8,
-                )?
+                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
+                eviocgbit(dev.file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?
             };
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
-        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8)? };
+        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)? };
 
         if dev.ty.contains(Types::SOUND) {
             unsafe {
+                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::SOUND.number(),
-                    size_of::<u32>() as i32,
-                    &mut bits as *mut u32 as *mut u8,
+                    bits_as_u8_slice,
                 )?
             };
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
@@ -870,10 +863,9 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(Types::KEY) {
             unsafe {
-                eviocgkey(
-                    self.file.as_raw_fd(),
-                    &mut *(self.state.key_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
-                )?
+                let (_, key_vals_as_u8_slice, _) =
+                    std::slice::from_mut(&mut self.state.key_vals).align_to_mut();
+                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?
             };
         }
         if self.ty.contains(Types::ABSOLUTE) {
@@ -885,25 +877,27 @@ impl Device {
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 if self.abs.bits() & abs != 0 {
                     unsafe {
-                        eviocgabs(self.file.as_raw_fd(), idx as u32, &mut self.state.abs_vals[idx as usize])?
+                        eviocgabs(
+                            self.file.as_raw_fd(),
+                            idx as u32,
+                            &mut self.state.abs_vals[idx as usize],
+                        )?
                     };
                 }
             }
         }
         if self.ty.contains(Types::SWITCH) {
             unsafe {
-                eviocgsw(
-                    self.file.as_raw_fd(),
-                    &mut *(self.state.switch_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
-                )?
+                let (_, switch_vals_as_u8_slice, _) =
+                    std::slice::from_mut(&mut self.state.switch_vals).align_to_mut();
+                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?
             };
         }
         if self.ty.contains(Types::LED) {
             unsafe {
-                eviocgled(
-                    self.file.as_raw_fd(),
-                    &mut *(self.state.led_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
-                )?
+                let (_, led_vals_as_u8_slice, _) =
+                    std::slice::from_mut(&mut self.state.led_vals).align_to_mut();
+                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?
             };
         }
 
@@ -1028,24 +1022,22 @@ impl Device {
         let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
+            // TODO: use spare_capacity_mut or split_at_spare_mut when they stabilize
             let pre_len = buf.len();
-            let sz = unsafe {
-                libc::read(
-                    self.file.as_raw_fd(),
-                    buf.as_mut_ptr().add(pre_len) as *mut libc::c_void,
-                    (size_of::<raw::input_event>() * (buf.capacity() - pre_len)) as libc::size_t,
-                )
-            };
-            if sz == -1 {
-                let errno = ::nix::errno::Errno::last();
-                if errno != ::nix::errno::Errno::EAGAIN {
-                    return Err(nix::Error::from_errno(errno).into());
-                } else {
-                    break;
-                }
-            } else {
-                unsafe {
-                    buf.set_len(pre_len + (sz as usize / size_of::<raw::input_event>()));
+            let capacity = buf.capacity();
+            let (_, unsafe_buf_slice, _) =
+                unsafe { buf.get_unchecked_mut(pre_len..capacity).align_to_mut() };
+
+            match nix::unistd::read(self.file.as_raw_fd(), unsafe_buf_slice) {
+                Ok(bytes_read) => unsafe {
+                    buf.set_len(pre_len + (bytes_read / size_of::<raw::input_event>()));
+                },
+                Err(e) => {
+                    if e == nix::Error::Sys(::nix::errno::Errno::EAGAIN) {
+                        break;
+                    } else {
+                        return Err(e.into());
+                    };
                 }
             }
         }

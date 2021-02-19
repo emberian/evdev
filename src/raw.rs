@@ -59,24 +59,23 @@ ioctl_write_int!(eviocsclockid, b'E', 0xa0);
 pub unsafe fn eviocgbit(
     fd: ::libc::c_int,
     ev: u32,
-    len: ::libc::c_int,
-    buf: *mut u8,
+    buf: &mut [u8],
 ) -> ::nix::Result<c_int> {
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
-        request_code_read!(b'E', 0x20 + ev, len),
-        buf
+        request_code_read!(b'E', 0x20 + ev, buf.len()),
+        buf.as_mut_ptr()
     ))
 }
 
 pub unsafe fn eviocgabs(
     fd: ::libc::c_int,
     abs: u32,
-    buf: *mut input_absinfo,
+    buf: &mut input_absinfo,
 ) -> ::nix::Result<c_int> {
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()),
-        buf
+        buf as *mut input_absinfo
     ))
 }
