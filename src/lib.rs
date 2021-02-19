@@ -1112,3 +1112,24 @@ fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTim
         tv_usec: now_duration.subsec_micros() as libc::suseconds_t,
     })
 }
+
+#[cfg(test)]
+mod test {
+    use std::mem::MaybeUninit;
+
+    #[test]
+    fn align_to_mut_is_sane() {
+        // We assume align_to_mut -> u8 puts everything in inner. Let's double check.
+        let mut bits: u32 = 0;
+        let (prefix, inner, suffix) = unsafe {std::slice::from_mut(&mut bits).align_to_mut::<u8>()};
+        assert_eq!(prefix.len(), 0);
+        assert_eq!(inner.len(), std::mem::size_of::<u32>());
+        assert_eq!(suffix.len(), 0);
+
+        let mut ev: MaybeUninit<libc::input_event> = MaybeUninit::uninit();
+        let (prefix, inner, suffix) = unsafe {std::slice::from_mut(&mut ev).align_to_mut::<u8>()};
+        assert_eq!(prefix.len(), 0);
+        assert_eq!(inner.len(), std::mem::size_of::<libc::input_event>());
+        assert_eq!(suffix.len(), 0);
+    }
+}
