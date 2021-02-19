@@ -39,12 +39,12 @@ mod scancodes;
 
 use bitflags::bitflags;
 use fixedbitset::FixedBitSet;
-use nix::Error;
 use num_traits::FromPrimitive;
-use std::convert::TryInto;
+use std::{convert::TryInto, fs::OpenOptions};
 use std::ffi::{CStr, CString};
+use std::fs::File;
 use std::mem::size_of;
-use std::os::unix::{ffi::*, io::RawFd};
+use std::os::unix::{fs::OpenOptionsExt, io::{AsRawFd, RawFd}};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -53,12 +53,6 @@ pub use crate::FFEffect::*;
 pub use crate::Synchronization::*;
 
 use crate::raw::*;
-
-macro_rules! do_ioctl {
-    ($name:ident($($arg:expr),+)) => {{
-        unsafe { crate::raw::$name($($arg,)+) }?
-    }}
-}
 
 macro_rules! do_ioctl_buf {
     ($buf:ident, $name:ident, $fd:expr) => {
@@ -396,8 +390,17 @@ pub struct DeviceState {
     pub led_vals: FixedBitSet,
 }
 
+/// Publicly visible errors which can be returned from evdev
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("libc/system error: {0}")]
+    NixError(#[from] nix::Error),
+    #[error("standard i/o error: {0}")]
+    StdIoError(#[from] std::io::Error),
+}
+
 pub struct Device {
-    fd: RawFd,
+    file: File,
     ty: Types,
     name: CString,
     phys: Option<CString>,
@@ -425,7 +428,7 @@ impl std::fmt::Debug for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut ds = f.debug_struct("Device");
         ds.field("name", &self.name)
-            .field("fd", &self.fd)
+            .field("fd", &self.file)
             .field("ty", &self.ty);
         if let Some(ref phys) = self.phys {
             ds.field("phys", phys);
@@ -622,18 +625,9 @@ impl std::fmt::Display for Device {
     }
 }
 
-impl Drop for Device {
-    fn drop(&mut self) {
-        // Linux close(2) can fail, but there is nothing to do if it does.
-        unsafe {
-            libc::close(self.fd);
-        }
-    }
-}
-
 impl Device {
     pub fn fd(&self) -> RawFd {
-        self.fd
+        self.file.as_raw_fd()
     }
 
     pub fn events_supported(&self) -> Types {
@@ -701,25 +695,13 @@ impl Device {
     }
 
     pub fn open(path: &dyn AsRef<Path>) -> Result<Device, Error> {
-        let cstr = match CString::new(path.as_ref().as_os_str().as_bytes()) {
-            Ok(s) => s,
-            Err(_) => return Err(Error::InvalidPath),
-        };
+        let mut options = OpenOptions::new();
         // FIXME: only need for writing is for setting LED values. re-evaluate always using RDWR
         // later.
-        let fd = unsafe {
-            libc::open(
-                cstr.as_ptr(),
-                libc::O_NONBLOCK | libc::O_RDWR | libc::O_CLOEXEC,
-                0,
-            )
-        };
-        if fd == -1 {
-            return Err(Error::from_errno(::nix::errno::Errno::last()));
-        }
+        let file = options.read(true).write(true).custom_flags(libc::O_NONBLOCK).open(path)?;
 
         let mut dev = Device {
-            fd,
+            file,
             ty: Types::empty(),
             name: CString::default(),
             phys: None,
@@ -755,107 +737,125 @@ impl Device {
         let mut bits64: u64 = 0;
         let mut buf = [0u8; 256];
 
-        do_ioctl!(eviocgbit(
-            fd,
-            0,
-            size_of::<u32>() as i32,
-            &mut bits as *mut u32 as *mut u8
-        ));
+        unsafe {
+            eviocgbit(
+                dev.file.as_raw_fd(),
+                0,
+                size_of::<u32>() as i32,
+                &mut bits as *mut u32 as *mut u8,
+            )?;
+        }
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name = do_ioctl_buf!(buf, eviocgname, fd).unwrap_or_else(CString::default);
-        dev.phys = do_ioctl_buf!(buf, eviocgphys, fd);
-        dev.uniq = do_ioctl_buf!(buf, eviocguniq, fd);
+        dev.name = do_ioctl_buf!(buf, eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
+        dev.phys = do_ioctl_buf!(buf, eviocgphys, dev.file.as_raw_fd());
+        dev.uniq = do_ioctl_buf!(buf, eviocguniq, dev.file.as_raw_fd());
 
-        do_ioctl!(eviocgid(fd, &mut dev.id));
+        unsafe { eviocgid(dev.file.as_raw_fd(), &mut dev.id)? };
         let mut driver_version: i32 = 0;
-        do_ioctl!(eviocgversion(fd, &mut driver_version));
+        unsafe { eviocgversion(dev.file.as_raw_fd(), &mut driver_version)? };
         dev.driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
             ((driver_version >> 8) & 0xff) as u8,
             (driver_version & 0xff) as u8,
         );
 
-        do_ioctl!(eviocgprop(
-            fd,
-            std::slice::from_raw_parts_mut(&mut bits as *mut u32 as *mut u8, 0x1f)
-        )); // FIXME: handle old kernel
+        unsafe {
+            eviocgprop(
+                dev.file.as_raw_fd(),
+                std::slice::from_raw_parts_mut(&mut bits as *mut u32 as *mut u8, 0x1f),
+            )?
+        }; // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(Types::KEY) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::KEY.number(),
-                std::mem::size_of_val(dev.key_bits.as_mut_slice())
-                    .try_into()
-                    .unwrap(),
-                dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::KEY.number(),
+                    std::mem::size_of_val(dev.key_bits.as_mut_slice())
+                        .try_into()
+                        .unwrap(),
+                    dev.key_bits.as_mut_slice().as_mut_ptr() as *mut u8,
+                )?
+            };
         }
 
         if dev.ty.contains(Types::RELATIVE) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::RELATIVE.number(),
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::RELATIVE.number(),
+                    size_of::<u32>() as i32,
+                    &mut bits as *mut u32 as *mut u8,
+                )?
+            };
             dev.rel =
                 RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
         }
 
         if dev.ty.contains(Types::ABSOLUTE) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::ABSOLUTE.number(),
-                size_of::<u64>() as i32,
-                &mut bits64 as *mut u64 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::ABSOLUTE.number(),
+                    size_of::<u64>() as i32,
+                    &mut bits64 as *mut u64 as *mut u8,
+                )?
+            };
             dev.abs =
                 AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo_default(); 0x3f];
         }
 
         if dev.ty.contains(Types::SWITCH) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::SWITCH.number(),
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::SWITCH.number(),
+                    size_of::<u32>() as i32,
+                    &mut bits as *mut u32 as *mut u8,
+                )?
+            };
             dev.switch =
                 Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
         }
 
         if dev.ty.contains(Types::LED) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::LED.number(),
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::LED.number(),
+                    size_of::<u32>() as i32,
+                    &mut bits as *mut u32 as *mut u8,
+                )?
+            };
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(Types::MISC) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::MISC.number(),
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::MISC.number(),
+                    size_of::<u32>() as i32,
+                    &mut bits as *mut u32 as *mut u8,
+                )?
+            };
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
-        //do_ioctl!(eviocgbit(fd, ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8));
+        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, &mut bits as *mut u32 as *mut u8)? };
 
         if dev.ty.contains(Types::SOUND) {
-            do_ioctl!(eviocgbit(
-                fd,
-                Types::SOUND.number(),
-                size_of::<u32>() as i32,
-                &mut bits as *mut u32 as *mut u8
-            ));
+            unsafe {
+                eviocgbit(
+                    dev.file.as_raw_fd(),
+                    Types::SOUND.number(),
+                    size_of::<u32>() as i32,
+                    &mut bits as *mut u32 as *mut u8,
+                )?
+            };
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
@@ -869,10 +869,12 @@ impl Device {
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(Types::KEY) {
-            do_ioctl!(eviocgkey(
-                self.fd,
-                &mut *(self.state.key_vals.as_mut_slice() as *mut [u32] as *mut [u8])
-            ));
+            unsafe {
+                eviocgkey(
+                    self.file.as_raw_fd(),
+                    &mut *(self.state.key_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
+                )?
+            };
         }
         if self.ty.contains(Types::ABSOLUTE) {
             for idx in 0..0x3f {
@@ -882,25 +884,27 @@ impl Device {
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 if self.abs.bits() & abs != 0 {
-                    do_ioctl!(eviocgabs(
-                        self.fd,
-                        idx as u32,
-                        &mut self.state.abs_vals[idx as usize]
-                    ));
+                    unsafe {
+                        eviocgabs(self.file.as_raw_fd(), idx as u32, &mut self.state.abs_vals[idx as usize])?
+                    };
                 }
             }
         }
         if self.ty.contains(Types::SWITCH) {
-            do_ioctl!(eviocgsw(
-                self.fd,
-                &mut *(self.state.switch_vals.as_mut_slice() as *mut [u32] as *mut [u8])
-            ));
+            unsafe {
+                eviocgsw(
+                    self.file.as_raw_fd(),
+                    &mut *(self.state.switch_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
+                )?
+            };
         }
         if self.ty.contains(Types::LED) {
-            do_ioctl!(eviocgled(
-                self.fd,
-                &mut *(self.state.led_vals.as_mut_slice() as *mut [u32] as *mut [u8])
-            ));
+            unsafe {
+                eviocgled(
+                    self.file.as_raw_fd(),
+                    &mut *(self.state.led_vals.as_mut_slice() as *mut [u32] as *mut [u8]),
+                )?
+            };
         }
 
         Ok(())
@@ -1027,7 +1031,7 @@ impl Device {
             let pre_len = buf.len();
             let sz = unsafe {
                 libc::read(
-                    self.fd,
+                    self.file.as_raw_fd(),
                     buf.as_mut_ptr().add(pre_len) as *mut libc::c_void,
                     (size_of::<raw::input_event>() * (buf.capacity() - pre_len)) as libc::size_t,
                 )
@@ -1035,7 +1039,7 @@ impl Device {
             if sz == -1 {
                 let errno = ::nix::errno::Errno::last();
                 if errno != ::nix::errno::Errno::EAGAIN {
-                    return Err(Error::from_errno(errno));
+                    return Err(nix::Error::from_errno(errno).into());
                 } else {
                     break;
                 }
@@ -1112,8 +1116,7 @@ pub fn enumerate() -> Vec<Device> {
 
 /// A safe Rust version of clock_gettime against CLOCK_REALTIME
 fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTimeError> {
-    let now_duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)?;
+    let now_duration = time.duration_since(SystemTime::UNIX_EPOCH)?;
 
     Ok(libc::timeval {
         tv_sec: now_duration.as_secs() as libc::time_t,

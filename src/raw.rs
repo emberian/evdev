@@ -1,3 +1,4 @@
+use libc::c_int;
 pub use libc::{
     ff_condition_effect, ff_constant_effect, ff_effect, ff_envelope, ff_periodic_effect,
     ff_ramp_effect, ff_replay, ff_rumble_effect, ff_trigger, input_absinfo, input_event, input_id,
@@ -60,7 +61,7 @@ pub unsafe fn eviocgbit(
     ev: u32,
     len: ::libc::c_int,
     buf: *mut u8,
-) -> ::nix::Result<i32> {
+) -> ::nix::Result<c_int> {
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(b'E', 0x20 + ev, len),
@@ -72,7 +73,7 @@ pub unsafe fn eviocgabs(
     fd: ::libc::c_int,
     abs: u32,
     buf: *mut input_absinfo,
-) -> ::nix::Result<i32> {
+) -> ::nix::Result<c_int> {
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()),
