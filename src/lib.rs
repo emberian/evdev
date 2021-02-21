@@ -322,7 +322,10 @@ pub enum FFEffect {
     FF_CUSTOM = 0x5d,
     FF_GAIN = 0x60,
     FF_AUTOCENTER = 0x61,
-    FF_MAX = 0x7f,
+}
+
+impl FFEffect {
+    pub const MAX: usize = 0x7f;
 }
 
 bitflags! {
@@ -727,13 +730,13 @@ impl Device {
             id: unsafe { std::mem::zeroed() },
             props: Props::empty(),
             driver_version: (0, 0, 0),
-            key_bits: FixedBitSet::with_capacity(KEY_MAX as usize),
+            key_bits: FixedBitSet::with_capacity(Key::MAX),
             rel: RelativeAxis::empty(),
             abs: AbsoluteAxis::empty(),
             switch: Switch::empty(),
             led: Led::empty(),
             misc: Misc::empty(),
-            ff: FixedBitSet::with_capacity(FF_MAX as usize + 1),
+            ff: FixedBitSet::with_capacity(FFEffect::MAX + 1),
             ff_stat: FFStatus::empty(),
             rep: Repeat::empty(),
             snd: Sound::empty(),
@@ -744,7 +747,7 @@ impl Device {
                     tv_sec: 0,
                     tv_usec: 0,
                 },
-                key_vals: FixedBitSet::with_capacity(KEY_MAX as usize),
+                key_vals: FixedBitSet::with_capacity(Key::MAX),
                 abs_vals: vec![],
                 switch_vals: FixedBitSet::with_capacity(0x10),
                 led_vals: FixedBitSet::with_capacity(0x10),

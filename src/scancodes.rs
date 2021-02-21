@@ -525,4 +525,6 @@ pub enum Key {
     BTN_TRIGGER_HAPPY40 = 0x2e7,
 }
 
-pub const KEY_MAX: u32 = 0x2ff;
+impl Key {
+    pub const MAX: usize = 0x2ff;
+}
