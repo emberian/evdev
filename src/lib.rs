@@ -156,9 +156,12 @@ bitflags! {
         const REL_RESERVED = 1 << 0x0a;
         const REL_WHEEL_HI_RES = 1 << 0x0b;
         const REL_HWHEEL_HI_RES = 1 << 0x0c;
-        const REL_MAX = 1 << 0x0f;
     }
 }
+
+// impl RelativeAxis {
+//     const MAX: usize = 0x0f;
+// }
 
 bitflags! {
     pub struct AbsoluteAxis: u64 {
@@ -221,6 +224,10 @@ bitflags! {
     }
 }
 
+impl AbsoluteAxis {
+    const MAX: usize = 0x3f;
+}
+
 bitflags! {
     pub struct Switch: u32 {
         /// "set = lid shut"
@@ -255,8 +262,11 @@ bitflags! {
         const SW_MUTE_DEVICE = 1 << 0x0e;
         /// "set = pen inserted"
         const SW_PEN_INSERTED = 1 << 0x0f;
-        const SW_MAX = 0xf;
     }
+}
+
+impl Switch {
+    const MAX: usize = 0xf;
 }
 
 bitflags! {
@@ -277,8 +287,11 @@ bitflags! {
         const LED_MAIL = 1 << 0x09;
         /// "External power connected"
         const LED_CHARGING = 1 << 0x0a;
-        const LED_MAX = 1 << 0x0f;
     }
+}
+
+impl Led {
+    const MAX: usize = 0x0f;
 }
 
 bitflags! {
@@ -296,9 +309,12 @@ bitflags! {
         const MSC_SCAN = 1 << 0x04;
         /// Completely unused.
         const MSC_TIMESTAMP = 1 << 0x05;
-        const MSC_MAX = 1 << 0x07;
     }
 }
+
+// impl Misc {
+//     const MAX: usize = 0x07;
+// }
 
 bitflags! {
     pub struct FFStatus: u32 {
@@ -572,15 +588,14 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(Types::ABSOLUTE) {
             writeln!(f, "  Absolute Axes:")?;
-            for idx in 0..0x3f {
-                let abs = 1 << idx;
-                if self.abs.bits() & abs != 0 {
-                    // FIXME: abs val Debug is gross
+            for idx in 0..AbsoluteAxis::MAX {
+                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
+                if self.abs.contains(abs) {
                     writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
-                        AbsoluteAxis::from_bits(abs).unwrap(),
-                        self.state.abs_vals[idx as usize],
+                        abs,
+                        self.state.abs_vals[idx],
                         idx
                     )?;
                 }
@@ -591,14 +606,14 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(Types::SWITCH) {
             writeln!(f, "  Switches:")?;
-            for idx in 0..0xf {
-                let sw = 1 << idx;
-                if sw < Switch::SW_MAX.bits() && self.switch.bits() & sw == 1 {
+            for idx in 0..Switch::MAX {
+                let sw = Switch::from_bits(1 << idx).unwrap();
+                if self.switch.contains(sw) {
                     writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
-                        Switch::from_bits(sw).unwrap(),
-                        self.state.switch_vals[idx as usize],
+                        sw,
+                        self.state.switch_vals[idx],
                         idx
                     )?;
                 }
@@ -606,14 +621,14 @@ impl std::fmt::Display for Device {
         }
         if self.ty.contains(Types::LED) {
             writeln!(f, "  LEDs:")?;
-            for idx in 0..0xf {
-                let led = 1 << idx;
-                if led < Led::LED_MAX.bits() && self.led.bits() & led == 1 {
+            for idx in 0..Led::MAX {
+                let led = Led::from_bits_truncate(1 << idx);
+                if self.led.contains(led) {
                     writeln!(
                         f,
                         "    {:?} ({:?}, index {})",
-                        Led::from_bits(led).unwrap(),
-                        self.state.led_vals[idx as usize],
+                        led,
+                        self.state.led_vals[idx],
                         idx
                     )?;
                 }
@@ -890,7 +905,7 @@ impl Device {
             }
         }
         if self.ty.contains(Types::ABSOLUTE) {
-            for idx in 0..0x3f {
+            for idx in 0..AbsoluteAxis::MAX {
                 let abs = 1 << idx;
                 // ignore multitouch, we'll handle that later.
                 //
@@ -901,7 +916,7 @@ impl Device {
                         eviocgabs(
                             self.file.as_raw_fd(),
                             idx as u32,
-                            &mut self.state.abs_vals[idx as usize],
+                            &mut self.state.abs_vals[idx],
                         )?;
                     }
                 }
@@ -975,32 +990,31 @@ impl Device {
             }
         }
         if self.ty.contains(Types::ABSOLUTE) {
-            for idx in 0..0x3f {
-                let abs = 1 << idx;
-                if self.abs.bits() & abs != 0
-                    && old_state.abs_vals[idx as usize] != self.state.abs_vals[idx as usize]
+            for idx in 0..AbsoluteAxis::MAX {
+                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
+                if self.abs.contains(abs)
+                    && old_state.abs_vals[idx] != self.state.abs_vals[idx]
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::ABSOLUTE.number(),
                         code: idx as u16,
-                        value: self.state.abs_vals[idx as usize].value,
+                        value: self.state.abs_vals[idx].value,
                     });
                 }
             }
         }
         if self.ty.contains(Types::SWITCH) {
-            for idx in 0..0xf {
-                let sw = 1 << idx;
-                if sw < Switch::SW_MAX.bits()
-                    && self.switch.bits() & sw == 1
-                    && old_state.switch_vals[idx as usize] != self.state.switch_vals[idx as usize]
+            for idx in 0..Switch::MAX {
+                let sw = Switch::from_bits(1 << idx).unwrap();
+                if self.switch.contains(sw)
+                    && old_state.switch_vals[idx] != self.state.switch_vals[idx]
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::SWITCH.number(),
                         code: idx as u16,
-                        value: if self.state.switch_vals[idx as usize] {
+                        value: if self.state.switch_vals[idx] {
                             1
                         } else {
                             0
@@ -1010,17 +1024,16 @@ impl Device {
             }
         }
         if self.ty.contains(Types::LED) {
-            for idx in 0..0xf {
-                let led = 1 << idx;
-                if led < Led::LED_MAX.bits()
-                    && self.led.bits() & led == 1
-                    && old_state.led_vals[idx as usize] != self.state.led_vals[idx as usize]
+            for idx in 0..Led::MAX {
+                let led = Led::from_bits_truncate(1 << idx);
+                if self.led.contains(led)
+                    && old_state.led_vals[idx] != self.state.led_vals[idx]
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::LED.number(),
                         code: idx as u16,
-                        value: if self.state.led_vals[idx as usize] {
+                        value: if self.state.led_vals[idx] {
                             1
                         } else {
                             0
