@@ -772,9 +772,13 @@ impl Device {
         dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
         dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
 
-        unsafe { eviocgid(dev.file.as_raw_fd(), &mut dev.id)? };
+        unsafe {
+            eviocgid(dev.file.as_raw_fd(), &mut dev.id)?;
+        }
         let mut driver_version: i32 = 0;
-        unsafe { eviocgversion(dev.file.as_raw_fd(), &mut driver_version)? };
+        unsafe {
+            eviocgversion(dev.file.as_raw_fd(), &mut driver_version)?;
+        }
         dev.driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
             ((driver_version >> 8) & 0xff) as u8,
@@ -783,8 +787,8 @@ impl Device {
 
         unsafe {
             let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgprop(dev.file.as_raw_fd(), bits_as_u8_slice)?
-        }; // FIXME: handle old kernel
+            eviocgprop(dev.file.as_raw_fd(), bits_as_u8_slice)?;
+        } // FIXME: handle old kernel
         dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(Types::KEY) {
@@ -796,8 +800,8 @@ impl Device {
                     dev.file.as_raw_fd(),
                     Types::KEY.number(),
                     key_bits_as_u8_slice,
-                )?
-            };
+                )?;
+            }
         }
 
         if dev.ty.contains(Types::RELATIVE) {
@@ -807,8 +811,8 @@ impl Device {
                     dev.file.as_raw_fd(),
                     Types::RELATIVE.number(),
                     bits_as_u8_slice,
-                )?
-            };
+                )?;
+            }
             dev.rel =
                 RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
         }
@@ -820,8 +824,8 @@ impl Device {
                     dev.file.as_raw_fd(),
                     Types::ABSOLUTE.number(),
                     bits64_as_u8_slice,
-                )?
-            };
+                )?;
+            }
             dev.abs =
                 AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo_default(); 0x3f];
@@ -834,8 +838,8 @@ impl Device {
                     dev.file.as_raw_fd(),
                     Types::SWITCH.number(),
                     bits_as_u8_slice,
-                )?
-            };
+                )?;
+            }
             dev.switch =
                 Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
         }
@@ -843,20 +847,20 @@ impl Device {
         if dev.ty.contains(Types::LED) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(dev.file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?
-            };
+                eviocgbit(dev.file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?;
+            }
             dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(Types::MISC) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(dev.file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?
-            };
+                eviocgbit(dev.file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?;
+            }
             dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
         }
 
-        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)? };
+        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
         if dev.ty.contains(Types::SOUND) {
             unsafe {
@@ -865,8 +869,8 @@ impl Device {
                     dev.file.as_raw_fd(),
                     Types::SOUND.number(),
                     bits_as_u8_slice,
-                )?
-            };
+                )?;
+            }
             dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
         }
 
@@ -883,8 +887,8 @@ impl Device {
             unsafe {
                 let key_slice = &mut self.key_bits.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
-                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?
-            };
+                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
+            }
         }
         if self.ty.contains(Types::ABSOLUTE) {
             for idx in 0..0x3f {
@@ -899,8 +903,8 @@ impl Device {
                             self.file.as_raw_fd(),
                             idx as u32,
                             &mut self.state.abs_vals[idx as usize],
-                        )?
-                    };
+                        )?;
+                    }
                 }
             }
         }
@@ -908,15 +912,15 @@ impl Device {
             unsafe {
                 let switch_slice = &mut self.state.switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
-                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?
-            };
+                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
+            }
         }
         if self.ty.contains(Types::LED) {
             unsafe {
                 let led_slice = &mut self.state.led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
-                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?
-            };
+                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
+            }
         }
 
         Ok(())
@@ -1055,7 +1059,7 @@ impl Device {
                         break;
                     } else {
                         return Err(e.into());
-                    };
+                    }
                 }
             }
         }
