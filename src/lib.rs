@@ -57,20 +57,28 @@ pub use crate::Synchronization::*;
 
 use crate::raw::*;
 
-unsafe fn ioctl_get_cstring(
+fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
     fd: RawFd,
 ) -> Option<CString> {
-    let mut buf = Vec::with_capacity(256);
-    let capacity = buf.capacity();
-    match f(fd, buf.get_unchecked_mut(..capacity)) {
-        Ok(len) if len >= 0 => {
+    const CAPACITY: usize = 256;
+    let mut buf = vec![0; CAPACITY];
+    match unsafe { f(fd, buf.as_mut_slice()) } {
+        Ok(len) if len as usize > CAPACITY => {
+            panic!("ioctl_get_cstring call overran the provided buffer!");
+        }
+        Ok(len) if len > 0 => {
             // Our ioctl string functions apparently return the number of bytes written, including
             // trailing \0.
-            buf.set_len(len as usize);
-            Some(CStr::from_bytes_with_nul(&buf[..]).unwrap().to_owned())
+            buf.truncate(len as usize);
+            assert_eq!(buf.pop().unwrap(), 0);
+            CString::new(buf).ok()
         }
-        _ => None,
+        Ok(_) => {
+            // if len < 0 => Explicit errno
+            None
+        }
+        Err(_) => None,
     }
 }
 
@@ -759,12 +767,10 @@ impl Device {
         }
         dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        unsafe {
-            dev.name = ioctl_get_cstring(eviocgname, dev.file.as_raw_fd())
-                .unwrap_or_else(CString::default);
-            dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
-            dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
-        }
+        dev.name =
+            ioctl_get_cstring(eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
+        dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
+        dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
 
         unsafe { eviocgid(dev.file.as_raw_fd(), &mut dev.id)? };
         let mut driver_version: i32 = 0;
