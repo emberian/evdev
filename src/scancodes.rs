@@ -1,8 +1,10 @@
+use num_derive::FromPrimitive;
+
 /// Scancodes for key presses.
 ///
 /// Each represents a distinct key.
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[repr(u32)]
+#[derive(Copy, Clone, Debug, FromPrimitive)]
 pub enum Key {
     KEY_RESERVED = 0,
     KEY_ESC = 1,
@@ -526,5 +528,6 @@ pub enum Key {
 }
 
 impl Key {
-    pub const MAX: usize = 0x2ff;
+    // This needs to be a multiple of 8, otherwise we fetch keys we can't process
+    pub const MAX: usize = 0x300;
 }
