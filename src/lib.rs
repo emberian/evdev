@@ -40,7 +40,7 @@ mod scancodes;
 use bitflags::bitflags;
 use fixedbitset::FixedBitSet;
 use num_traits::FromPrimitive;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::mem::size_of;
