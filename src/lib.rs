@@ -422,7 +422,7 @@ pub struct Device {
     id: input_id,
     props: Props,
     driver_version: (u8, u8, u8),
-    key_bits: FixedBitSet,
+    supported_keys: FixedBitSet,
     rel: RelativeAxis,
     abs: AbsoluteAxis,
     switch: Switch,
@@ -456,7 +456,7 @@ impl std::fmt::Debug for Device {
             .field("driver_version", &self.driver_version);
         if self.ty.contains(Types::SYNCHRONIZATION) {}
         if self.ty.contains(Types::KEY) {
-            ds.field("key_bits", &self.key_bits)
+            ds.field("supported_keys", &self.supported_keys)
                 .field("key_vals", &self.state.key_vals);
         }
         if self.ty.contains(Types::RELATIVE) {
@@ -552,8 +552,8 @@ impl std::fmt::Display for Device {
 
         if self.ty.contains(Types::KEY) {
             writeln!(f, "  Keys supported:")?;
-            for key_idx in 0..self.key_bits.len() {
-                if self.key_bits.contains(key_idx) {
+            for key_idx in 0..self.supported_keys.len() {
+                if self.supported_keys.contains(key_idx) {
                     writeln!(
                         f,
                         "    {:?} ({}index {})",
@@ -673,7 +673,7 @@ impl Device {
     }
 
     pub fn keys_supported(&self) -> &FixedBitSet {
-        &self.key_bits
+        &self.supported_keys
     }
 
     pub fn relative_axes_supported(&self) -> RelativeAxis {
@@ -728,7 +728,7 @@ impl Device {
             id: input_id_default(),
             props: Props::empty(),
             driver_version: (0, 0, 0),
-            key_bits: FixedBitSet::with_capacity(Key::MAX),
+            supported_keys: FixedBitSet::with_capacity(Key::MAX),
             rel: RelativeAxis::empty(),
             abs: AbsoluteAxis::empty(),
             switch: Switch::empty(),
@@ -753,7 +753,7 @@ impl Device {
         };
 
         // Sanity-check the FixedBitSet sizes. If they are not multiples of 8, odd things will happen.
-        debug_assert!(dev.key_bits.len() % 8 == 0);
+        debug_assert!(dev.supported_keys.len() % 8 == 0);
         debug_assert!(dev.ff.len() % 8 == 0);
         debug_assert!(dev.state.key_vals.len() % 8 == 0);
         debug_assert!(dev.state.led_vals.len() % 8 == 0);
@@ -793,13 +793,13 @@ impl Device {
 
         if dev.ty.contains(Types::KEY) {
             unsafe {
-                let key_slice = &mut dev.key_bits.as_mut_slice();
-                let (_, key_bits_as_u8_slice, _) = key_slice.align_to_mut();
-                debug_assert!(key_bits_as_u8_slice.len() == Key::MAX / 8);
+                let key_slice = dev.supported_keys.as_mut_slice();
+                let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
+                debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
                 eviocgbit(
                     dev.file.as_raw_fd(),
                     Types::KEY.number(),
-                    key_bits_as_u8_slice,
+                    supported_keys_as_u8_slice,
                 )?;
             }
         }
@@ -885,7 +885,7 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(Types::KEY) {
             unsafe {
-                let key_slice = &mut self.key_bits.as_mut_slice();
+                let key_slice = self.state.key_vals.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
                 eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
             }
@@ -910,14 +910,14 @@ impl Device {
         }
         if self.ty.contains(Types::SWITCH) {
             unsafe {
-                let switch_slice = &mut self.state.switch_vals.as_mut_slice();
+                let switch_slice = self.state.switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
                 eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
             }
         }
         if self.ty.contains(Types::LED) {
             unsafe {
-                let led_slice = &mut self.state.led_vals.as_mut_slice();
+                let led_slice = self.state.led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
                 eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
             }
@@ -962,8 +962,8 @@ impl Device {
         let time = into_timeval(&SystemTime::now()).unwrap();
 
         if self.ty.contains(Types::KEY) {
-            for key_idx in 0..self.key_bits.len() {
-                if self.key_bits.contains(key_idx)
+            for key_idx in 0..self.supported_keys.len() {
+                if self.supported_keys.contains(key_idx)
                     && old_state.key_vals[key_idx] != self.state.key_vals[key_idx]
                 {
                     self.pending_events.push(raw::input_event {
