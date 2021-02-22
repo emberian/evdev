@@ -39,7 +39,6 @@ mod scancodes;
 
 use bitflags::bitflags;
 use fixedbitset::FixedBitSet;
-use num_traits::FromPrimitive;
 use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -557,7 +556,7 @@ impl std::fmt::Display for Device {
                     writeln!(
                         f,
                         "    {:?} ({}index {})",
-                        Key::from_u32(key_idx as u32).expect("Unsupported key"),
+                        Key::new(key_idx as u32),
                         if self.state.key_vals.contains(key_idx) {
                             "pressed, "
                         } else {

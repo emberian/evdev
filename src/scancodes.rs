@@ -1,11 +1,12 @@
-use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 /// Scancodes for key presses.
 ///
 /// Each represents a distinct key.
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, FromPrimitive)]
-pub enum Key {
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug, num_derive::FromPrimitive)]
+enum RecognizedKey {
     KEY_RESERVED = 0,
     KEY_ESC = 1,
     KEY_1 = 2,
@@ -527,7 +528,23 @@ pub enum Key {
     BTN_TRIGGER_HAPPY40 = 0x2e7,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Key(pub u32);
+
+impl std::fmt::Debug for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match RecognizedKey::from_u32(self.0) {
+            Some(k) => write!(f, "{:?}", k),
+            None => write!(f, "Unknown key: {}", self.0),
+        }
+    }
+}
+
 impl Key {
+    pub fn new(code: u32) -> Self {
+        Key(code)
+    }
+
     // This needs to be a multiple of 8, otherwise we fetch keys we can't process
     pub const MAX: usize = 0x300;
 }
