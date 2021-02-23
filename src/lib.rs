@@ -41,7 +41,7 @@ mod scancodes;
 use fixedbitset::FixedBitSet;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::mem::size_of;
+use std::mem;
 use std::os::unix::{
     fs::OpenOptionsExt,
     io::{AsRawFd, RawFd},
@@ -187,6 +187,12 @@ pub struct Device {
     state: DeviceState,
 }
 
+impl AsRawFd for Device {
+    fn as_raw_fd(&self) -> RawFd {
+        self.file.as_raw_fd()
+    }
+}
+
 const fn bus_name(x: u16) -> &'static str {
     match x {
         0x1 => "PCI",
@@ -320,10 +326,6 @@ impl std::fmt::Display for Device {
 }
 
 impl Device {
-    pub fn fd(&self) -> RawFd {
-        self.file.as_raw_fd()
-    }
-
     pub fn events_supported(&self) -> Types {
         self.ty
     }
@@ -388,7 +390,12 @@ impl Device {
         &self.state
     }
 
-    pub fn open(path: &dyn AsRef<Path>) -> Result<Device, Error> {
+    #[inline(always)]
+    pub fn open(path: impl AsRef<Path>) -> Result<Device, Error> {
+        Self::_open(path.as_ref())
+    }
+
+    fn _open(path: &Path) -> Result<Device, Error> {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
@@ -399,14 +406,9 @@ impl Device {
             .open(path)
             .or_else(|_| options.write(false).open(path))?;
 
-        let mut bits: u32 = 0;
-        let mut bits64: u64 = 0;
-
-        unsafe {
-            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgbit(file.as_raw_fd(), 0, bits_as_u8_slice)?;
-        }
-        let ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
+        let mut ty = 0;
+        unsafe { eviocgbit_type(file.as_raw_fd(), &mut ty)? };
+        let ty = Types::from_bits(ty).expect("evdev: unexpected type bits! report a bug");
 
         let name = ioctl_get_cstring(eviocgname, file.as_raw_fd());
         let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd());
@@ -427,11 +429,11 @@ impl Device {
             (driver_version & 0xff) as u8,
         );
 
+        let mut props = 0;
         unsafe {
-            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgprop(file.as_raw_fd(), bits_as_u8_slice)?;
+            eviocgprop(file.as_raw_fd(), &mut props)?;
         } // FIXME: handle old kernel
-        let props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
+        let props = Props::from_bits(props).expect("evdev: unexpected prop bits! report a bug");
 
         let mut state = DeviceState::default();
 
@@ -442,11 +444,7 @@ impl Device {
             unsafe {
                 let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
                 debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
-                eviocgbit(
-                    file.as_raw_fd(),
-                    Types::KEY.number(),
-                    supported_keys_as_u8_slice,
-                )?;
+                eviocgbit_key(file.as_raw_fd(), supported_keys_as_u8_slice)?;
             }
             let key_vals = FixedBitSet::with_capacity(Key::MAX);
             debug_assert!(key_vals.len() % 8 == 0);
@@ -458,62 +456,48 @@ impl Device {
         };
 
         let supported_relative = if ty.contains(Types::RELATIVE) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::RELATIVE.number(), bits_as_u8_slice)?;
-            }
-            Some(RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug"))
+            let mut rel = 0;
+            unsafe { eviocgbit_relative(file.as_raw_fd(), &mut rel)? };
+            Some(RelativeAxis::from_bits(rel).expect("evdev: unexpected rel bits! report a bug"))
         } else {
             None
         };
 
         let supported_absolute = if ty.contains(Types::ABSOLUTE) {
-            unsafe {
-                let (_, bits64_as_u8_slice, _) = std::slice::from_mut(&mut bits64).align_to_mut();
-                eviocgbit(
-                    file.as_raw_fd(),
-                    Types::ABSOLUTE.number(),
-                    bits64_as_u8_slice,
-                )?;
-            }
+            let mut abs = 0;
+            unsafe { eviocgbit_absolute(file.as_raw_fd(), &mut abs)? };
             state.abs_vals = Some(vec![input_absinfo_default(); 0x3f]);
-            Some(AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug"))
+            Some(AbsoluteAxis::from_bits(abs).expect("evdev: unexpected abs bits! report a bug"))
         } else {
             None
         };
 
         let supported_switch = if ty.contains(Types::SWITCH) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::SWITCH.number(), bits_as_u8_slice)?;
-            }
+            let mut switch = 0;
+            unsafe { eviocgbit_switch(file.as_raw_fd(), &mut switch)? };
             state.switch_vals = Some(FixedBitSet::with_capacity(0x10));
 
-            Some(Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug"))
+            Some(Switch::from_bits(switch).expect("evdev: unexpected switch bits! report a bug"))
         } else {
             None
         };
 
         let supported_led = if ty.contains(Types::LED) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?;
-            }
+            let mut led = 0;
+            unsafe { eviocgbit_led(file.as_raw_fd(), &mut led)? };
             let led_vals = FixedBitSet::with_capacity(0x10);
             debug_assert!(led_vals.len() % 8 == 0);
             state.led_vals = Some(led_vals);
 
-            Some(Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug"))
+            Some(Led::from_bits(led).expect("evdev: unexpected led bits! report a bug"))
         } else {
             None
         };
 
         let supported_misc = if ty.contains(Types::MISC) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?;
-            }
-            Some(Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug"))
+            let mut misc = 0;
+            unsafe { eviocgbit_misc(file.as_raw_fd(), &mut misc)? };
+            Some(Misc::from_bits(misc).expect("evdev: unexpected misc bits! report a bug"))
         } else {
             None
         };
@@ -521,11 +505,9 @@ impl Device {
         //unsafe { eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
         let supported_snd = if ty.contains(Types::SOUND) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::SOUND.number(), bits_as_u8_slice)?;
-            }
-            Some(Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug"))
+            let mut snd = 0;
+            unsafe { eviocgbit_sound(file.as_raw_fd(), &mut snd)? };
+            Some(Sound::from_bits(snd).expect("evdev: unexpected sound bits! report a bug"))
         } else {
             None
         };
@@ -560,11 +542,12 @@ impl Device {
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
+        let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
             unsafe {
                 let key_slice = key_vals.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
-                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
+                eviocgkey(fd, key_vals_as_u8_slice)?;
             }
         }
 
@@ -579,7 +562,7 @@ impl Device {
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 if supported_abs.contains(abs) {
                     unsafe {
-                        eviocgabs(self.file.as_raw_fd(), idx as u32, &mut abs_vals[idx])?;
+                        eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
                     }
                 }
             }
@@ -589,7 +572,7 @@ impl Device {
             unsafe {
                 let switch_slice = switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
-                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
+                eviocgsw(fd, switch_vals_as_u8_slice)?;
             }
         }
 
@@ -597,7 +580,7 @@ impl Device {
             unsafe {
                 let led_slice = led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
-                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
+                eviocgled(fd, led_vals_as_u8_slice)?;
             }
         }
 
@@ -717,18 +700,23 @@ impl Device {
     }
 
     fn fill_events(&mut self) -> Result<(), Error> {
+        let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
-            // TODO: use spare_capacity_mut or split_at_spare_mut when they stabilize
-            let pre_len = buf.len();
-            let capacity = buf.capacity();
-            let (_, unsafe_buf_slice, _) =
-                unsafe { buf.get_unchecked_mut(pre_len..capacity).align_to_mut() };
+            // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
+            let spare_capacity = vec_spare_capacity_mut(buf);
+            let (_, uninit_buf, _) =
+                unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
-            match nix::unistd::read(self.file.as_raw_fd(), unsafe_buf_slice) {
+            // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
+            let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
+            match nix::errno::Errno::result(res) {
                 Ok(bytes_read) => unsafe {
-                    buf.set_len(pre_len + (bytes_read / size_of::<raw::input_event>()));
+                    let pre_len = buf.len();
+                    buf.set_len(
+                        pre_len + (bytes_read as usize / mem::size_of::<raw::input_event>()),
+                    );
                 },
                 Err(e) => {
                     if e == nix::Error::Sys(::nix::errno::Errno::EAGAIN) {
@@ -755,7 +743,14 @@ impl Device {
         self.fill_events()?;
         self.compensate_dropped()?;
 
-        Ok(RawEvents(self))
+        Ok(RawEvents::new(self))
+    }
+
+    pub fn wait_ready(&self) -> nix::Result<()> {
+        use nix::poll;
+        let mut pfd = poll::PollFd::new(self.as_raw_fd(), poll::PollFlags::POLLIN);
+        poll::poll(std::slice::from_mut(&mut pfd), -1)?;
+        Ok(())
     }
 }
 
@@ -789,19 +784,28 @@ impl<'a> Iterator for RawEvents<'a> {
 /// Crawls `/dev/input` for evdev devices.
 ///
 /// Will not bubble up any errors in opening devices or traversing the directory. Instead returns
-/// an empty vector or omits the devices that could not be opened.
-pub fn enumerate() -> Vec<Device> {
-    let mut res = Vec::new();
-    if let Ok(dir) = std::fs::read_dir("/dev/input") {
-        for entry in dir {
-            if let Ok(entry) = entry {
-                if let Ok(dev) = Device::open(&entry.path()) {
-                    res.push(dev)
+/// an empty iterator or omits the devices that could not be opened.
+pub fn enumerate() -> EnumerateDevices {
+    EnumerateDevices {
+        readdir: std::fs::read_dir("/dev/input").ok(),
+    }
+}
+
+pub struct EnumerateDevices {
+    readdir: Option<std::fs::ReadDir>,
+}
+impl Iterator for EnumerateDevices {
+    type Item = Device;
+    fn next(&mut self) -> Option<Device> {
+        let readdir = self.readdir.as_mut()?;
+        loop {
+            if let Ok(entry) = readdir.next()? {
+                if let Ok(dev) = Device::open(entry.path()) {
+                    return Some(dev);
                 }
             }
         }
     }
-    res
 }
 
 /// A safe Rust version of clock_gettime against CLOCK_REALTIME
@@ -812,6 +816,18 @@ fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTim
         tv_sec: now_duration.as_secs() as libc::time_t,
         tv_usec: now_duration.subsec_micros() as libc::suseconds_t,
     })
+}
+
+/// A copy of the unstable Vec::spare_capacity_mut
+#[inline]
+fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
+    let (len, cap) = (v.len(), v.capacity());
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            v.as_mut_ptr().add(len) as *mut mem::MaybeUninit<T>,
+            cap - len,
+        )
+    }
 }
 
 #[cfg(test)]
