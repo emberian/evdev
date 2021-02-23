@@ -39,7 +39,6 @@ pub mod raw;
 mod scancodes;
 
 use fixedbitset::FixedBitSet;
-use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::mem::size_of;
@@ -49,9 +48,10 @@ use std::os::unix::{
 };
 use std::path::Path;
 use std::time::SystemTime;
+use std::{ffi::CString, mem::MaybeUninit};
 
-pub use crate::scancodes::*;
 pub use crate::constants::FFEffect::*;
+pub use crate::scancodes::*;
 pub use crate::Synchronization::*;
 
 pub use crate::constants::*;
@@ -81,7 +81,6 @@ fn ioctl_get_cstring(
         Err(_) => None,
     }
 }
-
 
 macro_rules! impl_number {
     ($($t:ident),*) => {
@@ -130,12 +129,27 @@ pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub timestamp: libc::timeval,
     /// Set = key pressed
-    pub key_vals: FixedBitSet,
-    pub abs_vals: Vec<input_absinfo>,
+    pub key_vals: Option<FixedBitSet>,
+    pub abs_vals: Option<Vec<input_absinfo>>,
     /// Set = switch enabled (closed)
-    pub switch_vals: FixedBitSet,
+    pub switch_vals: Option<FixedBitSet>,
     /// Set = LED lit
-    pub led_vals: FixedBitSet,
+    pub led_vals: Option<FixedBitSet>,
+}
+
+impl Default for DeviceState {
+    fn default() -> Self {
+        DeviceState {
+            timestamp: libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            key_vals: None,
+            abs_vals: None,
+            switch_vals: None,
+            led_vals: None,
+        }
+    }
 }
 
 /// Publicly visible errors which can be returned from evdev
@@ -151,29 +165,29 @@ pub enum Error {
 pub struct Device {
     file: File,
     ty: Types,
-    name: CString,
+    name: Option<CString>,
     phys: Option<CString>,
     uniq: Option<CString>,
     id: input_id,
     props: Props,
     driver_version: (u8, u8, u8),
-    supported_keys: FixedBitSet,
-    rel: RelativeAxis,
-    abs: AbsoluteAxis,
-    switch: Switch,
-    led: Led,
-    misc: Misc,
-    ff: FixedBitSet,
-    ff_stat: FFStatus,
-    rep: Repeat,
-    snd: Sound,
+    supported_keys: Option<FixedBitSet>,
+    supported_relative: Option<RelativeAxis>,
+    supported_absolute: Option<AbsoluteAxis>,
+    supported_switch: Option<Switch>,
+    supported_led: Option<Led>,
+    supported_misc: Option<Misc>,
+    // ff: Option<FixedBitSet>,
+    // ff_stat: Option<FFStatus>,
+    // rep: Option<Repeat>,
+    supported_snd: Option<Sound>,
     pending_events: Vec<input_event>,
     // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
     state: DeviceState,
 }
 
-fn bus_name(x: u16) -> &'static str {
+const fn bus_name(x: u16) -> &'static str {
     match x {
         0x1 => "PCI",
         0x2 => "ISA Plug 'n Play",
@@ -219,17 +233,16 @@ impl std::fmt::Display for Device {
         writeln!(f, "  Version: 0x{:x}", self.id.version)?;
         writeln!(f, "  Properties: {:?}", self.props)?;
 
-        if self.ty.contains(Types::SYNCHRONIZATION) {}
-
-        if self.ty.contains(Types::KEY) {
+        if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
+        {
             writeln!(f, "  Keys supported:")?;
-            for key_idx in 0..self.supported_keys.len() {
-                if self.supported_keys.contains(key_idx) {
+            for key_idx in 0..supported_keys.len() {
+                if supported_keys.contains(key_idx) {
                     writeln!(
                         f,
                         "    {:?} ({}index {})",
                         Key::new(key_idx as u32),
-                        if self.state.key_vals.contains(key_idx) {
+                        if key_vals.contains(key_idx) {
                             "pressed, "
                         } else {
                             ""
@@ -239,72 +252,69 @@ impl std::fmt::Display for Device {
                 }
             }
         }
-        if self.ty.contains(Types::RELATIVE) {
-            writeln!(f, "  Relative Axes: {:?}", self.rel)?;
+
+        if let Some(supported_relative) = self.supported_relative {
+            writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
         }
-        if self.ty.contains(Types::ABSOLUTE) {
+
+        if let (Some(supported_abs), Some(abs_vals)) =
+            (self.supported_absolute, &self.state.abs_vals)
+        {
             writeln!(f, "  Absolute Axes:")?;
             for idx in 0..AbsoluteAxis::MAX {
                 let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
-                if self.abs.contains(abs) {
-                    writeln!(
-                        f,
-                        "    {:?} ({:?}, index {})",
-                        abs,
-                        self.state.abs_vals[idx],
-                        idx
-                    )?;
+                if supported_abs.contains(abs) {
+                    writeln!(f, "    {:?} ({:?}, index {})", abs, abs_vals[idx], idx)?;
                 }
             }
         }
-        if self.ty.contains(Types::MISC) {
-            writeln!(f, "  Miscellaneous capabilities: {:?}", self.misc)?;
+
+        if let Some(supported_misc) = self.supported_misc {
+            writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
         }
-        if self.ty.contains(Types::SWITCH) {
+
+        if let (Some(supported_switch), Some(switch_vals)) =
+            (self.supported_switch, &self.state.switch_vals)
+        {
             writeln!(f, "  Switches:")?;
             for idx in 0..Switch::MAX {
                 let sw = Switch::from_bits(1 << idx).unwrap();
-                if self.switch.contains(sw) {
-                    writeln!(
-                        f,
-                        "    {:?} ({:?}, index {})",
-                        sw,
-                        self.state.switch_vals[idx],
-                        idx
-                    )?;
+                if supported_switch.contains(sw) {
+                    writeln!(f, "    {:?} ({:?}, index {})", sw, switch_vals[idx], idx)?;
                 }
             }
         }
-        if self.ty.contains(Types::LED) {
+
+        if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             writeln!(f, "  LEDs:")?;
             for idx in 0..Led::MAX {
                 let led = Led::from_bits_truncate(1 << idx);
-                if self.led.contains(led) {
-                    writeln!(
-                        f,
-                        "    {:?} ({:?}, index {})",
-                        led,
-                        self.state.led_vals[idx],
-                        idx
-                    )?;
+                if supported_led.contains(led) {
+                    writeln!(f, "    {:?} ({:?}, index {})", led, led_vals[idx], idx)?;
                 }
             }
         }
-        if self.ty.contains(Types::SOUND) {
-            writeln!(f, "  Sound: {:?}", self.snd)?;
+
+        if let Some(supported_snd) = self.supported_snd {
+            writeln!(f, "  Sound: {:?}", supported_snd)?;
         }
-        if self.ty.contains(Types::REPEAT) {
-            writeln!(f, "  Repeats: {:?}", self.rep)?;
-        }
+
+        // if let Some(rep) = self.rep {
+        //     writeln!(f, "  Repeats: {:?}", rep)?;
+        // }
+
         if self.ty.contains(Types::FORCEFEEDBACK) {
             writeln!(f, "  Force Feedback supported")?;
         }
+
         if self.ty.contains(Types::POWER) {
             writeln!(f, "  Power supported")?;
         }
+
         if self.ty.contains(Types::FORCEFEEDBACKSTATUS) {
             writeln!(f, "  Force Feedback status supported")?;
         }
+
         Ok(())
     }
 }
@@ -318,7 +328,7 @@ impl Device {
         self.ty
     }
 
-    pub fn name(&self) -> &CString {
+    pub fn name(&self) -> &Option<CString> {
         &self.name
     }
 
@@ -342,36 +352,36 @@ impl Device {
         self.driver_version
     }
 
-    pub fn keys_supported(&self) -> &FixedBitSet {
+    pub fn keys_supported(&self) -> &Option<FixedBitSet> {
         &self.supported_keys
     }
 
-    pub fn relative_axes_supported(&self) -> RelativeAxis {
-        self.rel
+    pub fn relative_axes_supported(&self) -> Option<RelativeAxis> {
+        self.supported_relative
     }
 
-    pub fn absolute_axes_supported(&self) -> AbsoluteAxis {
-        self.abs
+    pub fn absolute_axes_supported(&self) -> Option<AbsoluteAxis> {
+        self.supported_absolute
     }
 
-    pub fn switches_supported(&self) -> Switch {
-        self.switch
+    pub fn switches_supported(&self) -> Option<Switch> {
+        self.supported_switch
     }
 
-    pub fn leds_supported(&self) -> Led {
-        self.led
+    pub fn leds_supported(&self) -> Option<Led> {
+        self.supported_led
     }
 
-    pub fn misc_properties(&self) -> Misc {
-        self.misc
+    pub fn misc_properties(&self) -> Option<Misc> {
+        self.supported_misc
     }
 
-    pub fn repeats_supported(&self) -> Repeat {
-        self.rep
-    }
+    // pub fn repeats_supported(&self) -> Option<Repeat> {
+    //     self.rep
+    // }
 
-    pub fn sounds_supported(&self) -> Sound {
-        self.snd
+    pub fn sounds_supported(&self) -> Option<Sound> {
+        self.supported_snd
     }
 
     pub fn state(&self) -> &DeviceState {
@@ -389,67 +399,29 @@ impl Device {
             .open(path)
             .or_else(|_| options.write(false).open(path))?;
 
-        let mut dev = Device {
-            file,
-            ty: Types::empty(),
-            name: CString::default(),
-            phys: None,
-            uniq: None,
-            id: input_id_default(),
-            props: Props::empty(),
-            driver_version: (0, 0, 0),
-            supported_keys: FixedBitSet::with_capacity(Key::MAX),
-            rel: RelativeAxis::empty(),
-            abs: AbsoluteAxis::empty(),
-            switch: Switch::empty(),
-            led: Led::empty(),
-            misc: Misc::empty(),
-            ff: FixedBitSet::with_capacity(FFEffect::MAX),
-            ff_stat: FFStatus::empty(),
-            rep: Repeat::empty(),
-            snd: Sound::empty(),
-            pending_events: Vec::with_capacity(64),
-            last_seen: 0,
-            state: DeviceState {
-                timestamp: libc::timeval {
-                    tv_sec: 0,
-                    tv_usec: 0,
-                },
-                key_vals: FixedBitSet::with_capacity(Key::MAX),
-                abs_vals: vec![],
-                switch_vals: FixedBitSet::with_capacity(0x10),
-                led_vals: FixedBitSet::with_capacity(0x10),
-            },
-        };
-
-        // Sanity-check the FixedBitSet sizes. If they are not multiples of 8, odd things will happen.
-        debug_assert!(dev.supported_keys.len() % 8 == 0);
-        debug_assert!(dev.ff.len() % 8 == 0);
-        debug_assert!(dev.state.key_vals.len() % 8 == 0);
-        debug_assert!(dev.state.led_vals.len() % 8 == 0);
-
         let mut bits: u32 = 0;
         let mut bits64: u64 = 0;
 
         unsafe {
             let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgbit(dev.file.as_raw_fd(), 0, bits_as_u8_slice)?;
+            eviocgbit(file.as_raw_fd(), 0, bits_as_u8_slice)?;
         }
-        dev.ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
+        let ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name =
-            ioctl_get_cstring(eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
-        dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
-        dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
+        let name = ioctl_get_cstring(eviocgname, file.as_raw_fd());
+        let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd());
+        let uniq = ioctl_get_cstring(eviocguniq, file.as_raw_fd());
 
-        unsafe {
-            eviocgid(dev.file.as_raw_fd(), &mut dev.id)?;
-        }
+        let id = unsafe {
+            let mut id = MaybeUninit::uninit();
+            eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
+            id.assume_init()
+        };
         let mut driver_version: i32 = 0;
         unsafe {
-            eviocgversion(dev.file.as_raw_fd(), &mut driver_version)?;
+            eviocgversion(file.as_raw_fd(), &mut driver_version)?;
         }
-        dev.driver_version = (
+        let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
             ((driver_version >> 8) & 0xff) as u8,
             (driver_version & 0xff) as u8,
@@ -457,92 +429,127 @@ impl Device {
 
         unsafe {
             let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgprop(dev.file.as_raw_fd(), bits_as_u8_slice)?;
+            eviocgprop(file.as_raw_fd(), bits_as_u8_slice)?;
         } // FIXME: handle old kernel
-        dev.props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
+        let props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
 
-        if dev.ty.contains(Types::KEY) {
+        let mut state = DeviceState::default();
+
+        let supported_keys = if ty.contains(Types::KEY) {
+            let mut supported_keys = FixedBitSet::with_capacity(Key::MAX);
+            debug_assert!(supported_keys.len() % 8 == 0);
+            let key_slice = supported_keys.as_mut_slice();
             unsafe {
-                let key_slice = dev.supported_keys.as_mut_slice();
                 let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
                 debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
                 eviocgbit(
-                    dev.file.as_raw_fd(),
+                    file.as_raw_fd(),
                     Types::KEY.number(),
                     supported_keys_as_u8_slice,
                 )?;
             }
-        }
+            let key_vals = FixedBitSet::with_capacity(Key::MAX);
+            debug_assert!(key_vals.len() % 8 == 0);
+            state.key_vals = Some(key_vals);
 
-        if dev.ty.contains(Types::RELATIVE) {
+            Some(supported_keys)
+        } else {
+            None
+        };
+
+        let supported_relative = if ty.contains(Types::RELATIVE) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(
-                    dev.file.as_raw_fd(),
-                    Types::RELATIVE.number(),
-                    bits_as_u8_slice,
-                )?;
+                eviocgbit(file.as_raw_fd(), Types::RELATIVE.number(), bits_as_u8_slice)?;
             }
-            dev.rel =
-                RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug");
-        }
+            Some(RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug"))
+        } else {
+            None
+        };
 
-        if dev.ty.contains(Types::ABSOLUTE) {
+        let supported_absolute = if ty.contains(Types::ABSOLUTE) {
             unsafe {
                 let (_, bits64_as_u8_slice, _) = std::slice::from_mut(&mut bits64).align_to_mut();
                 eviocgbit(
-                    dev.file.as_raw_fd(),
+                    file.as_raw_fd(),
                     Types::ABSOLUTE.number(),
                     bits64_as_u8_slice,
                 )?;
             }
-            dev.abs =
-                AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug");
-            dev.state.abs_vals = vec![input_absinfo_default(); 0x3f];
-        }
+            state.abs_vals = Some(vec![input_absinfo_default(); 0x3f]);
+            Some(AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug"))
+        } else {
+            None
+        };
 
-        if dev.ty.contains(Types::SWITCH) {
+        let supported_switch = if ty.contains(Types::SWITCH) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(
-                    dev.file.as_raw_fd(),
-                    Types::SWITCH.number(),
-                    bits_as_u8_slice,
-                )?;
+                eviocgbit(file.as_raw_fd(), Types::SWITCH.number(), bits_as_u8_slice)?;
             }
-            dev.switch =
-                Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug");
-        }
+            state.switch_vals = Some(FixedBitSet::with_capacity(0x10));
 
-        if dev.ty.contains(Types::LED) {
+            Some(Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug"))
+        } else {
+            None
+        };
+
+        let supported_led = if ty.contains(Types::LED) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(dev.file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?;
+                eviocgbit(file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?;
             }
-            dev.led = Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug");
-        }
+            let led_vals = FixedBitSet::with_capacity(0x10);
+            debug_assert!(led_vals.len() % 8 == 0);
+            state.led_vals = Some(led_vals);
 
-        if dev.ty.contains(Types::MISC) {
+            Some(Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug"))
+        } else {
+            None
+        };
+
+        let supported_misc = if ty.contains(Types::MISC) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(dev.file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?;
+                eviocgbit(file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?;
             }
-            dev.misc = Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug");
-        }
+            Some(Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug"))
+        } else {
+            None
+        };
 
-        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
+        //unsafe { eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
-        if dev.ty.contains(Types::SOUND) {
+        let supported_snd = if ty.contains(Types::SOUND) {
             unsafe {
                 let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(
-                    dev.file.as_raw_fd(),
-                    Types::SOUND.number(),
-                    bits_as_u8_slice,
-                )?;
+                eviocgbit(file.as_raw_fd(), Types::SOUND.number(), bits_as_u8_slice)?;
             }
-            dev.snd = Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug");
-        }
+            Some(Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug"))
+        } else {
+            None
+        };
+
+        let mut dev = Device {
+            file,
+            ty,
+            name,
+            phys,
+            uniq,
+            id,
+            props,
+            driver_version,
+            supported_keys,
+            supported_relative,
+            supported_absolute,
+            supported_switch,
+            supported_led,
+            supported_misc,
+            supported_snd,
+            pending_events: Vec::with_capacity(64),
+            last_seen: 0,
+            state,
+        };
 
         dev.sync_state()?;
 
@@ -553,41 +560,42 @@ impl Device {
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
-        if self.ty.contains(Types::KEY) {
+        if let Some(key_vals) = &mut self.state.key_vals {
             unsafe {
-                let key_slice = self.state.key_vals.as_mut_slice();
+                let key_slice = key_vals.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
                 eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
             }
         }
-        if self.ty.contains(Types::ABSOLUTE) {
+
+        if let (Some(supported_abs), Some(abs_vals)) =
+            (self.supported_absolute, &mut self.state.abs_vals)
+        {
             for idx in 0..AbsoluteAxis::MAX {
-                let abs = 1 << idx;
+                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
                 // ignore multitouch, we'll handle that later.
                 //
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
-                if self.abs.bits() & abs != 0 {
+                if supported_abs.contains(abs) {
                     unsafe {
-                        eviocgabs(
-                            self.file.as_raw_fd(),
-                            idx as u32,
-                            &mut self.state.abs_vals[idx],
-                        )?;
+                        eviocgabs(self.file.as_raw_fd(), idx as u32, &mut abs_vals[idx])?;
                     }
                 }
             }
         }
-        if self.ty.contains(Types::SWITCH) {
+
+        if let Some(switch_vals) = &mut self.state.switch_vals {
             unsafe {
-                let switch_slice = self.state.switch_vals.as_mut_slice();
+                let switch_slice = switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
                 eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
             }
         }
-        if self.ty.contains(Types::LED) {
+
+        if let Some(led_vals) = &mut self.state.led_vals {
             unsafe {
-                let led_slice = self.state.led_vals.as_mut_slice();
+                let led_slice = led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
                 eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
             }
@@ -631,69 +639,69 @@ impl Device {
 
         let time = into_timeval(&SystemTime::now()).unwrap();
 
-        if self.ty.contains(Types::KEY) {
-            for key_idx in 0..self.supported_keys.len() {
-                if self.supported_keys.contains(key_idx)
-                    && old_state.key_vals[key_idx] != self.state.key_vals[key_idx]
+        if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
+        {
+            for key_idx in 0..supported_keys.len() {
+                if supported_keys.contains(key_idx)
+                    && old_state.key_vals.as_ref().map(|v| v[key_idx]) != Some(key_vals[key_idx])
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::KEY.number(),
                         code: key_idx as u16,
-                        value: if self.state.key_vals[key_idx] { 1 } else { 0 },
+                        value: if key_vals[key_idx] { 1 } else { 0 },
                     });
                 }
             }
         }
-        if self.ty.contains(Types::ABSOLUTE) {
+
+        if let (Some(supported_abs), Some(abs_vals)) =
+            (self.supported_absolute, &self.state.abs_vals)
+        {
             for idx in 0..AbsoluteAxis::MAX {
                 let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
-                if self.abs.contains(abs)
-                    && old_state.abs_vals[idx] != self.state.abs_vals[idx]
+                if supported_abs.contains(abs)
+                    && old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx])
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::ABSOLUTE.number(),
                         code: idx as u16,
-                        value: self.state.abs_vals[idx].value,
+                        value: abs_vals[idx].value,
                     });
                 }
             }
         }
-        if self.ty.contains(Types::SWITCH) {
+
+        if let (Some(supported_switch), Some(switch_vals)) =
+            (self.supported_switch, &self.state.switch_vals)
+        {
             for idx in 0..Switch::MAX {
                 let sw = Switch::from_bits(1 << idx).unwrap();
-                if self.switch.contains(sw)
-                    && old_state.switch_vals[idx] != self.state.switch_vals[idx]
+                if supported_switch.contains(sw)
+                    && old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx])
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::SWITCH.number(),
                         code: idx as u16,
-                        value: if self.state.switch_vals[idx] {
-                            1
-                        } else {
-                            0
-                        },
+                        value: if switch_vals[idx] { 1 } else { 0 },
                     });
                 }
             }
         }
-        if self.ty.contains(Types::LED) {
+
+        if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             for idx in 0..Led::MAX {
                 let led = Led::from_bits_truncate(1 << idx);
-                if self.led.contains(led)
-                    && old_state.led_vals[idx] != self.state.led_vals[idx]
+                if supported_led.contains(led)
+                    && old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx])
                 {
                     self.pending_events.push(raw::input_event {
                         time,
                         type_: Types::LED.number(),
                         code: idx as u16,
-                        value: if self.state.led_vals[idx] {
-                            1
-                        } else {
-                            0
-                        },
+                        value: if led_vals[idx] { 1 } else { 0 },
                     });
                 }
             }

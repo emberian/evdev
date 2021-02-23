@@ -20,15 +20,6 @@ pub(crate) const fn input_absinfo_default() -> input_absinfo {
     }
 }
 
-pub(crate) const fn input_id_default() -> input_id {
-    input_id {
-        bustype: 0,
-        vendor: 0,
-        product: 0,
-        version: 0,
-    }
-}
-
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
 ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);
