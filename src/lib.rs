@@ -1047,7 +1047,7 @@ impl Device {
         self.fill_events()?;
         self.compensate_dropped()?;
 
-        Ok(RawEvents(self))
+        Ok(RawEvents::new(self))
     }
 }
 
