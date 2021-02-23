@@ -20,15 +20,6 @@ pub(crate) const fn input_absinfo_default() -> input_absinfo {
     }
 }
 
-pub(crate) const fn input_id_default() -> input_id {
-    input_id {
-        bustype: 0,
-        vendor: 0,
-        product: 0,
-        version: 0,
-    }
-}
-
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
 ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);
@@ -56,11 +47,25 @@ ioctl_write_int!(eviocgrab, b'E', 0x90);
 ioctl_write_int!(eviocrevoke, b'E', 0x91);
 ioctl_write_int!(eviocsclockid, b'E', 0xa0);
 
+/// ioctl: "get event bits"
+///
+/// `ev` should be one of the "Event types" as defined in the Linux kernel headers.
+/// In modern (5.11) kernels these are in `include/uapi/linux/input-event-codes.h`, and in older
+/// kernels these defines can be found in `include/uapi/linux/input.h`
+///
+/// # Panics
+///
+/// Calling this with a value greater than the kernel-defined `EV_MAX` (typically 0x1f) will panic.
+///
+/// # Safety
+///
+/// `ev` must be a valid event number otherwise the behavior is undefined.
 pub unsafe fn eviocgbit(
     fd: ::libc::c_int,
     ev: u32,
     buf: &mut [u8],
 ) -> ::nix::Result<c_int> {
+    assert!(ev <= 0x1f);
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(b'E', 0x20 + ev, buf.len()),
@@ -68,11 +73,26 @@ pub unsafe fn eviocgbit(
     ))
 }
 
+/// ioctl: "get abs value/limits"
+///
+/// `abs` should be one of the "Absolute axes" values defined in the Linux kernel headers.
+/// In modern (5.11) kernels these are in `include/uapi/linux/input-event-codes.h`, and in older
+/// kernels these defines can be found in `include/uapi/linux/input.h`
+///
+/// # Panics
+///
+/// Calling this with a value greater than the kernel-defined `ABS_MAX` (typically 0x3f) will panic.
+///
+/// # Safety
+///
+/// 'abs' must be a valid axis number and supported by the device, otherwise the behavior is
+/// undefined.
 pub unsafe fn eviocgabs(
     fd: ::libc::c_int,
     abs: u32,
     buf: &mut input_absinfo,
 ) -> ::nix::Result<c_int> {
+    assert!(abs <= 0x3f);
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(b'E', 0x40 + abs, ::std::mem::size_of::<input_absinfo>()),
