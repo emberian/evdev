@@ -399,14 +399,9 @@ impl Device {
             .open(path)
             .or_else(|_| options.write(false).open(path))?;
 
-        let mut bits: u32 = 0;
-        let mut bits64: u64 = 0;
-
-        unsafe {
-            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgbit(file.as_raw_fd(), 0, bits_as_u8_slice)?;
-        }
-        let ty = Types::from_bits(bits).expect("evdev: unexpected type bits! report a bug");
+        let mut ty = 0;
+        unsafe { eviocgbit_type(file.as_raw_fd(), &mut ty)? };
+        let ty = Types::from_bits(ty).expect("evdev: unexpected type bits! report a bug");
 
         let name = ioctl_get_cstring(eviocgname, file.as_raw_fd());
         let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd());
@@ -427,11 +422,11 @@ impl Device {
             (driver_version & 0xff) as u8,
         );
 
+        let mut props = 0;
         unsafe {
-            let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-            eviocgprop(file.as_raw_fd(), bits_as_u8_slice)?;
+            eviocgprop(file.as_raw_fd(), &mut props)?;
         } // FIXME: handle old kernel
-        let props = Props::from_bits(bits).expect("evdev: unexpected prop bits! report a bug");
+        let props = Props::from_bits(props).expect("evdev: unexpected prop bits! report a bug");
 
         let mut state = DeviceState::default();
 
@@ -442,11 +437,7 @@ impl Device {
             unsafe {
                 let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
                 debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
-                eviocgbit(
-                    file.as_raw_fd(),
-                    Types::KEY.number(),
-                    supported_keys_as_u8_slice,
-                )?;
+                eviocgbit_key(file.as_raw_fd(), supported_keys_as_u8_slice)?;
             }
             let key_vals = FixedBitSet::with_capacity(Key::MAX);
             debug_assert!(key_vals.len() % 8 == 0);
@@ -458,62 +449,48 @@ impl Device {
         };
 
         let supported_relative = if ty.contains(Types::RELATIVE) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::RELATIVE.number(), bits_as_u8_slice)?;
-            }
-            Some(RelativeAxis::from_bits(bits).expect("evdev: unexpected rel bits! report a bug"))
+            let mut rel = 0;
+            unsafe { eviocgbit_relative(file.as_raw_fd(), &mut rel)? };
+            Some(RelativeAxis::from_bits(rel).expect("evdev: unexpected rel bits! report a bug"))
         } else {
             None
         };
 
         let supported_absolute = if ty.contains(Types::ABSOLUTE) {
-            unsafe {
-                let (_, bits64_as_u8_slice, _) = std::slice::from_mut(&mut bits64).align_to_mut();
-                eviocgbit(
-                    file.as_raw_fd(),
-                    Types::ABSOLUTE.number(),
-                    bits64_as_u8_slice,
-                )?;
-            }
+            let mut abs = 0;
+            unsafe { eviocgbit_absolute(file.as_raw_fd(), &mut abs)? };
             state.abs_vals = Some(vec![input_absinfo_default(); 0x3f]);
-            Some(AbsoluteAxis::from_bits(bits64).expect("evdev: unexpected abs bits! report a bug"))
+            Some(AbsoluteAxis::from_bits(abs).expect("evdev: unexpected abs bits! report a bug"))
         } else {
             None
         };
 
         let supported_switch = if ty.contains(Types::SWITCH) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::SWITCH.number(), bits_as_u8_slice)?;
-            }
+            let mut switch = 0;
+            unsafe { eviocgbit_switch(file.as_raw_fd(), &mut switch)? };
             state.switch_vals = Some(FixedBitSet::with_capacity(0x10));
 
-            Some(Switch::from_bits(bits).expect("evdev: unexpected switch bits! report a bug"))
+            Some(Switch::from_bits(switch).expect("evdev: unexpected switch bits! report a bug"))
         } else {
             None
         };
 
         let supported_led = if ty.contains(Types::LED) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::LED.number(), bits_as_u8_slice)?;
-            }
+            let mut led = 0;
+            unsafe { eviocgbit_led(file.as_raw_fd(), &mut led)? };
             let led_vals = FixedBitSet::with_capacity(0x10);
             debug_assert!(led_vals.len() % 8 == 0);
             state.led_vals = Some(led_vals);
 
-            Some(Led::from_bits(bits).expect("evdev: unexpected led bits! report a bug"))
+            Some(Led::from_bits(led).expect("evdev: unexpected led bits! report a bug"))
         } else {
             None
         };
 
         let supported_misc = if ty.contains(Types::MISC) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::MISC.number(), bits_as_u8_slice)?;
-            }
-            Some(Misc::from_bits(bits).expect("evdev: unexpected misc bits! report a bug"))
+            let mut misc = 0;
+            unsafe { eviocgbit_misc(file.as_raw_fd(), &mut misc)? };
+            Some(Misc::from_bits(misc).expect("evdev: unexpected misc bits! report a bug"))
         } else {
             None
         };
@@ -521,11 +498,9 @@ impl Device {
         //unsafe { eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
         let supported_snd = if ty.contains(Types::SOUND) {
-            unsafe {
-                let (_, bits_as_u8_slice, _) = std::slice::from_mut(&mut bits).align_to_mut();
-                eviocgbit(file.as_raw_fd(), Types::SOUND.number(), bits_as_u8_slice)?;
-            }
-            Some(Sound::from_bits(bits).expect("evdev: unexpected sound bits! report a bug"))
+            let mut snd = 0;
+            unsafe { eviocgbit_sound(file.as_raw_fd(), &mut snd)? };
+            Some(Sound::from_bits(snd).expect("evdev: unexpected sound bits! report a bug"))
         } else {
             None
         };
