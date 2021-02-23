@@ -747,6 +747,13 @@ impl Device {
 
         Ok(RawEvents::new(self))
     }
+
+    pub fn wait_ready(&self) -> nix::Result<()> {
+        use nix::poll;
+        let mut pfd = poll::PollFd::new(self.file.as_raw_fd(), poll::PollFlags::POLLIN);
+        poll::poll(std::slice::from_mut(&mut pfd), -1)?;
+        Ok(())
+    }
 }
 
 pub struct Events<'a>(&'a mut Device);
