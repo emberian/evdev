@@ -41,7 +41,7 @@ mod scancodes;
 use fixedbitset::FixedBitSet;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::mem::size_of;
+use std::mem;
 use std::os::unix::{
     fs::OpenOptionsExt,
     io::{AsRawFd, RawFd},
@@ -700,15 +700,25 @@ impl Device {
         let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
-            // TODO: use spare_capacity_mut or split_at_spare_mut when they stabilize
-            let pre_len = buf.len();
-            let capacity = buf.capacity();
-            let (_, unsafe_buf_slice, _) =
-                unsafe { buf.get_unchecked_mut(pre_len..capacity).align_to_mut() };
+            // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
+            let spare_capacity = vec_spare_capacity_mut(buf);
+            let (_, uninit_buf, _) =
+                unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
-            match nix::unistd::read(self.file.as_raw_fd(), unsafe_buf_slice) {
+            // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
+            let res = unsafe {
+                libc::read(
+                    self.file.as_raw_fd(),
+                    uninit_buf.as_mut_ptr() as _,
+                    uninit_buf.len(),
+                )
+            };
+            match nix::errno::Errno::result(res) {
                 Ok(bytes_read) => unsafe {
-                    buf.set_len(pre_len + (bytes_read / size_of::<raw::input_event>()));
+                    let pre_len = buf.len();
+                    buf.set_len(
+                        pre_len + (bytes_read as usize / mem::size_of::<raw::input_event>()),
+                    );
                 },
                 Err(e) => {
                     if e == nix::Error::Sys(::nix::errno::Errno::EAGAIN) {
@@ -801,6 +811,18 @@ fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTim
         tv_sec: now_duration.as_secs() as libc::time_t,
         tv_usec: now_duration.subsec_micros() as libc::suseconds_t,
     })
+}
+
+/// A copy of the unstable Vec::spare_capacity_mut
+#[inline]
+fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
+    let (len, cap) = (v.len(), v.capacity());
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            v.as_mut_ptr().add(len) as *mut mem::MaybeUninit<T>,
+            cap - len,
+        )
+    }
 }
 
 #[cfg(test)]
