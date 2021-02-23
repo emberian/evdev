@@ -187,6 +187,12 @@ pub struct Device {
     state: DeviceState,
 }
 
+impl AsRawFd for Device {
+    fn as_raw_fd(&self) -> RawFd {
+        self.file.as_raw_fd()
+    }
+}
+
 const fn bus_name(x: u16) -> &'static str {
     match x {
         0x1 => "PCI",
@@ -320,10 +326,6 @@ impl std::fmt::Display for Device {
 }
 
 impl Device {
-    pub fn fd(&self) -> RawFd {
-        self.file.as_raw_fd()
-    }
-
     pub fn events_supported(&self) -> Types {
         self.ty
     }
@@ -540,11 +542,12 @@ impl Device {
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
     pub fn sync_state(&mut self) -> Result<(), Error> {
+        let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
             unsafe {
                 let key_slice = key_vals.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
-                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
+                eviocgkey(fd, key_vals_as_u8_slice)?;
             }
         }
 
@@ -559,7 +562,7 @@ impl Device {
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 if supported_abs.contains(abs) {
                     unsafe {
-                        eviocgabs(self.file.as_raw_fd(), idx as u32, &mut abs_vals[idx])?;
+                        eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
                     }
                 }
             }
@@ -569,7 +572,7 @@ impl Device {
             unsafe {
                 let switch_slice = switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
-                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
+                eviocgsw(fd, switch_vals_as_u8_slice)?;
             }
         }
 
@@ -577,7 +580,7 @@ impl Device {
             unsafe {
                 let led_slice = led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
-                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
+                eviocgled(fd, led_vals_as_u8_slice)?;
             }
         }
 
@@ -697,6 +700,7 @@ impl Device {
     }
 
     fn fill_events(&mut self) -> Result<(), Error> {
+        let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
@@ -706,13 +710,7 @@ impl Device {
                 unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
             // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
-            let res = unsafe {
-                libc::read(
-                    self.file.as_raw_fd(),
-                    uninit_buf.as_mut_ptr() as _,
-                    uninit_buf.len(),
-                )
-            };
+            let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
             match nix::errno::Errno::result(res) {
                 Ok(bytes_read) => unsafe {
                     let pre_len = buf.len();
@@ -750,7 +748,7 @@ impl Device {
 
     pub fn wait_ready(&self) -> nix::Result<()> {
         use nix::poll;
-        let mut pfd = poll::PollFd::new(self.file.as_raw_fd(), poll::PollFlags::POLLIN);
+        let mut pfd = poll::PollFd::new(self.as_raw_fd(), poll::PollFlags::POLLIN);
         poll::poll(std::slice::from_mut(&mut pfd), -1)?;
         Ok(())
     }
