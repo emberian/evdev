@@ -53,7 +53,7 @@ bitflags! {
         const SEMI_MT = 1 << 0x03;
         /// "softbuttons at top of pad", according to the header.
         const TOPBUTTONPAD = 1 << 0x04;
-        /// Is a pointing stick ("clit mouse" etc, https://xkcd.com/243/)
+        /// Is a pointing stick ("nub" etc, https://xkcd.com/243/)
         const POINTING_STICK = 1 << 0x05;
         /// Has an accelerometer. Probably reports relative events in that case?
         const ACCELEROMETER = 1 << 0x06;
