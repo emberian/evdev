@@ -438,11 +438,17 @@ pub struct Device {
     state: DeviceState,
 }
 
+impl AsRawFd for Device {
+    fn as_raw_fd(&self) -> RawFd {
+        self.file.as_raw_fd()
+    }
+}
+
 impl std::fmt::Debug for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut ds = f.debug_struct("Device");
         ds.field("name", &self.name)
-            .field("fd", &self.file)
+            .field("file", &self.file)
             .field("ty", &self.ty);
         if let Some(ref phys) = self.phys {
             ds.field("phys", phys);
@@ -640,10 +646,6 @@ impl std::fmt::Display for Device {
 }
 
 impl Device {
-    pub fn fd(&self) -> RawFd {
-        self.file.as_raw_fd()
-    }
-
     pub fn events_supported(&self) -> Types {
         self.ty
     }
@@ -764,20 +766,19 @@ impl Device {
         debug_assert!(dev.state.led_vals.len() % 8 == 0);
 
         let mut ty = 0;
-        unsafe { eviocgbit_type(dev.file.as_raw_fd(), &mut ty)? };
+        unsafe { eviocgbit_type(dev.as_raw_fd(), &mut ty)? };
         dev.ty = Types::from_bits(ty).expect("evdev: unexpected type bits! report a bug");
 
-        dev.name =
-            ioctl_get_cstring(eviocgname, dev.file.as_raw_fd()).unwrap_or_else(CString::default);
-        dev.phys = ioctl_get_cstring(eviocgphys, dev.file.as_raw_fd());
-        dev.uniq = ioctl_get_cstring(eviocguniq, dev.file.as_raw_fd());
+        dev.name = ioctl_get_cstring(eviocgname, dev.as_raw_fd()).unwrap_or_else(CString::default);
+        dev.phys = ioctl_get_cstring(eviocgphys, dev.as_raw_fd());
+        dev.uniq = ioctl_get_cstring(eviocguniq, dev.as_raw_fd());
 
         unsafe {
-            eviocgid(dev.file.as_raw_fd(), &mut dev.id)?;
+            eviocgid(dev.as_raw_fd(), &mut dev.id)?;
         }
         let mut driver_version: i32 = 0;
         unsafe {
-            eviocgversion(dev.file.as_raw_fd(), &mut driver_version)?;
+            eviocgversion(dev.as_raw_fd(), &mut driver_version)?;
         }
         dev.driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -787,29 +788,30 @@ impl Device {
 
         let mut props = 0;
         unsafe {
-            eviocgprop(dev.file.as_raw_fd(), &mut props)?;
+            eviocgprop(dev.as_raw_fd(), &mut props)?;
         } // FIXME: handle old kernel
         dev.props = Props::from_bits(props).expect("evdev: unexpected prop bits! report a bug");
 
         if dev.ty.contains(Types::KEY) {
             unsafe {
+                let fd = dev.as_raw_fd();
                 let key_slice = dev.supported_keys.as_mut_slice();
                 let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
                 debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
-                eviocgbit_key(dev.file.as_raw_fd(), supported_keys_as_u8_slice)?;
+                eviocgbit_key(fd, supported_keys_as_u8_slice)?;
             }
         }
 
         if dev.ty.contains(Types::RELATIVE) {
             let mut rel = 0;
-            unsafe { eviocgbit_relative(dev.file.as_raw_fd(), &mut rel)? };
+            unsafe { eviocgbit_relative(dev.as_raw_fd(), &mut rel)? };
             dev.rel =
                 RelativeAxis::from_bits(rel).expect("evdev: unexpected rel bits! report a bug");
         }
 
         if dev.ty.contains(Types::ABSOLUTE) {
             let mut abs = 0;
-            unsafe { eviocgbit_absolute(dev.file.as_raw_fd(), &mut abs)? };
+            unsafe { eviocgbit_absolute(dev.as_raw_fd(), &mut abs)? };
             dev.abs =
                 AbsoluteAxis::from_bits(abs).expect("evdev: unexpected abs bits! report a bug");
             dev.state.abs_vals = vec![input_absinfo_default(); 0x3f];
@@ -817,28 +819,28 @@ impl Device {
 
         if dev.ty.contains(Types::SWITCH) {
             let mut switch = 0;
-            unsafe { eviocgbit_switch(dev.file.as_raw_fd(), &mut switch)? };
+            unsafe { eviocgbit_switch(dev.as_raw_fd(), &mut switch)? };
             dev.switch =
                 Switch::from_bits(switch).expect("evdev: unexpected switch bits! report a bug");
         }
 
         if dev.ty.contains(Types::LED) {
             let mut led = 0;
-            unsafe { eviocgbit_led(dev.file.as_raw_fd(), &mut led)? };
+            unsafe { eviocgbit_led(dev.as_raw_fd(), &mut led)? };
             dev.led = Led::from_bits(led).expect("evdev: unexpected led bits! report a bug");
         }
 
         if dev.ty.contains(Types::MISC) {
             let mut misc = 0;
-            unsafe { eviocgbit_misc(dev.file.as_raw_fd(), &mut misc)? };
+            unsafe { eviocgbit_misc(dev.as_raw_fd(), &mut misc)? };
             dev.misc = Misc::from_bits(misc).expect("evdev: unexpected misc bits! report a bug");
         }
 
-        //unsafe { eviocgbit(dev.file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
+        //unsafe { eviocgbit(dev.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
         if dev.ty.contains(Types::SOUND) {
             let mut snd = 0;
-            unsafe { eviocgbit_sound(dev.file.as_raw_fd(), &mut snd)? };
+            unsafe { eviocgbit_sound(dev.as_raw_fd(), &mut snd)? };
             dev.snd = Sound::from_bits(snd).expect("evdev: unexpected sound bits! report a bug");
         }
 
@@ -853,9 +855,10 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         if self.ty.contains(Types::KEY) {
             unsafe {
+                let fd = self.as_raw_fd();
                 let key_slice = self.state.key_vals.as_mut_slice();
                 let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
-                eviocgkey(self.file.as_raw_fd(), key_vals_as_u8_slice)?;
+                eviocgkey(fd, key_vals_as_u8_slice)?;
             }
         }
         if self.ty.contains(Types::ABSOLUTE) {
@@ -868,7 +871,7 @@ impl Device {
                 if self.abs.bits() & abs != 0 {
                     unsafe {
                         eviocgabs(
-                            self.file.as_raw_fd(),
+                            self.as_raw_fd(),
                             idx as u32,
                             &mut self.state.abs_vals[idx as usize],
                         )?;
@@ -878,16 +881,18 @@ impl Device {
         }
         if self.ty.contains(Types::SWITCH) {
             unsafe {
+                let fd = self.as_raw_fd();
                 let switch_slice = self.state.switch_vals.as_mut_slice();
                 let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
-                eviocgsw(self.file.as_raw_fd(), switch_vals_as_u8_slice)?;
+                eviocgsw(fd, switch_vals_as_u8_slice)?;
             }
         }
         if self.ty.contains(Types::LED) {
             unsafe {
+                let fd = self.as_raw_fd();
                 let led_slice = self.state.led_vals.as_mut_slice();
                 let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
-                eviocgled(self.file.as_raw_fd(), led_vals_as_u8_slice)?;
+                eviocgled(fd, led_vals_as_u8_slice)?;
             }
         }
 
@@ -1009,6 +1014,7 @@ impl Device {
     }
 
     fn fill_events(&mut self) -> Result<(), Error> {
+        let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
         loop {
             buf.reserve(20);
@@ -1018,13 +1024,7 @@ impl Device {
                 unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
             // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
-            let res = unsafe {
-                libc::read(
-                    self.file.as_raw_fd(),
-                    uninit_buf.as_mut_ptr() as _,
-                    uninit_buf.len(),
-                )
-            };
+            let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
             match nix::errno::Errno::result(res) {
                 Ok(bytes_read) => unsafe {
                     let pre_len = buf.len();
@@ -1062,7 +1062,7 @@ impl Device {
 
     pub fn wait_ready(&self) -> nix::Result<()> {
         use nix::poll;
-        let mut pfd = poll::PollFd::new(self.file.as_raw_fd(), poll::PollFlags::POLLIN);
+        let mut pfd = poll::PollFd::new(self.as_raw_fd(), poll::PollFlags::POLLIN);
         poll::poll(std::slice::from_mut(&mut pfd), -1)?;
         Ok(())
     }
