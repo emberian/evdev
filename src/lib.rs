@@ -388,7 +388,12 @@ impl Device {
         &self.state
     }
 
-    pub fn open(path: &dyn AsRef<Path>) -> Result<Device, Error> {
+    #[inline(always)]
+    pub fn open(path: impl AsRef<Path>) -> Result<Device, Error> {
+        Self::_open(path.as_ref())
+    }
+
+    fn _open(path: &Path) -> Result<Device, Error> {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
@@ -764,19 +769,28 @@ impl<'a> Iterator for RawEvents<'a> {
 /// Crawls `/dev/input` for evdev devices.
 ///
 /// Will not bubble up any errors in opening devices or traversing the directory. Instead returns
-/// an empty vector or omits the devices that could not be opened.
-pub fn enumerate() -> Vec<Device> {
-    let mut res = Vec::new();
-    if let Ok(dir) = std::fs::read_dir("/dev/input") {
-        for entry in dir {
-            if let Ok(entry) = entry {
-                if let Ok(dev) = Device::open(&entry.path()) {
-                    res.push(dev)
+/// an empty iterator or omits the devices that could not be opened.
+pub fn enumerate() -> EnumerateDevices {
+    EnumerateDevices {
+        readdir: std::fs::read_dir("/dev/input").ok(),
+    }
+}
+
+pub struct EnumerateDevices {
+    readdir: Option<std::fs::ReadDir>,
+}
+impl Iterator for EnumerateDevices {
+    type Item = Device;
+    fn next(&mut self) -> Option<Device> {
+        let readdir = self.readdir.as_mut()?;
+        loop {
+            if let Ok(entry) = readdir.next()? {
+                if let Ok(dev) = Device::open(entry.path()) {
+                    return Some(dev);
                 }
             }
         }
     }
-    res
 }
 
 /// A safe Rust version of clock_gettime against CLOCK_REALTIME
