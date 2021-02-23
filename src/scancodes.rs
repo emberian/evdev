@@ -1,12 +1,45 @@
-use num_traits::FromPrimitive;
+use std::fmt;
 
 /// Scancodes for key presses.
 ///
-/// Each represents a distinct key.
-#[repr(u32)]
-#[non_exhaustive]
-#[derive(Copy, Clone, Debug, num_derive::FromPrimitive)]
-enum RecognizedKey {
+/// Each associated constant for this struct represents a distinct key.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct Key(u32);
+
+impl Key {
+    #[inline]
+    pub const fn new(code: u32) -> Self {
+        Self(code)
+    }
+
+    #[inline]
+    pub const fn code(self) -> u32 {
+        self.0
+    }
+
+    // This needs to be a multiple of 8, otherwise we fetch keys we can't process
+    /// The highest key index that will be fetched by Device
+    pub const MAX: usize = 0x300;
+}
+
+macro_rules! key_consts {
+    ($($c:ident = $val:expr,)*) => {
+        impl Key {
+            $(const $c: Self = Self($val);)*
+        }
+        impl fmt::Debug for Key {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match *self {
+                    $(Self::$c => f.pad(stringify!($c)),)*
+                    _ => write!(f, "unknown key: {}", self.0),
+                }
+            }
+        }
+    }
+}
+
+key_consts!(
     KEY_RESERVED = 0,
     KEY_ESC = 1,
     KEY_1 = 2,
@@ -526,25 +559,4 @@ enum RecognizedKey {
     BTN_TRIGGER_HAPPY38 = 0x2e5,
     BTN_TRIGGER_HAPPY39 = 0x2e6,
     BTN_TRIGGER_HAPPY40 = 0x2e7,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Key(pub u32);
-
-impl std::fmt::Debug for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        match RecognizedKey::from_u32(self.0) {
-            Some(k) => write!(f, "{:?}", k),
-            None => write!(f, "Unknown key: {}", self.0),
-        }
-    }
-}
-
-impl Key {
-    pub fn new(code: u32) -> Self {
-        Key(code)
-    }
-
-    // This needs to be a multiple of 8, otherwise we fetch keys we can't process
-    pub const MAX: usize = 0x300;
-}
+);
