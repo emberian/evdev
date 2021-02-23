@@ -60,10 +60,14 @@ eviocgbit_ioctl!(ioctl_read!(eviocgbit_type, 0, u32));
 eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_key, KEY, u8));
 eviocgbit_ioctl!(ioctl_read!(eviocgbit_relative, RELATIVE, u32));
 eviocgbit_ioctl!(ioctl_read!(eviocgbit_absolute, ABSOLUTE, u64));
+eviocgbit_ioctl!(ioctl_read!(eviocgbit_misc, MISC, u32));
 eviocgbit_ioctl!(ioctl_read!(eviocgbit_switch, SWITCH, u32));
 eviocgbit_ioctl!(ioctl_read!(eviocgbit_led, LED, u32));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_misc, MISC, u32));
 eviocgbit_ioctl!(ioctl_read!(eviocgbit_sound, SOUND, u32));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_repeat, REPEAT, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_ff, FORCEFEEDBACK, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_power, POWER, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_ffstatus, FORCEFEEDBACKSTATUS, u8));
 
 /// ioctl: "get abs value/limits"
 ///
