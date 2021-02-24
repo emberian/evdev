@@ -716,16 +716,12 @@ impl Device {
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
-        match nix::errno::Errno::result(res) {
-            Ok(bytes_read) => unsafe {
-                let pre_len = buf.len();
-                buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
-                Ok(())
-            },
-            Err(e) => {
-                Err(e.into())
-            }
+        let bytes_read = nix::errno::Errno::result(res)?;
+        let pre_len = buf.len();
+        unsafe {
+            buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
         }
+        Ok(())
     }
 
     /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
