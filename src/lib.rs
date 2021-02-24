@@ -75,6 +75,7 @@ pub mod raw;
 mod scancodes;
 
 use bitvec::prelude::*;
+use std::fmt;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::mem;
@@ -144,7 +145,7 @@ pub struct DeviceState {
     timestamp: libc::timeval,
     /// Set = key pressed
     key_vals: Option<Box<KeyArray>>,
-    abs_vals: Option<Vec<libc::input_absinfo>>,
+    abs_vals: Option<Box<[libc::input_absinfo; AbsoluteAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
     switch_vals: Option<BitArr!(for SwitchType::COUNT, in u8)>,
     /// Set = LED lit
@@ -163,7 +164,7 @@ impl DeviceState {
     }
 
     pub fn abs_vals(&self) -> Option<&[libc::input_absinfo]> {
-        self.abs_vals.as_deref()
+        self.abs_vals.as_deref().map(|v| &v[..])
     }
 
     pub fn switch_vals(&self) -> Option<AttributeSet<'_, SwitchType>> {
@@ -256,9 +257,9 @@ const fn bus_name(x: u16) -> &'static str {
     }
 }
 
-impl std::fmt::Display for Device {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "{}", self.name.as_deref().unwrap_or("Unnamed device"))?;
+impl fmt::Display for Device {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{}:", self.name.as_deref().unwrap_or("Unnamed device"))?;
         writeln!(
             f,
             "  Driver version: {}.{}.{}",
@@ -275,14 +276,7 @@ impl std::fmt::Display for Device {
         writeln!(f, "  Vendor: {:#x}", self.id.vendor)?;
         writeln!(f, "  Product: {:#x}", self.id.product)?;
         writeln!(f, "  Version: {:#x}", self.id.version)?;
-        write!(f, "  Properties: ")?;
-        let mut first = true;
-        for idx in self.props.iter_ones() {
-            let pipe = if first { "" } else { "|" };
-            first = false;
-            write!(f, "{}{:?}", pipe, PropType(idx as u32))?
-        }
-        writeln!(f, "{}", if first { "(none)" } else { "" })?;
+        writeln!(f, "  Properties: {:?}", self.properties())?;
 
         if let (Some(supported_keys), Some(key_vals)) =
             (self.keys_supported(), self.state.key_vals())
@@ -304,7 +298,7 @@ impl std::fmt::Display for Device {
             }
         }
 
-        if let Some(supported_relative) = self.supported_relative {
+        if let Some(supported_relative) = self.relative_axes_supported() {
             writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
         }
 
@@ -313,12 +307,12 @@ impl std::fmt::Display for Device {
         {
             writeln!(f, "  Absolute Axes:")?;
             for idx in supported_abs.iter_ones() {
-                let abs = AbsoluteAxisType(idx as u32);
+                let abs = AbsoluteAxisType(idx as u16);
                 writeln!(f, "    {:?} ({:?}, index {})", abs, abs_vals[idx], idx)?;
             }
         }
 
-        if let Some(supported_misc) = self.supported_misc {
+        if let Some(supported_misc) = self.misc_properties() {
             writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
         }
 
@@ -327,7 +321,7 @@ impl std::fmt::Display for Device {
         {
             writeln!(f, "  Switches:")?;
             for idx in supported_switch.iter_ones() {
-                let sw = SwitchType(idx as u32);
+                let sw = SwitchType(idx as u16);
                 writeln!(f, "    {:?} ({:?}, index {})", sw, switch_vals[idx], idx)?;
             }
         }
@@ -335,7 +329,7 @@ impl std::fmt::Display for Device {
         if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             writeln!(f, "  LEDs:")?;
             for idx in supported_led.iter_ones() {
-                let led = LedType(idx as u32);
+                let led = LedType(idx as u16);
                 writeln!(f, "    {:?} ({:?}, index {})", led, led_vals[idx], idx)?;
             }
         }
@@ -343,7 +337,7 @@ impl std::fmt::Display for Device {
         if let Some(supported_snd) = self.supported_snd {
             write!(f, "  Sounds:")?;
             for idx in supported_snd.iter_ones() {
-                let snd = SoundType(idx as u32);
+                let snd = SoundType(idx as u16);
                 writeln!(f, "    {:?} (index {})", snd, idx)?;
             }
         }
@@ -399,6 +393,22 @@ impl<'a, T: EvdevEnum> AttributeSet<'a, T> {
     #[inline]
     pub fn enabled(&self) -> impl Iterator<Item = T> + 'a {
         self.bitslice.iter_ones().map(T::from_index)
+    }
+}
+
+impl<'a, T: EvdevEnum + fmt::Debug> fmt::Debug for AttributeSet<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut first = true;
+        for variant in self.enabled() {
+            let pipe = if first { "" } else { "|" };
+            first = false;
+            write!(f, "{}{:?}", pipe, variant)?
+        }
+        if first {
+            // we didn't write anything, the set is empty
+            f.write_str("(none)")?;
+        }
+        Ok(())
     }
 }
 
@@ -522,9 +532,11 @@ impl Device {
         let mut state = DeviceState::default();
 
         let supported_keys = if ty[EventType::KEY.0 as usize] {
-            state.key_vals = Some(Box::new([0; bit_elts::<u8>(Key::COUNT)]));
+            const KEY_ARR_INIT: KeyArray = [0; bit_elts::<u8>(Key::COUNT)];
 
-            let mut supported_keys: Box<KeyArray> = Box::new([0; bit_elts::<u8>(Key::COUNT)]);
+            state.key_vals = Some(Box::new(KEY_ARR_INIT));
+
+            let mut supported_keys = Box::new(KEY_ARR_INIT);
             let key_slice = &mut supported_keys[..];
             unsafe { raw::eviocgbit_key(file.as_raw_fd(), key_slice)? };
 
@@ -542,7 +554,13 @@ impl Device {
         };
 
         let supported_absolute = if ty[EventType::ABSOLUTE.0 as usize] {
-            state.abs_vals = Some(vec![raw::input_absinfo_default(); 0x3f]);
+            #[rustfmt::skip]
+            const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
+                value: 0, minimum: 0, maximum: 0, fuzz: 0, flat: 0, resolution: 0,
+            };
+            const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
+                [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
+            state.abs_vals = Some(Box::new(ABS_VALS_INIT));
             let mut abs = BitArray::zeroed();
             unsafe { raw::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
@@ -825,11 +843,91 @@ impl<'a> Drop for RawEvents<'a> {
 }
 
 impl<'a> Iterator for RawEvents<'a> {
-    type Item = libc::input_event;
+    type Item = InputEvent;
 
     #[inline(always)]
-    fn next(&mut self) -> Option<libc::input_event> {
-        self.0.pending_events.pop()
+    fn next(&mut self) -> Option<InputEvent> {
+        self.0.pending_events.pop().map(InputEvent)
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum InputEventKind {
+    Synchronization,
+    Key(Key),
+    RelAxis(RelativeAxisType),
+    AbsAxis(AbsoluteAxisType),
+    Misc(MiscType),
+    Switch(SwitchType),
+    Led(LedType),
+    Sound(SoundType),
+    Other,
+}
+
+#[repr(transparent)]
+pub struct InputEvent(libc::input_event);
+
+impl InputEvent {
+    #[inline]
+    pub fn timestamp(&self) -> SystemTime {
+        timeval2systime(&self.0.time)
+    }
+
+    #[inline]
+    pub fn event_type(&self) -> EventType {
+        EventType(self.0.type_)
+    }
+
+    #[inline]
+    pub fn code(&self) -> u16 {
+        self.0.code
+    }
+
+    /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
+    /// the type of this event.
+    #[inline]
+    pub fn kind(&self) -> InputEventKind {
+        let code = self.code();
+        match self.event_type() {
+            EventType::SYNCHRONIZATION => InputEventKind::Synchronization,
+            EventType::KEY => InputEventKind::Key(Key::new(code)),
+            EventType::RELATIVE => InputEventKind::RelAxis(RelativeAxisType(code)),
+            EventType::ABSOLUTE => InputEventKind::AbsAxis(AbsoluteAxisType(code)),
+            EventType::MISC => InputEventKind::Misc(MiscType(code)),
+            EventType::SWITCH => InputEventKind::Switch(SwitchType(code)),
+            EventType::LED => InputEventKind::Led(LedType(code)),
+            EventType::SOUND => InputEventKind::Sound(SoundType(code)),
+            _ => InputEventKind::Other,
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> i32 {
+        self.0.value
+    }
+
+    pub fn from_raw(raw: libc::input_event) -> Self {
+        Self(raw)
+    }
+
+    pub fn as_raw(&self) -> &libc::input_event {
+        &self.0
+    }
+}
+
+impl fmt::Debug for InputEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut debug = f.debug_struct("InputEvent");
+        debug.field("time", &self.timestamp());
+        let kind = self.kind();
+        if let InputEventKind::Other = kind {
+            debug
+                .field("type", &self.event_type())
+                .field("code", &self.code());
+        } else {
+            debug.field("kind", &kind);
+        }
+        debug.field("value", &self.value()).finish()
     }
 }
 

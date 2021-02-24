@@ -1,6 +1,6 @@
 /// Event types supported by the device.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct EventType(pub u32);
+pub struct EventType(pub u16);
 
 newtype_consts!(
     EventType,
@@ -45,7 +45,7 @@ impl EventType {
 
 /// Device properties.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct PropType(pub u32);
+pub struct PropType(pub u16);
 
 newtype_consts!(
     PropType,
@@ -71,7 +71,7 @@ impl PropType {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct RelativeAxisType(pub u32);
+pub struct RelativeAxisType(pub u16);
 
 newtype_consts!(
     RelativeAxisType,
@@ -95,7 +95,7 @@ impl RelativeAxisType {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct AbsoluteAxisType(pub u32);
+pub struct AbsoluteAxisType(pub u16);
 
 newtype_consts!(
     AbsoluteAxisType,
@@ -162,7 +162,7 @@ impl AbsoluteAxisType {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct SwitchType(pub u32);
+pub struct SwitchType(pub u16);
 
 newtype_consts!(
     SwitchType,
@@ -208,7 +208,7 @@ impl SwitchType {
 
 /// LEDs specified by USB HID.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct LedType(pub u32);
+pub struct LedType(pub u16);
 
 newtype_consts!(
     LedType,
@@ -235,7 +235,7 @@ impl LedType {
 
 /// Various miscellaneous event types. Current as of kernel 4.1.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct MiscType(pub u32);
+pub struct MiscType(pub u16);
 
 newtype_consts!(
     MiscType,
@@ -288,7 +288,7 @@ impl MiscType {
 // }
 
 // #[derive(Copy, Clone, PartialEq, Eq)]
-// pub struct RepeatType(pub u32);
+// pub struct RepeatType(pub u16);
 
 // newtype_consts!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
@@ -297,7 +297,7 @@ impl MiscType {
 // }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct SoundType(pub u32);
+pub struct SoundType(pub u16);
 
 newtype_consts!(
     SoundType,

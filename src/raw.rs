@@ -9,17 +9,6 @@ use nix::{
     request_code_read,
 };
 
-pub(crate) const fn input_absinfo_default() -> input_absinfo {
-    input_absinfo {
-        value: 0,
-        minimum: 0,
-        maximum: 0,
-        fuzz: 0,
-        flat: 0,
-        resolution: 0,
-    }
-}
-
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
 ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);
