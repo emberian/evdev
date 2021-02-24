@@ -91,7 +91,6 @@ pub use crate::scancodes::*;
 pub use crate::Synchronization::*;
 
 pub use crate::constants::*;
-use crate::raw::*;
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -145,7 +144,7 @@ pub struct DeviceState {
     timestamp: libc::timeval,
     /// Set = key pressed
     key_vals: Option<Box<KeyArray>>,
-    abs_vals: Option<Vec<input_absinfo>>,
+    abs_vals: Option<Vec<libc::input_absinfo>>,
     /// Set = switch enabled (closed)
     switch_vals: Option<BitArr!(for SwitchType::COUNT, in u8)>,
     /// Set = LED lit
@@ -163,7 +162,7 @@ impl DeviceState {
         timeval2systime(&self.timestamp)
     }
 
-    pub fn abs_vals(&self) -> Option<&[input_absinfo]> {
+    pub fn abs_vals(&self) -> Option<&[libc::input_absinfo]> {
         self.abs_vals.as_deref()
     }
 
@@ -207,7 +206,7 @@ pub struct Device {
     name: Option<String>,
     phys: Option<String>,
     uniq: Option<String>,
-    id: input_id,
+    id: libc::input_id,
     props: BitArr!(for PropType::COUNT, in u8),
     driver_version: (u8, u8, u8),
     supported_keys: Option<Box<KeyArray>>,
@@ -220,7 +219,7 @@ pub struct Device {
     // ff_stat: Option<FFStatus>,
     // rep: Option<Repeat>,
     supported_snd: Option<BitArr!(for SoundType::COUNT, in u8)>,
-    pending_events: Vec<input_event>,
+    pending_events: Vec<libc::input_event>,
     // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
     state: DeviceState,
@@ -420,7 +419,7 @@ impl Device {
         self.uniq.as_deref()
     }
 
-    pub fn input_id(&self) -> input_id {
+    pub fn input_id(&self) -> libc::input_id {
         self.id
     }
 
@@ -488,25 +487,25 @@ impl Device {
 
         let ty = {
             let mut ty = BitArray::zeroed();
-            unsafe { eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
             ty
         };
 
-        let name = ioctl_get_cstring(eviocgname, file.as_raw_fd())
+        let name = ioctl_get_cstring(raw::eviocgname, file.as_raw_fd())
             .map(|s| s.to_string_lossy().into_owned());
-        let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd())
+        let phys = ioctl_get_cstring(raw::eviocgphys, file.as_raw_fd())
             .map(|s| s.to_string_lossy().into_owned());
-        let uniq = ioctl_get_cstring(eviocguniq, file.as_raw_fd())
+        let uniq = ioctl_get_cstring(raw::eviocguniq, file.as_raw_fd())
             .map(|s| s.to_string_lossy().into_owned());
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
-            eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
+            raw::eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
             id.assume_init()
         };
         let mut driver_version: i32 = 0;
         unsafe {
-            eviocgversion(file.as_raw_fd(), &mut driver_version)?;
+            raw::eviocgversion(file.as_raw_fd(), &mut driver_version)?;
         }
         let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -516,7 +515,7 @@ impl Device {
 
         let props = {
             let mut props = BitArray::zeroed();
-            unsafe { eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
+            unsafe { raw::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
             props
         }; // FIXME: handle old kernel
 
@@ -527,7 +526,7 @@ impl Device {
 
             let mut supported_keys: Box<KeyArray> = Box::new([0; bit_elts::<u8>(Key::COUNT)]);
             let key_slice = &mut supported_keys[..];
-            unsafe { eviocgbit_key(file.as_raw_fd(), key_slice)? };
+            unsafe { raw::eviocgbit_key(file.as_raw_fd(), key_slice)? };
 
             Some(supported_keys)
         } else {
@@ -536,16 +535,16 @@ impl Device {
 
         let supported_relative = if ty[EventType::RELATIVE.0 as usize] {
             let mut rel = BitArray::zeroed();
-            unsafe { eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
             None
         };
 
         let supported_absolute = if ty[EventType::ABSOLUTE.0 as usize] {
-            state.abs_vals = Some(vec![input_absinfo_default(); 0x3f]);
+            state.abs_vals = Some(vec![raw::input_absinfo_default(); 0x3f]);
             let mut abs = BitArray::zeroed();
-            unsafe { eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
             None
@@ -554,7 +553,7 @@ impl Device {
         let supported_switch = if ty[EventType::SWITCH.0 as usize] {
             state.switch_vals = Some(BitArray::zeroed());
             let mut switch = BitArray::zeroed();
-            unsafe { eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
             Some(switch)
         } else {
             None
@@ -563,7 +562,7 @@ impl Device {
         let supported_led = if ty[EventType::LED.0 as usize] {
             state.led_vals = Some(BitArray::zeroed());
             let mut led = BitArray::zeroed();
-            unsafe { eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
             Some(led)
         } else {
             None
@@ -571,17 +570,17 @@ impl Device {
 
         let supported_misc = if ty[EventType::MISC.0 as usize] {
             let mut misc = BitArray::zeroed();
-            unsafe { eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
             Some(misc)
         } else {
             None
         };
 
-        //unsafe { eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
+        //unsafe { raw::eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
         let supported_snd = if ty[EventType::SOUND.0 as usize] {
             let mut snd = BitArray::zeroed();
-            unsafe { eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
+            unsafe { raw::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
             Some(snd)
         } else {
             None
@@ -619,7 +618,7 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
-            unsafe { eviocgkey(fd, &mut key_vals[..])? };
+            unsafe { raw::eviocgkey(fd, &mut key_vals[..])? };
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -631,17 +630,17 @@ impl Device {
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 unsafe {
-                    eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
+                    raw::eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
                 }
             }
         }
 
         if let Some(switch_vals) = &mut self.state.switch_vals {
-            unsafe { eviocgsw(fd, switch_vals.as_mut_raw_slice())? };
+            unsafe { raw::eviocgsw(fd, switch_vals.as_mut_raw_slice())? };
         }
 
         if let Some(led_vals) = &mut self.state.led_vals {
-            unsafe { eviocgled(fd, led_vals.as_mut_raw_slice())? };
+            unsafe { raw::eviocgled(fd, led_vals.as_mut_raw_slice())? };
         }
 
         Ok(())
@@ -690,7 +689,7 @@ impl Device {
             let old_vals = old_state.key_vals();
             for key in supported_keys.enabled() {
                 if old_vals.map(|v| v.contains(key)) != Some(key_vals.contains(key)) {
-                    self.pending_events.push(raw::input_event {
+                    self.pending_events.push(libc::input_event {
                         time,
                         type_: EventType::KEY.0 as _,
                         code: key.code() as u16,
@@ -705,7 +704,7 @@ impl Device {
         {
             for idx in supported_abs.iter_ones() {
                 if old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx]) {
-                    self.pending_events.push(raw::input_event {
+                    self.pending_events.push(libc::input_event {
                         time,
                         type_: EventType::ABSOLUTE.0 as _,
                         code: idx as u16,
@@ -720,7 +719,7 @@ impl Device {
         {
             for idx in supported_switch.iter_ones() {
                 if old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx]) {
-                    self.pending_events.push(raw::input_event {
+                    self.pending_events.push(libc::input_event {
                         time,
                         type_: EventType::SWITCH.0 as _,
                         code: idx as u16,
@@ -733,7 +732,7 @@ impl Device {
         if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             for idx in supported_led.iter_ones() {
                 if old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx]) {
-                    self.pending_events.push(raw::input_event {
+                    self.pending_events.push(libc::input_event {
                         time,
                         type_: EventType::LED.0 as _,
                         code: idx as u16,
@@ -743,7 +742,7 @@ impl Device {
             }
         }
 
-        self.pending_events.push(raw::input_event {
+        self.pending_events.push(libc::input_event {
             time,
             type_: EventType::SYNCHRONIZATION.0 as _,
             code: SYN_REPORT as u16,
@@ -768,7 +767,7 @@ impl Device {
                 Ok(bytes_read) => unsafe {
                     let pre_len = buf.len();
                     buf.set_len(
-                        pre_len + (bytes_read as usize / mem::size_of::<raw::input_event>()),
+                        pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()),
                     );
                 },
                 Err(e) => {
@@ -826,10 +825,10 @@ impl<'a> Drop for RawEvents<'a> {
 }
 
 impl<'a> Iterator for RawEvents<'a> {
-    type Item = raw::input_event;
+    type Item = libc::input_event;
 
     #[inline(always)]
-    fn next(&mut self) -> Option<raw::input_event> {
+    fn next(&mut self) -> Option<libc::input_event> {
         self.0.pending_events.pop()
     }
 }

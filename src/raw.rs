@@ -1,9 +1,9 @@
 use libc::c_int;
-pub use libc::{
-    ff_condition_effect, ff_constant_effect, ff_effect, ff_envelope, ff_periodic_effect,
-    ff_ramp_effect, ff_replay, ff_rumble_effect, ff_trigger, input_absinfo, input_event, input_id,
-    input_keymap_entry,
-};
+use libc::{ff_effect, input_absinfo, input_id};
+// use libc::{
+//     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
+//     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
+// };
 use nix::{
     convert_ioctl_res, ioctl_read, ioctl_read_buf, ioctl_write_int, ioctl_write_ptr,
     request_code_read,
