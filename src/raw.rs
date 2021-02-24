@@ -35,7 +35,7 @@ ioctl_write_ptr!(eviocsrep, b'E', 0x03, [::libc::c_uint; 2]);
 ioctl_read_buf!(eviocgname, b'E', 0x06, u8);
 ioctl_read_buf!(eviocgphys, b'E', 0x07, u8);
 ioctl_read_buf!(eviocguniq, b'E', 0x08, u8);
-ioctl_read!(eviocgprop, b'E', 0x09, u32);
+ioctl_read_buf!(eviocgprop, b'E', 0x09, u8);
 ioctl_read_buf!(eviocgmtslots, b'E', 0x0a, u8);
 ioctl_read_buf!(eviocgkey, b'E', 0x18, u8);
 ioctl_read_buf!(eviocgled, b'E', 0x19, u8);
@@ -49,21 +49,21 @@ ioctl_write_int!(eviocsclockid, b'E', 0xa0);
 
 macro_rules! eviocgbit_ioctl {
     ($mac:ident!($name:ident, $ev:ident, $ty:ty)) => {
-        eviocgbit_ioctl!($mac!($name, $crate::Types::$ev.number::<u32>(), $ty));
+        eviocgbit_ioctl!($mac!($name, $crate::EventType::$ev.0, $ty));
     };
     ($mac:ident!($name:ident, $ev:expr, $ty:ty)) => {
         $mac!($name, b'E', 0x20 + $ev, $ty);
     };
 }
 
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_type, 0, u32));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_type, 0, u8));
 eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_key, KEY, u8));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_relative, RELATIVE, u32));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_absolute, ABSOLUTE, u64));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_misc, MISC, u32));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_switch, SWITCH, u32));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_led, LED, u32));
-eviocgbit_ioctl!(ioctl_read!(eviocgbit_sound, SOUND, u32));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_relative, RELATIVE, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_absolute, ABSOLUTE, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_misc, MISC, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_switch, SWITCH, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_led, LED, u8));
+eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_sound, SOUND, u8));
 eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_repeat, REPEAT, u8));
 eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_ff, FORCEFEEDBACK, u8));
 eviocgbit_ioctl!(ioctl_read_buf!(eviocgbit_power, POWER, u8));

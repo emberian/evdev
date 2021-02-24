@@ -34,6 +34,42 @@
 #![cfg(any(unix, target_os = "android"))]
 #![allow(non_camel_case_types)]
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+pub trait EvdevEnum: sealed::Sealed + Copy + 'static {
+    fn from_index(i: usize) -> Self;
+    fn to_index(self) -> usize;
+}
+
+macro_rules! newtype_consts {
+    ($t:ty, $($(#[$attr:meta])* $c:ident = $val:expr,)*) => {
+        impl $t {
+            $($(#[$attr])* pub const $c: Self = Self($val);)*
+        }
+        impl std::fmt::Debug for $t {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match *self {
+                    $(Self::$c => f.pad(stringify!($c)),)*
+                    _ => write!(f, "unknown key: {}", self.0),
+                }
+            }
+        }
+        impl $crate::sealed::Sealed for $t {}
+        impl $crate::EvdevEnum for $t {
+            #[inline]
+            fn from_index(i: usize) -> Self {
+                Self(i as _)
+            }
+            #[inline]
+            fn to_index(self) -> usize {
+                self.0 as _
+            }
+        }
+    }
+}
+
 mod constants;
 pub mod raw;
 mod scancodes;
@@ -47,17 +83,15 @@ use std::os::unix::{
     io::{AsRawFd, RawFd},
 };
 use std::path::Path;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{ffi::CString, mem::MaybeUninit};
 
-pub use crate::constants::FFEffect::*;
+// pub use crate::constants::FFEffect::*;
 pub use crate::scancodes::*;
 pub use crate::Synchronization::*;
 
 pub use crate::constants::*;
 use crate::raw::*;
-
-type ByteBitBox = BitBox<Lsb0, u8>;
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -84,35 +118,6 @@ fn ioctl_get_cstring(
     }
 }
 
-macro_rules! impl_number {
-    ($($t:ident),*) => {
-        $(impl $t {
-            /// Given a bitflag with only a single flag set, returns the event code corresponding to that
-            /// event. If multiple flags are set, the one with the most significant bit wins. In debug
-            /// mode,
-            #[inline(always)]
-            pub fn number<T: num_traits::FromPrimitive>(&self) -> T {
-                let val = self.bits().trailing_zeros();
-                debug_assert!(self.bits() == 1 << val, "{:?} ought to have only one flag set to be used with .number()", self);
-                T::from_u32(val).unwrap()
-            }
-        })*
-    }
-}
-
-impl_number!(
-    Types,
-    Props,
-    RelativeAxis,
-    AbsoluteAxis,
-    Switch,
-    Led,
-    Misc,
-    FFStatus,
-    Repeat,
-    Sound
-);
-
 #[repr(u16)]
 #[derive(Copy, Clone, Debug)]
 pub enum Synchronization {
@@ -126,17 +131,49 @@ pub enum Synchronization {
     SYN_DROPPED = 3,
 }
 
+const fn bit_elts<T>(bits: usize) -> usize {
+    let width = mem::size_of::<T>() * 8;
+    bits / width + (bits % width != 0) as usize
+}
+// TODO: this is a replacement for BitArr!(for Key::COUNT, in u8), since const generics aren't stable
+// and the BitView impls for arrays only goes up to 64
+type KeyArray = [u8; bit_elts::<u8>(Key::COUNT)];
+
 #[derive(Debug, Clone)]
 pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
-    pub timestamp: libc::timeval,
+    timestamp: libc::timeval,
     /// Set = key pressed
-    pub key_vals: Option<ByteBitBox>,
-    pub abs_vals: Option<Vec<input_absinfo>>,
+    key_vals: Option<Box<KeyArray>>,
+    abs_vals: Option<Vec<input_absinfo>>,
     /// Set = switch enabled (closed)
-    pub switch_vals: Option<ByteBitBox>,
+    switch_vals: Option<BitArr!(for SwitchType::COUNT, in u8)>,
     /// Set = LED lit
-    pub led_vals: Option<ByteBitBox>,
+    led_vals: Option<BitArr!(for LedType::COUNT, in u8)>,
+}
+
+impl DeviceState {
+    pub fn key_vals(&self) -> Option<AttributeSet<'_, Key>> {
+        self.key_vals
+            .as_deref()
+            .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
+    }
+
+    pub fn timestamp(&self) -> SystemTime {
+        timeval2systime(&self.timestamp)
+    }
+
+    pub fn abs_vals(&self) -> Option<&[input_absinfo]> {
+        self.abs_vals.as_deref()
+    }
+
+    pub fn switch_vals(&self) -> Option<AttributeSet<'_, SwitchType>> {
+        self.switch_vals.as_deref().map(AttributeSet::new)
+    }
+
+    pub fn led_vals(&self) -> Option<AttributeSet<'_, LedType>> {
+        self.led_vals.as_deref().map(AttributeSet::new)
+    }
 }
 
 impl Default for DeviceState {
@@ -166,23 +203,23 @@ pub enum Error {
 #[derive(Debug)]
 pub struct Device {
     file: File,
-    ty: Types,
+    ty: BitArr!(for EventType::COUNT, in u8),
     name: Option<String>,
     phys: Option<String>,
     uniq: Option<String>,
     id: input_id,
-    props: Props,
+    props: BitArr!(for PropType::COUNT, in u8),
     driver_version: (u8, u8, u8),
-    supported_keys: Option<ByteBitBox>,
-    supported_relative: Option<RelativeAxis>,
-    supported_absolute: Option<AbsoluteAxis>,
-    supported_switch: Option<Switch>,
-    supported_led: Option<Led>,
-    supported_misc: Option<Misc>,
-    // ff: Option<ByteBitBox>,
+    supported_keys: Option<Box<KeyArray>>,
+    supported_relative: Option<BitArr!(for RelativeAxisType::COUNT, in u8)>,
+    supported_absolute: Option<BitArr!(for AbsoluteAxisType::COUNT, in u8)>,
+    supported_switch: Option<BitArr!(for SwitchType::COUNT, in u8)>,
+    supported_led: Option<BitArr!(for LedType::COUNT, in u8)>,
+    supported_misc: Option<BitArr!(for MiscType::COUNT, in u8)>,
+    // ff: Option<Box<BitArr!(for _, in u8)>>,
     // ff_stat: Option<FFStatus>,
     // rep: Option<Repeat>,
-    supported_snd: Option<Sound>,
+    supported_snd: Option<BitArr!(for SoundType::COUNT, in u8)>,
     pending_events: Vec<input_event>,
     // pending_events[last_seen..] is the events that have occurred since the last sync.
     last_seen: usize,
@@ -236,26 +273,35 @@ impl std::fmt::Display for Device {
         }
 
         writeln!(f, "  Bus: {}", bus_name(self.id.bustype))?;
-        writeln!(f, "  Vendor: 0x{:x}", self.id.vendor)?;
-        writeln!(f, "  Product: 0x{:x}", self.id.product)?;
-        writeln!(f, "  Version: 0x{:x}", self.id.version)?;
-        writeln!(f, "  Properties: {:?}", self.props)?;
+        writeln!(f, "  Vendor: {:#x}", self.id.vendor)?;
+        writeln!(f, "  Product: {:#x}", self.id.product)?;
+        writeln!(f, "  Version: {:#x}", self.id.version)?;
+        write!(f, "  Properties: ")?;
+        let mut first = true;
+        for idx in self.props.iter_ones() {
+            let pipe = if first { "" } else { "|" };
+            first = false;
+            write!(f, "{}{:?}", pipe, PropType(idx as u32))?
+        }
+        writeln!(f, "{}", if first { "(none)" } else { "" })?;
 
-        if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
+        if let (Some(supported_keys), Some(key_vals)) =
+            (self.keys_supported(), self.state.key_vals())
         {
             writeln!(f, "  Keys supported:")?;
-            for (key_idx, (key_supported, key_enabled)) in
-                supported_keys.iter().zip(key_vals.iter()).enumerate()
-            {
-                if *key_supported {
-                    writeln!(
-                        f,
-                        "    {:?} ({}index {})",
-                        Key::new(key_idx as u32),
-                        if *key_enabled { "pressed, " } else { "" },
-                        key_idx
-                    )?;
-                }
+            for key in supported_keys.enabled() {
+                let key_idx = key.code() as usize;
+                writeln!(
+                    f,
+                    "    {:?} ({}index {})",
+                    key,
+                    if key_vals.contains(key) {
+                        "pressed, "
+                    } else {
+                        ""
+                    },
+                    key_idx
+                )?;
             }
         }
 
@@ -267,11 +313,9 @@ impl std::fmt::Display for Device {
             (self.supported_absolute, &self.state.abs_vals)
         {
             writeln!(f, "  Absolute Axes:")?;
-            for idx in 0..AbsoluteAxis::MAX {
-                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
-                if supported_abs.contains(abs) {
-                    writeln!(f, "    {:?} ({:?}, index {})", abs, abs_vals[idx], idx)?;
-                }
+            for idx in supported_abs.iter_ones() {
+                let abs = AbsoluteAxisType(idx as u32);
+                writeln!(f, "    {:?} ({:?}, index {})", abs, abs_vals[idx], idx)?;
             }
         }
 
@@ -283,41 +327,41 @@ impl std::fmt::Display for Device {
             (self.supported_switch, &self.state.switch_vals)
         {
             writeln!(f, "  Switches:")?;
-            for idx in 0..Switch::MAX {
-                let sw = Switch::from_bits(1 << idx).unwrap();
-                if supported_switch.contains(sw) {
-                    writeln!(f, "    {:?} ({:?}, index {})", sw, switch_vals[idx], idx)?;
-                }
+            for idx in supported_switch.iter_ones() {
+                let sw = SwitchType(idx as u32);
+                writeln!(f, "    {:?} ({:?}, index {})", sw, switch_vals[idx], idx)?;
             }
         }
 
         if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             writeln!(f, "  LEDs:")?;
-            for idx in 0..Led::MAX {
-                let led = Led::from_bits_truncate(1 << idx);
-                if supported_led.contains(led) {
-                    writeln!(f, "    {:?} ({:?}, index {})", led, led_vals[idx], idx)?;
-                }
+            for idx in supported_led.iter_ones() {
+                let led = LedType(idx as u32);
+                writeln!(f, "    {:?} ({:?}, index {})", led, led_vals[idx], idx)?;
             }
         }
 
         if let Some(supported_snd) = self.supported_snd {
-            writeln!(f, "  Sound: {:?}", supported_snd)?;
+            write!(f, "  Sounds:")?;
+            for idx in supported_snd.iter_ones() {
+                let snd = SoundType(idx as u32);
+                writeln!(f, "    {:?} (index {})", snd, idx)?;
+            }
         }
 
         // if let Some(rep) = self.rep {
         //     writeln!(f, "  Repeats: {:?}", rep)?;
         // }
 
-        if self.ty.contains(Types::FORCEFEEDBACK) {
+        if self.ty[EventType::FORCEFEEDBACK.0 as usize] {
             writeln!(f, "  Force Feedback supported")?;
         }
 
-        if self.ty.contains(Types::POWER) {
+        if self.ty[EventType::POWER.0 as usize] {
             writeln!(f, "  Power supported")?;
         }
 
-        if self.ty.contains(Types::FORCEFEEDBACKSTATUS) {
+        if self.ty[EventType::FORCEFEEDBACKSTATUS.0 as usize] {
             writeln!(f, "  Force Feedback status supported")?;
         }
 
@@ -325,9 +369,43 @@ impl std::fmt::Display for Device {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct AttributeSet<'a, T> {
+    bitslice: &'a BitSlice<Lsb0, u8>,
+    _indexer: std::marker::PhantomData<T>,
+}
+
+impl<'a, T: EvdevEnum> AttributeSet<'a, T> {
+    #[inline]
+    fn new(bitslice: &'a BitSlice<Lsb0, u8>) -> Self {
+        Self {
+            bitslice,
+            _indexer: std::marker::PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn contains(&self, attr: T) -> bool {
+        self.bitslice.get(attr.to_index()).map_or(false, |b| *b)
+    }
+
+    #[inline]
+    pub fn iter_all(&self) -> impl Iterator<Item = (T, bool)> + 'a {
+        self.bitslice
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (T::from_index(i), *b))
+    }
+
+    #[inline]
+    pub fn enabled(&self) -> impl Iterator<Item = T> + 'a {
+        self.bitslice.iter_ones().map(T::from_index)
+    }
+}
+
 impl Device {
-    pub fn events_supported(&self) -> Types {
-        self.ty
+    pub fn events_supported(&self) -> AttributeSet<'_, EventType> {
+        AttributeSet::new(&self.ty)
     }
 
     pub fn name(&self) -> Option<&str> {
@@ -346,44 +424,46 @@ impl Device {
         self.id
     }
 
-    pub fn properties(&self) -> Props {
-        self.props
+    pub fn properties(&self) -> AttributeSet<'_, PropType> {
+        AttributeSet::new(&self.props)
     }
 
     pub fn driver_version(&self) -> (u8, u8, u8) {
         self.driver_version
     }
 
-    pub fn keys_supported(&self) -> Option<&BitSlice<Lsb0, u8>> {
-        self.supported_keys.as_deref()
+    pub fn keys_supported(&self) -> Option<AttributeSet<'_, Key>> {
+        self.supported_keys
+            .as_deref()
+            .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
     }
 
-    pub fn relative_axes_supported(&self) -> Option<RelativeAxis> {
-        self.supported_relative
+    pub fn relative_axes_supported(&self) -> Option<AttributeSet<'_, RelativeAxisType>> {
+        self.supported_relative.as_deref().map(AttributeSet::new)
     }
 
-    pub fn absolute_axes_supported(&self) -> Option<AbsoluteAxis> {
-        self.supported_absolute
+    pub fn absolute_axes_supported(&self) -> Option<AttributeSet<'_, AbsoluteAxisType>> {
+        self.supported_absolute.as_deref().map(AttributeSet::new)
     }
 
-    pub fn switches_supported(&self) -> Option<Switch> {
-        self.supported_switch
+    pub fn switches_supported(&self) -> Option<AttributeSet<'_, SwitchType>> {
+        self.supported_switch.as_deref().map(AttributeSet::new)
     }
 
-    pub fn leds_supported(&self) -> Option<Led> {
-        self.supported_led
+    pub fn leds_supported(&self) -> Option<AttributeSet<'_, LedType>> {
+        self.supported_led.as_deref().map(AttributeSet::new)
     }
 
-    pub fn misc_properties(&self) -> Option<Misc> {
-        self.supported_misc
+    pub fn misc_properties(&self) -> Option<AttributeSet<'_, MiscType>> {
+        self.supported_misc.as_deref().map(AttributeSet::new)
     }
 
     // pub fn repeats_supported(&self) -> Option<Repeat> {
     //     self.rep
     // }
 
-    pub fn sounds_supported(&self) -> Option<Sound> {
-        self.supported_snd
+    pub fn sounds_supported(&self) -> Option<AttributeSet<'_, SoundType>> {
+        self.supported_snd.as_deref().map(AttributeSet::new)
     }
 
     pub fn state(&self) -> &DeviceState {
@@ -406,9 +486,11 @@ impl Device {
             .open(path)
             .or_else(|_| options.write(false).open(path))?;
 
-        let mut ty = 0;
-        unsafe { eviocgbit_type(file.as_raw_fd(), &mut ty)? };
-        let ty = Types::from_bits(ty).expect("evdev: unexpected type bits! report a bug");
+        let ty = {
+            let mut ty = BitArray::zeroed();
+            unsafe { eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
+            ty
+        };
 
         let name = ioctl_get_cstring(eviocgname, file.as_raw_fd())
             .map(|s| s.to_string_lossy().into_owned());
@@ -432,84 +514,75 @@ impl Device {
             (driver_version & 0xff) as u8,
         );
 
-        let mut props = 0;
-        unsafe {
-            eviocgprop(file.as_raw_fd(), &mut props)?;
-        } // FIXME: handle old kernel
-        let props = Props::from_bits(props).expect("evdev: unexpected prop bits! report a bug");
+        let props = {
+            let mut props = BitArray::zeroed();
+            unsafe { eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
+            props
+        }; // FIXME: handle old kernel
 
         let mut state = DeviceState::default();
 
-        let supported_keys = if ty.contains(Types::KEY) {
-            let mut supported_keys = bitbox![_, _; 0; Key::MAX];
-            debug_assert!(supported_keys.len() % 8 == 0);
-            let key_slice = supported_keys.as_mut_slice();
-            unsafe {
-                debug_assert!(key_slice.len() == Key::MAX / 8);
-                eviocgbit_key(file.as_raw_fd(), key_slice)?;
-            }
-            let key_vals = bitbox![_, _; 0; Key::MAX];
-            debug_assert!(key_vals.len() % 8 == 0);
-            state.key_vals = Some(key_vals);
+        let supported_keys = if ty[EventType::KEY.0 as usize] {
+            state.key_vals = Some(Box::new([0; bit_elts::<u8>(Key::COUNT)]));
+
+            let mut supported_keys: Box<KeyArray> = Box::new([0; bit_elts::<u8>(Key::COUNT)]);
+            let key_slice = &mut supported_keys[..];
+            unsafe { eviocgbit_key(file.as_raw_fd(), key_slice)? };
 
             Some(supported_keys)
         } else {
             None
         };
 
-        let supported_relative = if ty.contains(Types::RELATIVE) {
-            let mut rel = 0;
-            unsafe { eviocgbit_relative(file.as_raw_fd(), &mut rel)? };
-            Some(RelativeAxis::from_bits(rel).expect("evdev: unexpected rel bits! report a bug"))
+        let supported_relative = if ty[EventType::RELATIVE.0 as usize] {
+            let mut rel = BitArray::zeroed();
+            unsafe { eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
+            Some(rel)
         } else {
             None
         };
 
-        let supported_absolute = if ty.contains(Types::ABSOLUTE) {
-            let mut abs = 0;
-            unsafe { eviocgbit_absolute(file.as_raw_fd(), &mut abs)? };
+        let supported_absolute = if ty[EventType::ABSOLUTE.0 as usize] {
             state.abs_vals = Some(vec![input_absinfo_default(); 0x3f]);
-            Some(AbsoluteAxis::from_bits(abs).expect("evdev: unexpected abs bits! report a bug"))
+            let mut abs = BitArray::zeroed();
+            unsafe { eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
+            Some(abs)
         } else {
             None
         };
 
-        let supported_switch = if ty.contains(Types::SWITCH) {
-            let mut switch = 0;
-            unsafe { eviocgbit_switch(file.as_raw_fd(), &mut switch)? };
-            state.switch_vals = Some(bitbox![_, _; 0; Switch::MAX]);
-
-            Some(Switch::from_bits(switch).expect("evdev: unexpected switch bits! report a bug"))
+        let supported_switch = if ty[EventType::SWITCH.0 as usize] {
+            state.switch_vals = Some(BitArray::zeroed());
+            let mut switch = BitArray::zeroed();
+            unsafe { eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
+            Some(switch)
         } else {
             None
         };
 
-        let supported_led = if ty.contains(Types::LED) {
-            let mut led = 0;
-            unsafe { eviocgbit_led(file.as_raw_fd(), &mut led)? };
-            let led_vals = bitbox![_, _; 0; Led::MAX];
-            debug_assert!(led_vals.len() % 8 == 0);
-            state.led_vals = Some(led_vals);
-
-            Some(Led::from_bits(led).expect("evdev: unexpected led bits! report a bug"))
+        let supported_led = if ty[EventType::LED.0 as usize] {
+            state.led_vals = Some(BitArray::zeroed());
+            let mut led = BitArray::zeroed();
+            unsafe { eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
+            Some(led)
         } else {
             None
         };
 
-        let supported_misc = if ty.contains(Types::MISC) {
-            let mut misc = 0;
-            unsafe { eviocgbit_misc(file.as_raw_fd(), &mut misc)? };
-            Some(Misc::from_bits(misc).expect("evdev: unexpected misc bits! report a bug"))
+        let supported_misc = if ty[EventType::MISC.0 as usize] {
+            let mut misc = BitArray::zeroed();
+            unsafe { eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
+            Some(misc)
         } else {
             None
         };
 
         //unsafe { eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
-        let supported_snd = if ty.contains(Types::SOUND) {
-            let mut snd = 0;
-            unsafe { eviocgbit_sound(file.as_raw_fd(), &mut snd)? };
-            Some(Sound::from_bits(snd).expect("evdev: unexpected sound bits! report a bug"))
+        let supported_snd = if ty[EventType::SOUND.0 as usize] {
+            let mut snd = BitArray::zeroed();
+            unsafe { eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
+            Some(snd)
         } else {
             None
         };
@@ -546,32 +619,29 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
-            unsafe { eviocgkey(fd, key_vals.as_mut_slice())? };
+            unsafe { eviocgkey(fd, &mut key_vals[..])? };
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
             (self.supported_absolute, &mut self.state.abs_vals)
         {
-            for idx in 0..AbsoluteAxis::MAX {
-                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
+            for idx in supported_abs.iter_ones() {
                 // ignore multitouch, we'll handle that later.
                 //
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
-                if supported_abs.contains(abs) {
-                    unsafe {
-                        eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
-                    }
+                unsafe {
+                    eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
                 }
             }
         }
 
         if let Some(switch_vals) = &mut self.state.switch_vals {
-            unsafe { eviocgsw(fd, switch_vals.as_mut_slice())? };
+            unsafe { eviocgsw(fd, switch_vals.as_mut_raw_slice())? };
         }
 
         if let Some(led_vals) = &mut self.state.led_vals {
-            unsafe { eviocgled(fd, led_vals.as_mut_slice())? };
+            unsafe { eviocgled(fd, led_vals.as_mut_raw_slice())? };
         }
 
         Ok(())
@@ -610,19 +680,21 @@ impl Device {
         let old_state = self.state.clone();
         self.sync_state()?;
 
-        let time = into_timeval(&SystemTime::now()).unwrap();
+        let time = systime2timeval(&SystemTime::now());
 
-        if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
+        if let (Some(supported_keys), Some(key_vals)) =
+            (&self.supported_keys, self.state.key_vals())
         {
-            for (key_idx, key_supported) in supported_keys.iter().enumerate() {
-                if *key_supported
-                    && old_state.key_vals.as_ref().map(|v| v[key_idx]) != Some(key_vals[key_idx])
-                {
+            let supported_keys =
+                AttributeSet::new(BitSlice::from_slice(&supported_keys[..]).unwrap());
+            let old_vals = old_state.key_vals();
+            for key in supported_keys.enabled() {
+                if old_vals.map(|v| v.contains(key)) != Some(key_vals.contains(key)) {
                     self.pending_events.push(raw::input_event {
                         time,
-                        type_: Types::KEY.number(),
-                        code: key_idx as u16,
-                        value: if key_vals[key_idx] { 1 } else { 0 },
+                        type_: EventType::KEY.0 as _,
+                        code: key.code() as u16,
+                        value: if key_vals.contains(key) { 1 } else { 0 },
                     });
                 }
             }
@@ -631,14 +703,11 @@ impl Device {
         if let (Some(supported_abs), Some(abs_vals)) =
             (self.supported_absolute, &self.state.abs_vals)
         {
-            for idx in 0..AbsoluteAxis::MAX {
-                let abs = AbsoluteAxis::from_bits_truncate(1 << idx);
-                if supported_abs.contains(abs)
-                    && old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx])
-                {
+            for idx in supported_abs.iter_ones() {
+                if old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx]) {
                     self.pending_events.push(raw::input_event {
                         time,
-                        type_: Types::ABSOLUTE.number(),
+                        type_: EventType::ABSOLUTE.0 as _,
                         code: idx as u16,
                         value: abs_vals[idx].value,
                     });
@@ -649,14 +718,11 @@ impl Device {
         if let (Some(supported_switch), Some(switch_vals)) =
             (self.supported_switch, &self.state.switch_vals)
         {
-            for idx in 0..Switch::MAX {
-                let sw = Switch::from_bits(1 << idx).unwrap();
-                if supported_switch.contains(sw)
-                    && old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx])
-                {
+            for idx in supported_switch.iter_ones() {
+                if old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx]) {
                     self.pending_events.push(raw::input_event {
                         time,
-                        type_: Types::SWITCH.number(),
+                        type_: EventType::SWITCH.0 as _,
                         code: idx as u16,
                         value: if switch_vals[idx] { 1 } else { 0 },
                     });
@@ -665,14 +731,11 @@ impl Device {
         }
 
         if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
-            for idx in 0..Led::MAX {
-                let led = Led::from_bits_truncate(1 << idx);
-                if supported_led.contains(led)
-                    && old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx])
-                {
+            for idx in supported_led.iter_ones() {
+                if old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx]) {
                     self.pending_events.push(raw::input_event {
                         time,
-                        type_: Types::LED.number(),
+                        type_: EventType::LED.0 as _,
                         code: idx as u16,
                         value: if led_vals[idx] { 1 } else { 0 },
                     });
@@ -682,7 +745,7 @@ impl Device {
 
         self.pending_events.push(raw::input_event {
             time,
-            type_: Types::SYNCHRONIZATION.number(),
+            type_: EventType::SYNCHRONIZATION.0 as _,
             code: SYN_REPORT as u16,
             value: 0,
         });
@@ -799,13 +862,25 @@ impl Iterator for EnumerateDevices {
 }
 
 /// A safe Rust version of clock_gettime against CLOCK_REALTIME
-fn into_timeval(time: &SystemTime) -> Result<libc::timeval, std::time::SystemTimeError> {
-    let now_duration = time.duration_since(SystemTime::UNIX_EPOCH)?;
+fn systime2timeval(time: &SystemTime) -> libc::timeval {
+    let (sign, dur) = match time.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(dur) => (1, dur),
+        Err(e) => (-1, e.duration()),
+    };
 
-    Ok(libc::timeval {
-        tv_sec: now_duration.as_secs() as libc::time_t,
-        tv_usec: now_duration.subsec_micros() as libc::suseconds_t,
-    })
+    libc::timeval {
+        tv_sec: dur.as_secs() as libc::time_t * sign,
+        tv_usec: dur.subsec_micros() as libc::suseconds_t,
+    }
+}
+
+fn timeval2systime(tv: &libc::timeval) -> SystemTime {
+    let dur = Duration::new(tv.tv_sec.abs() as u64, tv.tv_usec as u32 * 1000);
+    if tv.tv_sec >= 0 {
+        SystemTime::UNIX_EPOCH + dur
+    } else {
+        SystemTime::UNIX_EPOCH - dur
+    }
 }
 
 /// A copy of the unstable Vec::spare_capacity_mut
