@@ -284,7 +284,7 @@ impl fmt::Display for Device {
             (self.keys_supported(), self.state.key_vals())
         {
             writeln!(f, "  Keys supported:")?;
-            for key in supported_keys.enabled() {
+            for key in supported_keys.iter() {
                 let key_idx = key.code() as usize;
                 writeln!(
                     f,
@@ -385,32 +385,14 @@ impl<'a, T: EvdevEnum> AttributeSet<'a, T> {
     }
 
     #[inline]
-    pub fn iter_all(&self) -> impl Iterator<Item = (T, bool)> + 'a {
-        self.bitslice
-            .iter()
-            .enumerate()
-            .map(|(i, b)| (T::from_index(i), *b))
-    }
-
-    #[inline]
-    pub fn enabled(&self) -> impl Iterator<Item = T> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
         self.bitslice.iter_ones().map(T::from_index)
     }
 }
 
 impl<'a, T: EvdevEnum + fmt::Debug> fmt::Debug for AttributeSet<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut first = true;
-        for variant in self.enabled() {
-            let pipe = if first { "" } else { "|" };
-            first = false;
-            write!(f, "{}{:?}", pipe, variant)?
-        }
-        if first {
-            // we didn't write anything, the set is empty
-            f.write_str("(none)")?;
-        }
-        Ok(())
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
@@ -707,7 +689,7 @@ impl Device {
             let supported_keys =
                 AttributeSet::new(BitSlice::from_slice(&supported_keys[..]).unwrap());
             let old_vals = old_state.key_vals();
-            for key in supported_keys.enabled() {
+            for key in supported_keys.iter() {
                 if old_vals.map(|v| v.contains(key)) != Some(key_vals.contains(key)) {
                     self.pending_events.push(libc::input_event {
                         time,
