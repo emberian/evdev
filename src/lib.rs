@@ -427,7 +427,6 @@ impl Device {
         let file = options
             .read(true)
             .write(true)
-            .custom_flags(libc::O_NONBLOCK)
             .open(path)
             .or_else(|_| options.write(false).open(path))?;
 
@@ -705,58 +704,49 @@ impl Device {
         Ok(())
     }
 
+    /// Read currently available events into the internal buffer. This blocks.
     fn fill_events(&mut self) -> Result<(), Error> {
         let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
-        loop {
-            buf.reserve(20);
-            // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-            let spare_capacity = vec_spare_capacity_mut(buf);
-            let (_, uninit_buf, _) =
-                unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
-            // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
-            let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
-            match nix::errno::Errno::result(res) {
-                Ok(bytes_read) => unsafe {
-                    let pre_len = buf.len();
-                    buf.set_len(
-                        pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()),
-                    );
-                },
-                Err(e) => {
-                    if e == nix::Error::Sys(::nix::errno::Errno::EAGAIN) {
-                        break;
-                    } else {
-                        return Err(e.into());
-                    }
-                }
+        buf.reserve(20);
+        // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
+        let spare_capacity = vec_spare_capacity_mut(buf);
+        let (_, uninit_buf, _) = unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
+
+        // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
+        let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
+        match nix::errno::Errno::result(res) {
+            Ok(bytes_read) => unsafe {
+                let pre_len = buf.len();
+                buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
+                Ok(())
+            },
+            Err(e) => {
+                Err(e.into())
             }
         }
-        Ok(())
     }
 
     /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
-    pub fn events_no_sync(&mut self) -> Result<RawEvents, Error> {
+    ///
+    /// This will block until events are available. Typically, users will want to call this
+    /// in a tight loop within a thread.
+    pub fn block_events_no_sync(&mut self) -> Result<RawEvents, Error> {
         self.fill_events()?;
         Ok(RawEvents::new(self))
     }
 
     /// Exposes the raw evdev events, doing synchronization on SYN_DROPPED.
     ///
-    /// Will insert "fake" events
-    pub fn events(&mut self) -> Result<RawEvents, Error> {
+    /// This will block until events are available. Typically, users will want to call this
+    /// in a tight loop within a thread.
+    /// Will insert "fake" events.
+    pub fn block_events(&mut self) -> Result<RawEvents, Error> {
         self.fill_events()?;
         self.compensate_dropped()?;
 
         Ok(RawEvents::new(self))
-    }
-
-    pub fn wait_ready(&self) -> nix::Result<()> {
-        use nix::poll;
-        let mut pfd = poll::PollFd::new(self.as_raw_fd(), poll::PollFlags::POLLIN);
-        poll::poll(std::slice::from_mut(&mut pfd), -1)?;
-        Ok(())
     }
 }
 
