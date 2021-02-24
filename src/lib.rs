@@ -38,6 +38,8 @@ mod sealed {
     pub trait Sealed {}
 }
 
+/// Not public api
+#[doc(hidden)]
 pub trait EvdevEnum: sealed::Sealed + Copy + 'static {
     fn from_index(i: usize) -> Self;
     fn to_index(self) -> usize;
