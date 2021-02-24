@@ -9,7 +9,7 @@ fn main() {
     } else {
         let mut devices = evdev::enumerate().collect::<Vec<_>>();
         for (i, d) in devices.iter().enumerate() {
-            println!("{}: {:?}", i, d.name());
+            println!("{}: {}", i, d.name().unwrap_or("Unnamed device"));
         }
         print!("Select the device [0-{}]: ", devices.len());
         let _ = std::io::stdout().flush();

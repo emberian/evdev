@@ -222,7 +222,7 @@ const fn bus_name(x: u16) -> &'static str {
 
 impl std::fmt::Display for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "{:?}", self.name)?;
+        writeln!(f, "{}", self.name.as_deref().unwrap_or("Unnamed device"))?;
         writeln!(
             f,
             "  Driver version: {}.{}.{}",
