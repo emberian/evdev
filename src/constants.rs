@@ -2,7 +2,7 @@
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct EventType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     EventType,
     /// A bookkeeping event. Usually not important to applications.
     SYNCHRONIZATION = 0x00,
@@ -47,7 +47,7 @@ impl EventType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct PropType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     PropType,
     /// This input device needs a pointer ("cursor") for the user to know its state.
     POINTER = 0x00,
@@ -73,7 +73,7 @@ impl PropType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RelativeAxisType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     RelativeAxisType,
     REL_X = 0x00,
     REL_Y = 0x01,
@@ -97,7 +97,7 @@ impl RelativeAxisType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct AbsoluteAxisType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     AbsoluteAxisType,
     ABS_X = 0x00,
     ABS_Y = 0x01,
@@ -164,7 +164,7 @@ impl AbsoluteAxisType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct SwitchType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     SwitchType,
     /// "set = lid shut"
     SW_LID = 0x00,
@@ -210,7 +210,7 @@ impl SwitchType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct LedType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     LedType,
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
@@ -237,7 +237,7 @@ impl LedType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct MiscType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     MiscType,
     /// Serial number, only exported for tablets ("Transducer Serial Number")
     MSC_SERIAL = 0x00,
@@ -290,7 +290,7 @@ impl MiscType {
 // #[derive(Copy, Clone, PartialEq, Eq)]
 // pub struct RepeatType(pub u16);
 
-// newtype_consts!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
+// evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
 // impl RepeatType {
 //     pub(crate) const COUNT: usize = 0x02;
@@ -299,7 +299,7 @@ impl MiscType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct SoundType(pub u16);
 
-newtype_consts!(
+evdev_enum!(
     SoundType,
     SND_CLICK = 0x00,
     SND_BELL = 0x01,

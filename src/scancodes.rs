@@ -19,7 +19,7 @@ impl Key {
     pub(crate) const COUNT: usize = 0x300;
 }
 
-newtype_consts!(
+evdev_enum!(
     Key,
     KEY_RESERVED = 0,
     KEY_ESC = 1,
