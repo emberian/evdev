@@ -38,7 +38,7 @@ mod constants;
 pub mod raw;
 mod scancodes;
 
-use fixedbitset::FixedBitSet;
+use bitvec::prelude::*;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::mem;
@@ -56,6 +56,8 @@ pub use crate::Synchronization::*;
 
 pub use crate::constants::*;
 use crate::raw::*;
+
+type ByteBitBox = BitBox<Lsb0, u8>;
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -129,12 +131,12 @@ pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub timestamp: libc::timeval,
     /// Set = key pressed
-    pub key_vals: Option<FixedBitSet>,
+    pub key_vals: Option<ByteBitBox>,
     pub abs_vals: Option<Vec<input_absinfo>>,
     /// Set = switch enabled (closed)
-    pub switch_vals: Option<FixedBitSet>,
+    pub switch_vals: Option<ByteBitBox>,
     /// Set = LED lit
-    pub led_vals: Option<FixedBitSet>,
+    pub led_vals: Option<ByteBitBox>,
 }
 
 impl Default for DeviceState {
@@ -171,13 +173,13 @@ pub struct Device {
     id: input_id,
     props: Props,
     driver_version: (u8, u8, u8),
-    supported_keys: Option<FixedBitSet>,
+    supported_keys: Option<ByteBitBox>,
     supported_relative: Option<RelativeAxis>,
     supported_absolute: Option<AbsoluteAxis>,
     supported_switch: Option<Switch>,
     supported_led: Option<Led>,
     supported_misc: Option<Misc>,
-    // ff: Option<FixedBitSet>,
+    // ff: Option<ByteBitBox>,
     // ff_stat: Option<FFStatus>,
     // rep: Option<Repeat>,
     supported_snd: Option<Sound>,
@@ -242,17 +244,15 @@ impl std::fmt::Display for Device {
         if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
         {
             writeln!(f, "  Keys supported:")?;
-            for key_idx in 0..supported_keys.len() {
-                if supported_keys.contains(key_idx) {
+            for (key_idx, (key_supported, key_enabled)) in
+                supported_keys.iter().zip(key_vals.iter()).enumerate()
+            {
+                if *key_supported {
                     writeln!(
                         f,
                         "    {:?} ({}index {})",
                         Key::new(key_idx as u32),
-                        if key_vals.contains(key_idx) {
-                            "pressed, "
-                        } else {
-                            ""
-                        },
+                        if *key_enabled { "pressed, " } else { "" },
                         key_idx
                     )?;
                 }
@@ -354,8 +354,8 @@ impl Device {
         self.driver_version
     }
 
-    pub fn keys_supported(&self) -> &Option<FixedBitSet> {
-        &self.supported_keys
+    pub fn keys_supported(&self) -> Option<&BitSlice<Lsb0, u8>> {
+        self.supported_keys.as_deref()
     }
 
     pub fn relative_axes_supported(&self) -> Option<RelativeAxis> {
@@ -441,15 +441,14 @@ impl Device {
         let mut state = DeviceState::default();
 
         let supported_keys = if ty.contains(Types::KEY) {
-            let mut supported_keys = FixedBitSet::with_capacity(Key::MAX);
+            let mut supported_keys = bitbox![_, _; 0; Key::MAX];
             debug_assert!(supported_keys.len() % 8 == 0);
             let key_slice = supported_keys.as_mut_slice();
             unsafe {
-                let (_, supported_keys_as_u8_slice, _) = key_slice.align_to_mut();
-                debug_assert!(supported_keys_as_u8_slice.len() == Key::MAX / 8);
-                eviocgbit_key(file.as_raw_fd(), supported_keys_as_u8_slice)?;
+                debug_assert!(key_slice.len() == Key::MAX / 8);
+                eviocgbit_key(file.as_raw_fd(), key_slice)?;
             }
-            let key_vals = FixedBitSet::with_capacity(Key::MAX);
+            let key_vals = bitbox![_, _; 0; Key::MAX];
             debug_assert!(key_vals.len() % 8 == 0);
             state.key_vals = Some(key_vals);
 
@@ -478,7 +477,7 @@ impl Device {
         let supported_switch = if ty.contains(Types::SWITCH) {
             let mut switch = 0;
             unsafe { eviocgbit_switch(file.as_raw_fd(), &mut switch)? };
-            state.switch_vals = Some(FixedBitSet::with_capacity(0x10));
+            state.switch_vals = Some(bitbox![_, _; 0; Switch::MAX]);
 
             Some(Switch::from_bits(switch).expect("evdev: unexpected switch bits! report a bug"))
         } else {
@@ -488,7 +487,7 @@ impl Device {
         let supported_led = if ty.contains(Types::LED) {
             let mut led = 0;
             unsafe { eviocgbit_led(file.as_raw_fd(), &mut led)? };
-            let led_vals = FixedBitSet::with_capacity(0x10);
+            let led_vals = bitbox![_, _; 0; Led::MAX];
             debug_assert!(led_vals.len() % 8 == 0);
             state.led_vals = Some(led_vals);
 
@@ -547,11 +546,7 @@ impl Device {
     pub fn sync_state(&mut self) -> Result<(), Error> {
         let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
-            unsafe {
-                let key_slice = key_vals.as_mut_slice();
-                let (_, key_vals_as_u8_slice, _) = key_slice.align_to_mut();
-                eviocgkey(fd, key_vals_as_u8_slice)?;
-            }
+            unsafe { eviocgkey(fd, key_vals.as_mut_slice())? };
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -572,19 +567,11 @@ impl Device {
         }
 
         if let Some(switch_vals) = &mut self.state.switch_vals {
-            unsafe {
-                let switch_slice = switch_vals.as_mut_slice();
-                let (_, switch_vals_as_u8_slice, _) = switch_slice.align_to_mut();
-                eviocgsw(fd, switch_vals_as_u8_slice)?;
-            }
+            unsafe { eviocgsw(fd, switch_vals.as_mut_slice())? };
         }
 
         if let Some(led_vals) = &mut self.state.led_vals {
-            unsafe {
-                let led_slice = led_vals.as_mut_slice();
-                let (_, led_vals_as_u8_slice, _) = led_slice.align_to_mut();
-                eviocgled(fd, led_vals_as_u8_slice)?;
-            }
+            unsafe { eviocgled(fd, led_vals.as_mut_slice())? };
         }
 
         Ok(())
@@ -627,8 +614,8 @@ impl Device {
 
         if let (Some(supported_keys), Some(key_vals)) = (&self.supported_keys, &self.state.key_vals)
         {
-            for key_idx in 0..supported_keys.len() {
-                if supported_keys.contains(key_idx)
+            for (key_idx, key_supported) in supported_keys.iter().enumerate() {
+                if *key_supported
                     && old_state.key_vals.as_ref().map(|v| v[key_idx]) != Some(key_vals[key_idx])
                 {
                     self.pending_events.push(raw::input_event {

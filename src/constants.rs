@@ -185,7 +185,7 @@ bitflags! {
 }
 
 impl Switch {
-    pub(crate) const MAX: usize = 0xf;
+    pub(crate) const MAX: usize = 0x10;
 }
 
 bitflags! {
@@ -210,7 +210,7 @@ bitflags! {
 }
 
 impl Led {
-    pub(crate) const MAX: usize = 0x0f;
+    pub(crate) const MAX: usize = 0x10;
 }
 
 bitflags! {
