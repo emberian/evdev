@@ -165,9 +165,9 @@ pub enum Error {
 pub struct Device {
     file: File,
     ty: Types,
-    name: Option<CString>,
-    phys: Option<CString>,
-    uniq: Option<CString>,
+    name: Option<String>,
+    phys: Option<String>,
+    uniq: Option<String>,
     id: input_id,
     props: Props,
     driver_version: (u8, u8, u8),
@@ -330,16 +330,16 @@ impl Device {
         self.ty
     }
 
-    pub fn name(&self) -> &Option<CString> {
-        &self.name
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 
-    pub fn physical_path(&self) -> &Option<CString> {
-        &self.phys
+    pub fn physical_path(&self) -> Option<&str> {
+        self.phys.as_deref()
     }
 
-    pub fn unique_name(&self) -> &Option<CString> {
-        &self.uniq
+    pub fn unique_name(&self) -> Option<&str> {
+        self.uniq.as_deref()
     }
 
     pub fn input_id(&self) -> input_id {
@@ -410,9 +410,12 @@ impl Device {
         unsafe { eviocgbit_type(file.as_raw_fd(), &mut ty)? };
         let ty = Types::from_bits(ty).expect("evdev: unexpected type bits! report a bug");
 
-        let name = ioctl_get_cstring(eviocgname, file.as_raw_fd());
-        let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd());
-        let uniq = ioctl_get_cstring(eviocguniq, file.as_raw_fd());
+        let name = ioctl_get_cstring(eviocgname, file.as_raw_fd())
+            .map(|s| s.to_string_lossy().into_owned());
+        let phys = ioctl_get_cstring(eviocgphys, file.as_raw_fd())
+            .map(|s| s.to_string_lossy().into_owned());
+        let uniq = ioctl_get_cstring(eviocguniq, file.as_raw_fd())
+            .map(|s| s.to_string_lossy().into_owned());
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
