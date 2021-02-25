@@ -64,6 +64,7 @@ use bitvec::prelude::*;
 use std::fmt;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io;
 use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -172,15 +173,6 @@ impl Default for DeviceState {
             led_vals: None,
         }
     }
-}
-
-/// Publicly visible errors which can be returned from evdev
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("libc/system error: {0}")]
-    NixError(#[from] nix::Error),
-    #[error("standard i/o error: {0}")]
-    StdIoError(#[from] std::io::Error),
 }
 
 #[derive(Debug)]
@@ -413,11 +405,11 @@ impl Device {
     }
 
     #[inline(always)]
-    pub fn open(path: impl AsRef<Path>) -> Result<Device, Error> {
+    pub fn open(path: impl AsRef<Path>) -> io::Result<Device> {
         Self::_open(path.as_ref())
     }
 
-    fn _open(path: &Path) -> Result<Device, Error> {
+    fn _open(path: &Path) -> io::Result<Device> {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
@@ -429,7 +421,9 @@ impl Device {
 
         let ty = {
             let mut ty = BitArray::zeroed();
-            unsafe { raw::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice()).map_err(nix_err)?
+            };
             ty
         };
 
@@ -442,12 +436,12 @@ impl Device {
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
-            raw::eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
+            raw::eviocgid(file.as_raw_fd(), id.as_mut_ptr()).map_err(nix_err)?;
             id.assume_init()
         };
         let mut driver_version: i32 = 0;
         unsafe {
-            raw::eviocgversion(file.as_raw_fd(), &mut driver_version)?;
+            raw::eviocgversion(file.as_raw_fd(), &mut driver_version).map_err(nix_err)?;
         }
         let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -457,7 +451,9 @@ impl Device {
 
         let props = {
             let mut props = BitArray::zeroed();
-            unsafe { raw::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice()).map_err(nix_err)?
+            };
             props
         }; // FIXME: handle old kernel
 
@@ -470,7 +466,7 @@ impl Device {
 
             let mut supported_keys = Box::new(KEY_ARR_INIT);
             let key_slice = &mut supported_keys[..];
-            unsafe { raw::eviocgbit_key(file.as_raw_fd(), key_slice)? };
+            unsafe { raw::eviocgbit_key(file.as_raw_fd(), key_slice).map_err(nix_err)? };
 
             Some(supported_keys)
         } else {
@@ -479,7 +475,10 @@ impl Device {
 
         let supported_relative = if ty[EventType::RELATIVE.0 as usize] {
             let mut rel = BitArray::zeroed();
-            unsafe { raw::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())
+                    .map_err(nix_err)?
+            };
             Some(rel)
         } else {
             None
@@ -494,7 +493,10 @@ impl Device {
                 [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
             state.abs_vals = Some(Box::new(ABS_VALS_INIT));
             let mut abs = BitArray::zeroed();
-            unsafe { raw::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())
+                    .map_err(nix_err)?
+            };
             Some(abs)
         } else {
             None
@@ -503,7 +505,10 @@ impl Device {
         let supported_switch = if ty[EventType::SWITCH.0 as usize] {
             state.switch_vals = Some(BitArray::zeroed());
             let mut switch = BitArray::zeroed();
-            unsafe { raw::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())
+                    .map_err(nix_err)?
+            };
             Some(switch)
         } else {
             None
@@ -512,7 +517,9 @@ impl Device {
         let supported_led = if ty[EventType::LED.0 as usize] {
             state.led_vals = Some(BitArray::zeroed());
             let mut led = BitArray::zeroed();
-            unsafe { raw::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice()).map_err(nix_err)?
+            };
             Some(led)
         } else {
             None
@@ -520,7 +527,9 @@ impl Device {
 
         let supported_misc = if ty[EventType::MISC.0 as usize] {
             let mut misc = BitArray::zeroed();
-            unsafe { raw::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice()).map_err(nix_err)?
+            };
             Some(misc)
         } else {
             None
@@ -530,7 +539,9 @@ impl Device {
 
         let supported_snd = if ty[EventType::SOUND.0 as usize] {
             let mut snd = BitArray::zeroed();
-            unsafe { raw::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
+            unsafe {
+                raw::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice()).map_err(nix_err)?
+            };
             Some(snd)
         } else {
             None
@@ -565,10 +576,10 @@ impl Device {
     /// Synchronize the `Device` state with the kernel device state.
     ///
     /// If there is an error at any point, the state will not be synchronized completely.
-    pub fn sync_state(&mut self) -> Result<(), Error> {
+    pub fn sync_state(&mut self) -> io::Result<()> {
         let fd = self.as_raw_fd();
         if let Some(key_vals) = &mut self.state.key_vals {
-            unsafe { raw::eviocgkey(fd, &mut key_vals[..])? };
+            unsafe { raw::eviocgkey(fd, &mut key_vals[..]).map_err(nix_err)? };
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -580,17 +591,17 @@ impl Device {
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 unsafe {
-                    raw::eviocgabs(fd, idx as u32, &mut abs_vals[idx])?;
+                    raw::eviocgabs(fd, idx as u32, &mut abs_vals[idx]).map_err(nix_err)?;
                 }
             }
         }
 
         if let Some(switch_vals) = &mut self.state.switch_vals {
-            unsafe { raw::eviocgsw(fd, switch_vals.as_mut_raw_slice())? };
+            unsafe { raw::eviocgsw(fd, switch_vals.as_mut_raw_slice()).map_err(nix_err)? };
         }
 
         if let Some(led_vals) = &mut self.state.led_vals {
-            unsafe { raw::eviocgled(fd, led_vals.as_mut_raw_slice())? };
+            unsafe { raw::eviocgled(fd, led_vals.as_mut_raw_slice()).map_err(nix_err)? };
         }
 
         Ok(())
@@ -599,7 +610,7 @@ impl Device {
     /// Do SYN_DROPPED synchronization, and compensate for missing events by inserting events into
     /// the stream which, when applied to any state being kept outside of this `Device`, will
     /// synchronize it with the kernel state.
-    fn compensate_dropped(&mut self) -> Result<(), Error> {
+    fn compensate_dropped(&mut self) -> io::Result<()> {
         let mut drop_from = None;
         for (idx, event) in self.pending_events[self.last_seen..].iter().enumerate() {
             if event.type_ == SYN_DROPPED as u16 {
@@ -702,7 +713,7 @@ impl Device {
     }
 
     /// Read currently available events into the internal buffer. This blocks.
-    fn fill_events(&mut self) -> Result<(), Error> {
+    fn fill_events(&mut self) -> io::Result<()> {
         let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
 
@@ -713,7 +724,7 @@ impl Device {
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
-        let bytes_read = nix::errno::Errno::result(res)?;
+        let bytes_read = nix::errno::Errno::result(res).map_err(nix_err)?;
         let pre_len = buf.len();
         unsafe {
             buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
@@ -725,7 +736,7 @@ impl Device {
     ///
     /// This will block until events are available. Typically, users will want to call this
     /// in a tight loop within a thread.
-    pub fn block_events_no_sync(&mut self) -> Result<RawEvents, Error> {
+    pub fn block_events_no_sync(&mut self) -> io::Result<RawEvents> {
         self.fill_events()?;
         Ok(RawEvents::new(self))
     }
@@ -735,7 +746,7 @@ impl Device {
     /// This will block until events are available. Typically, users will want to call this
     /// in a tight loop within a thread.
     /// Will insert "fake" events.
-    pub fn block_events(&mut self) -> Result<RawEvents, Error> {
+    pub fn block_events(&mut self) -> io::Result<RawEvents> {
         self.fill_events()?;
         self.compensate_dropped()?;
 
@@ -896,6 +907,16 @@ fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
         SystemTime::UNIX_EPOCH + dur
     } else {
         SystemTime::UNIX_EPOCH - dur
+    }
+}
+
+fn nix_err(err: nix::Error) -> io::Error {
+    match err {
+        nix::Error::Sys(errno) => io::Error::from_raw_os_error(errno as i32),
+        nix::Error::InvalidPath => io::Error::new(io::ErrorKind::InvalidInput, err),
+        nix::Error::InvalidUtf8 => io::Error::new(io::ErrorKind::Other, err),
+        // TODO: io::ErrorKind::NotSupported once stable
+        nix::Error::UnsupportedOperation => io::Error::new(io::ErrorKind::Other, err),
     }
 }
 
