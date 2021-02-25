@@ -57,8 +57,11 @@
 mod attribute_set;
 
 mod constants;
-pub mod raw;
+mod raw;
 mod scancodes;
+
+#[cfg(feature = "tokio")]
+mod tokio_stream;
 
 use bitvec::prelude::*;
 use std::fmt;
@@ -713,7 +716,8 @@ impl Device {
     }
 
     /// Read currently available events into the internal buffer. This blocks.
-    fn fill_events(&mut self) -> io::Result<()> {
+    /// Returns Ok(true) on EOF, whatever that means in the context of a device
+    fn fill_events(&mut self) -> io::Result<bool> {
         let fd = self.as_raw_fd();
         let buf = &mut self.pending_events;
 
@@ -729,7 +733,16 @@ impl Device {
         unsafe {
             buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
         }
-        Ok(())
+        Ok(bytes_read == 0)
+    }
+
+    #[cfg(feature = "tokio")]
+    fn pop_event(&mut self) -> Option<InputEvent> {
+        if self.pending_events.is_empty() {
+            None
+        } else {
+            Some(InputEvent(self.pending_events.remove(0)))
+        }
     }
 
     /// Exposes the raw evdev events without doing synchronization on SYN_DROPPED.
@@ -751,6 +764,11 @@ impl Device {
         self.compensate_dropped()?;
 
         Ok(RawEvents::new(self))
+    }
+
+    #[cfg(feature = "tokio")]
+    pub fn into_event_stream(self) -> io::Result<tokio_stream::EventStream> {
+        tokio_stream::EventStream::new(self)
     }
 }
 

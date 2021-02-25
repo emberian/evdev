@@ -8,8 +8,17 @@ repository = "https://github.com/cmr/evdev"
 documentation = "https://docs.rs/evdev"
 edition = "2018"
 
+[features]
+tokio = ["tokio_1", "futures-core"]
+
 [dependencies]
 libc = "0.2.22"
 bitvec = "0.21"
 nix = "0.19.0"
 thiserror = "1.0.24"
+
+tokio_1 = { package = "tokio", version = "1.0", features = ["net"], optional = true }
+futures-core = { version = "0.3", optional = true }
+
+[workspace]
+members = [".", "examples/evtest_tokio"]
