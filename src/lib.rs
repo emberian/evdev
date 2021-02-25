@@ -7,15 +7,32 @@
 //! - https://www.kernel.org/doc/Documentation/input/event-codes.txt
 //! - https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt
 //!
-//! Devices can expose a few different kinds of events, specified by the `Types` bitflag. Each
-//! event type (except for RELATIVE and SYNCHRONIZATION) also has some associated state. See the documentation for
-//! `Types` on what each type corresponds to.
+//! Devices emit events, represented by the [`InputEvent`] type. Each device supports a few different
+//! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
+//! method. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code. This
+//! type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
+//! subtypes of a type that a device supports can be retrieved through the `Device::supported_*()`
+//! methods, e.g. [`Device::supported_keys()`]:
 //!
-//! This state can be queried. For example, the `DeviceState::led_vals` field will tell you which
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use evdev::{Device, Key};
+//! let device = Device::open("/dev/input/event0")?;
+//! // check if the device has an ENTER key
+//! if device.supported_keys().map_or(false, |keys| keys.contains(Key::KEY_ENTER)) {
+//!     println!("are you prepared to ENTER the world of evdev?");
+//! } else {
+//!     println!(":(");
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! This state can be queried. For example, the [`DeviceState::led_vals`] method will tell you which
 //! LEDs are currently lit on the device. This state is not automatically synchronized with the
 //! kernel. However, as the application reads events, this state will be updated if the event is
 //! newer than the state timestamp (maintained internally).  Additionally, you can call
-//! `Device::sync_state` to explicitly synchronize with the kernel state.
+//! [`Device::sync_state`] to explicitly synchronize with the kernel state.
 //!
 //! As the state changes, the kernel will write events into a ring buffer. The application can read
 //! from this ring buffer, thus retrieving events. However, if the ring buffer becomes full, the
@@ -28,8 +45,9 @@
 //! state with the kernel, only one (or zero, if the switch is in the same state as it was before
 //! the sync) switch events will be emulated.
 //!
-//! It is recommended that you dedicate a thread to processing input events, or use epoll with the
-//! fd returned by `Device::fd` to process events when they are ready.
+//! It is recommended that you dedicate a thread to processing input events, or use epoll or an
+//! async runtime with the fd returned by `<Device as AsRawFd>::as_raw_fd` to process events when
+//! they are ready.
 
 #![cfg(any(unix, target_os = "android"))]
 #![allow(non_camel_case_types)]
@@ -128,7 +146,7 @@ impl DeviceState {
     }
 
     pub fn timestamp(&self) -> SystemTime {
-        timeval2systime(&self.timestamp)
+        timeval_to_systime(&self.timestamp)
     }
 
     pub fn abs_vals(&self) -> Option<&[libc::input_absinfo]> {
@@ -247,7 +265,7 @@ impl fmt::Display for Device {
         writeln!(f, "  Properties: {:?}", self.properties())?;
 
         if let (Some(supported_keys), Some(key_vals)) =
-            (self.keys_supported(), self.state.key_vals())
+            (self.supported_keys(), self.state.key_vals())
         {
             writeln!(f, "  Keys supported:")?;
             for key in supported_keys.iter() {
@@ -266,7 +284,7 @@ impl fmt::Display for Device {
             }
         }
 
-        if let Some(supported_relative) = self.relative_axes_supported() {
+        if let Some(supported_relative) = self.supported_relative_axes() {
             writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
         }
 
@@ -331,7 +349,7 @@ impl fmt::Display for Device {
 }
 
 impl Device {
-    pub fn events_supported(&self) -> AttributeSet<'_, EventType> {
+    pub fn supported_events(&self) -> AttributeSet<'_, EventType> {
         AttributeSet::new(&self.ty)
     }
 
@@ -359,25 +377,25 @@ impl Device {
         self.driver_version
     }
 
-    pub fn keys_supported(&self) -> Option<AttributeSet<'_, Key>> {
+    pub fn supported_keys(&self) -> Option<AttributeSet<'_, Key>> {
         self.supported_keys
             .as_deref()
             .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
     }
 
-    pub fn relative_axes_supported(&self) -> Option<AttributeSet<'_, RelativeAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<AttributeSet<'_, RelativeAxisType>> {
         self.supported_relative.as_deref().map(AttributeSet::new)
     }
 
-    pub fn absolute_axes_supported(&self) -> Option<AttributeSet<'_, AbsoluteAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<AttributeSet<'_, AbsoluteAxisType>> {
         self.supported_absolute.as_deref().map(AttributeSet::new)
     }
 
-    pub fn switches_supported(&self) -> Option<AttributeSet<'_, SwitchType>> {
+    pub fn supported_switches(&self) -> Option<AttributeSet<'_, SwitchType>> {
         self.supported_switch.as_deref().map(AttributeSet::new)
     }
 
-    pub fn leds_supported(&self) -> Option<AttributeSet<'_, LedType>> {
+    pub fn supported_leds(&self) -> Option<AttributeSet<'_, LedType>> {
         self.supported_led.as_deref().map(AttributeSet::new)
     }
 
@@ -385,11 +403,11 @@ impl Device {
         self.supported_misc.as_deref().map(AttributeSet::new)
     }
 
-    // pub fn repeats_supported(&self) -> Option<Repeat> {
+    // pub fn supported_repeats(&self) -> Option<Repeat> {
     //     self.rep
     // }
 
-    pub fn sounds_supported(&self) -> Option<AttributeSet<'_, SoundType>> {
+    pub fn supported_sounds(&self) -> Option<AttributeSet<'_, SoundType>> {
         self.supported_snd.as_deref().map(AttributeSet::new)
     }
 
@@ -615,7 +633,7 @@ impl Device {
         let old_state = self.state.clone();
         self.sync_state()?;
 
-        let time = systime2timeval(&SystemTime::now());
+        let time = systime_to_timeval(&SystemTime::now());
 
         if let (Some(supported_keys), Some(key_vals)) =
             (&self.supported_keys, self.state.key_vals())
@@ -788,7 +806,7 @@ pub struct InputEvent(libc::input_event);
 impl InputEvent {
     #[inline]
     pub fn timestamp(&self) -> SystemTime {
-        timeval2systime(&self.0.time)
+        timeval_to_systime(&self.0.time)
     }
 
     #[inline]
@@ -877,7 +895,7 @@ impl Iterator for EnumerateDevices {
 }
 
 /// A safe Rust version of clock_gettime against CLOCK_REALTIME
-fn systime2timeval(time: &SystemTime) -> libc::timeval {
+fn systime_to_timeval(time: &SystemTime) -> libc::timeval {
     let (sign, dur) = match time.duration_since(SystemTime::UNIX_EPOCH) {
         Ok(dur) => (1, dur),
         Err(e) => (-1, e.duration()),
@@ -889,7 +907,7 @@ fn systime2timeval(time: &SystemTime) -> libc::timeval {
     }
 }
 
-fn timeval2systime(tv: &libc::timeval) -> SystemTime {
+fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
     let dur = Duration::new(tv.tv_sec.abs() as u64, tv.tv_usec as u32 * 1000);
     if tv.tv_sec >= 0 {
         SystemTime::UNIX_EPOCH + dur
