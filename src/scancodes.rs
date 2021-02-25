@@ -1,45 +1,26 @@
-use std::fmt;
-
 /// Scancodes for key presses.
 ///
 /// Each associated constant for this struct represents a distinct key.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Key(u32);
+pub struct Key(u16);
 
 impl Key {
     #[inline]
-    pub const fn new(code: u32) -> Self {
+    pub const fn new(code: u16) -> Self {
         Self(code)
     }
 
     #[inline]
-    pub const fn code(self) -> u32 {
+    pub const fn code(self) -> u16 {
         self.0
     }
 
-    // This needs to be a multiple of 8, otherwise we fetch keys we can't process
-    /// The highest key index that will be fetched by Device
-    pub const MAX: usize = 0x300;
+    pub(crate) const COUNT: usize = 0x300;
 }
 
-macro_rules! key_consts {
-    ($($c:ident = $val:expr,)*) => {
-        impl Key {
-            $(const $c: Self = Self($val);)*
-        }
-        impl fmt::Debug for Key {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                match *self {
-                    $(Self::$c => f.pad(stringify!($c)),)*
-                    _ => write!(f, "unknown key: {}", self.0),
-                }
-            }
-        }
-    }
-}
-
-key_consts!(
+evdev_enum!(
+    Key,
     KEY_RESERVED = 0,
     KEY_ESC = 1,
     KEY_1 = 2,
