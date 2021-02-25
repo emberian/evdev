@@ -65,10 +65,7 @@ use std::fmt;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::mem;
-use std::os::unix::{
-    fs::OpenOptionsExt,
-    io::{AsRawFd, RawFd},
-};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 use std::{ffi::CString, mem::MaybeUninit};
