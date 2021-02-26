@@ -1,4 +1,6 @@
-use futures_util::StreamExt;
+use tokio_1 as tokio;
+
+use futures_util::TryStreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", d);
     println!("Events:");
     let mut events = d.into_event_stream()?;
-    while let Some(ev) = events.next().await {
+    while let Some(ev) = events.try_next().await? {
         println!("{:?}", ev);
     }
     println!("EOF!");
