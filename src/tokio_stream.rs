@@ -22,6 +22,7 @@ impl EventStream {
         Ok(Self { device })
     }
 
+    /// Returns a reference to the underlying device
     pub fn device(&self) -> &Device {
         self.device.get_ref()
     }

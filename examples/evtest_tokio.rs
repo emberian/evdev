@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("{}", d);
     println!("Events:");
-    let mut events = d.into_event_stream()?;
+    let mut events = d.into_event_stream_no_sync()?;
     while let Some(ev) = events.try_next().await? {
         println!("{:?}", ev);
     }

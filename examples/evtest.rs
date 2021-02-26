@@ -20,7 +20,7 @@ fn main() {
     println!("{}", d);
     println!("Events:");
     loop {
-        for ev in d.block_events_no_sync().unwrap() {
+        for ev in d.fetch_events_no_sync().unwrap() {
             println!("{:?}", ev);
         }
     }

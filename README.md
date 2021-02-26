@@ -21,7 +21,11 @@ What does this library support?
 ===============================
 
 This library exposes raw evdev events, but uses the Rust `Iterator` trait to
-do so, and will handle `SYN_DROPPED` events properly for the client. I try to
+do so. When processing events via `fetch_events`, the library will handle
+`SYN_DROPPED` events by injecting fake state updates in an attempt to ensure
+callers see state transition messages consistent with actual device state. When
+processing via `*_no_sync` this correction is not done, and `SYN_DROPPED` messages
+will appear if the kernel ring buffer is overrun before messages are read. I try to
 match [libevdev](https://www.freedesktop.org/software/libevdev/doc/latest/)
 closely, where possible.
 
