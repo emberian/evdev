@@ -218,6 +218,7 @@ pub struct Device {
     // rep: Option<Repeat>,
     supported_snd: Option<BitArr!(for SoundType::COUNT, in u8)>,
     pending_events: VecDeque<libc::input_event>,
+    read_buf: Vec<libc::input_event>,
     state: DeviceState,
 }
 
@@ -356,6 +357,8 @@ impl fmt::Display for Device {
         Ok(())
     }
 }
+
+const DEFAULT_EVENT_COUNT: usize = 32;
 
 impl Device {
     /// Returns a set of the event types supported by this device (Key, Switch, etc)
@@ -684,6 +687,7 @@ impl Device {
             supported_misc,
             supported_snd,
             pending_events: VecDeque::with_capacity(64),
+            read_buf: Vec::new(),
             state,
         };
 
@@ -709,9 +713,7 @@ impl Device {
                 //
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
-                unsafe {
-                    raw::eviocgabs(fd, idx as u32, &mut abs_vals[idx]).map_err(nix_err)?;
-                }
+                unsafe { raw::eviocgabs(fd, idx as u32, &mut abs_vals[idx]).map_err(nix_err)? };
             }
         }
 
@@ -831,31 +833,32 @@ impl Device {
         Ok(())
     }
 
-    /// Read currently available events into the internal buffer. If the underlying fd is not
+    /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
     /// O_NONBLOCK, this will block.
     ///
-    /// Returns Ok(true) on EOF, whatever that means in the context of a device
-    fn fill_events(&mut self) -> io::Result<bool> {
+    /// Returns the number of events that were read, or an error.
+    pub fn fill_events(&mut self, num: usize) -> io::Result<usize> {
         let fd = self.as_raw_fd();
-        let mut buf: Vec<libc::input_event> = Vec::with_capacity(32);
+        self.read_buf.clear();
+        self.read_buf.reserve_exact(num);
 
         // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(&mut buf);
+        let spare_capacity = vec_spare_capacity_mut(&mut self.read_buf);
         let (_, uninit_buf, _) = unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
         let bytes_read = nix::errno::Errno::result(res).map_err(nix_err)?;
-        let pre_len = buf.len();
+        let num_read = bytes_read as usize / mem::size_of::<libc::input_event>();
         unsafe {
-            buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
+            let len = self.read_buf.len();
+            self.read_buf.set_len(len + num_read);
         }
-        self.pending_events.extend(buf.into_iter());
-        Ok(bytes_read == 0)
+        self.pending_events.extend(self.read_buf.drain(..));
+        Ok(num_read)
     }
 
-    #[cfg(feature = "tokio")]
-    fn pop_event(&mut self) -> Option<InputEvent> {
+    pub fn pop_event(&mut self) -> Option<InputEvent> {
         self.pending_events.pop_front().map(InputEvent)
     }
 
@@ -865,7 +868,7 @@ impl Device {
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
     pub fn fetch_events_no_sync(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
-        self.fill_events()?;
+        self.fill_events(DEFAULT_EVENT_COUNT)?;
         Ok(self.pending_events.drain(..).map(InputEvent))
     }
 
@@ -875,7 +878,7 @@ impl Device {
     /// this in a tight loop within a thread.
     /// Will insert "fake" events.
     pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
-        self.fill_events()?;
+        self.fill_events(DEFAULT_EVENT_COUNT)?;
         self.compensate_dropped()?;
 
         Ok(self.pending_events.drain(..).map(InputEvent))

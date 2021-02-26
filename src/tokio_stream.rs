@@ -1,6 +1,6 @@
 use tokio_1 as tokio;
 
-use crate::{nix_err, Device, InputEvent};
+use crate::{nix_err, Device, InputEvent, DEFAULT_EVENT_COUNT};
 use futures_core::{ready, Stream};
 use std::io;
 use std::os::unix::io::AsRawFd;
@@ -40,11 +40,11 @@ impl Stream for EventStream {
         loop {
             let mut guard = ready!(me.device.poll_read_ready_mut(cx))?;
 
-            match guard.try_io(|device| device.get_mut().fill_events()) {
+            match guard.try_io(|device| device.get_mut().fill_events(DEFAULT_EVENT_COUNT)) {
                 Ok(res) => {
                     let ret = match res {
-                        Ok(false) => Some(Ok(me.device.get_mut().pop_event().unwrap())),
-                        Ok(true) => None,
+                        Ok(0) => None,
+                        Ok(_) => Some(Ok(me.device.get_mut().pop_event().unwrap())),
                         Err(e) if e.raw_os_error() == Some(libc::ENODEV) => None,
                         Err(e) => Some(Err(e)),
                     };
