@@ -64,9 +64,9 @@ mod scancodes;
 mod tokio_stream;
 
 use bitvec::prelude::*;
+use std::collections::VecDeque;
 use std::fmt;
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -217,9 +217,7 @@ pub struct Device {
     // ff_stat: Option<FFStatus>,
     // rep: Option<Repeat>,
     supported_snd: Option<BitArr!(for SoundType::COUNT, in u8)>,
-    pending_events: Vec<libc::input_event>,
-    // pending_events[last_seen..] is the events that have occurred since the last sync.
-    last_seen: usize,
+    pending_events: VecDeque<libc::input_event>,
     state: DeviceState,
 }
 
@@ -685,8 +683,7 @@ impl Device {
             supported_led,
             supported_misc,
             supported_snd,
-            pending_events: Vec::with_capacity(64),
-            last_seen: 0,
+            pending_events: VecDeque::with_capacity(64),
             state,
         };
 
@@ -734,7 +731,7 @@ impl Device {
     /// synchronize it with the kernel state.
     fn compensate_dropped(&mut self) -> io::Result<()> {
         let mut drop_from = None;
-        for (idx, event) in self.pending_events[self.last_seen..].iter().enumerate() {
+        for (idx, event) in self.pending_events.iter().enumerate() {
             if event.type_ == SYN_DROPPED as u16 {
                 drop_from = Some(idx);
                 break;
@@ -745,7 +742,7 @@ impl Device {
         if let Some(idx) = drop_from {
             // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
             let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
-            for (idx, event) in self.pending_events[..idx].iter().enumerate().rev() {
+            for (idx, event) in self.pending_events.iter().take(idx).enumerate().rev() {
                 if event.type_ == SYN_REPORT as u16 {
                     prev_report = idx;
                     break;
@@ -772,7 +769,7 @@ impl Device {
             let old_vals = old_state.key_vals();
             for key in supported_keys.iter() {
                 if old_vals.map(|v| v.contains(key)) != Some(key_vals.contains(key)) {
-                    self.pending_events.push(libc::input_event {
+                    self.pending_events.push_back(libc::input_event {
                         time,
                         type_: EventType::KEY.0 as _,
                         code: key.code() as u16,
@@ -787,7 +784,7 @@ impl Device {
         {
             for idx in supported_abs.iter_ones() {
                 if old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx]) {
-                    self.pending_events.push(libc::input_event {
+                    self.pending_events.push_back(libc::input_event {
                         time,
                         type_: EventType::ABSOLUTE.0 as _,
                         code: idx as u16,
@@ -802,7 +799,7 @@ impl Device {
         {
             for idx in supported_switch.iter_ones() {
                 if old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx]) {
-                    self.pending_events.push(libc::input_event {
+                    self.pending_events.push_back(libc::input_event {
                         time,
                         type_: EventType::SWITCH.0 as _,
                         code: idx as u16,
@@ -815,7 +812,7 @@ impl Device {
         if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
             for idx in supported_led.iter_ones() {
                 if old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx]) {
-                    self.pending_events.push(libc::input_event {
+                    self.pending_events.push_back(libc::input_event {
                         time,
                         type_: EventType::LED.0 as _,
                         code: idx as u16,
@@ -825,7 +822,7 @@ impl Device {
             }
         }
 
-        self.pending_events.push(libc::input_event {
+        self.pending_events.push_back(libc::input_event {
             time,
             type_: EventType::SYNCHRONIZATION.0 as _,
             code: SYN_REPORT as u16,
@@ -840,11 +837,10 @@ impl Device {
     /// Returns Ok(true) on EOF, whatever that means in the context of a device
     fn fill_events(&mut self) -> io::Result<bool> {
         let fd = self.as_raw_fd();
-        let buf = &mut self.pending_events;
+        let mut buf: Vec<libc::input_event> = Vec::with_capacity(32);
 
-        buf.reserve(20);
         // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(buf);
+        let spare_capacity = vec_spare_capacity_mut(&mut buf);
         let (_, uninit_buf, _) = unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
@@ -854,16 +850,13 @@ impl Device {
         unsafe {
             buf.set_len(pre_len + (bytes_read as usize / mem::size_of::<libc::input_event>()));
         }
+        self.pending_events.extend(buf.into_iter());
         Ok(bytes_read == 0)
     }
 
     #[cfg(feature = "tokio")]
     fn pop_event(&mut self) -> Option<InputEvent> {
-        if self.pending_events.is_empty() {
-            None
-        } else {
-            Some(InputEvent(self.pending_events.remove(0)))
-        }
+        self.pending_events.pop_front().map(InputEvent)
     }
 
     /// Fetches and returns events from the kernel ring buffer without doing synchronization on
@@ -871,9 +864,9 @@ impl Device {
     ///
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
-    pub fn fetch_events_no_sync(&mut self) -> io::Result<RawEvents> {
+    pub fn fetch_events_no_sync(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
-        Ok(RawEvents::new(self))
+        Ok(self.pending_events.drain(..).map(InputEvent))
     }
 
     /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
@@ -881,11 +874,11 @@ impl Device {
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
     /// Will insert "fake" events.
-    pub fn fetch_events(&mut self) -> io::Result<RawEvents> {
+    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
         self.compensate_dropped()?;
 
-        Ok(RawEvents::new(self))
+        Ok(self.pending_events.drain(..).map(InputEvent))
     }
 
     #[cfg(feature = "tokio")]
@@ -897,31 +890,6 @@ impl Device {
     /// This operation consumes the Device.
     pub fn into_event_stream_no_sync(self) -> io::Result<tokio_stream::EventStream> {
         tokio_stream::EventStream::new(self)
-    }
-}
-
-pub struct RawEvents<'a>(&'a mut Device);
-
-impl<'a> RawEvents<'a> {
-    fn new(dev: &'a mut Device) -> RawEvents<'a> {
-        dev.pending_events.reverse();
-        RawEvents(dev)
-    }
-}
-
-impl<'a> Drop for RawEvents<'a> {
-    fn drop(&mut self) {
-        self.0.pending_events.reverse();
-        self.0.last_seen = self.0.pending_events.len();
-    }
-}
-
-impl<'a> Iterator for RawEvents<'a> {
-    type Item = InputEvent;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<InputEvent> {
-        self.0.pending_events.pop().map(InputEvent)
     }
 }
 
