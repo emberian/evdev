@@ -1,4 +1,6 @@
 /// Event types supported by the device.
+///
+/// This is implemented as a newtype around the u16 "type" field of `libc::input_event`.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct EventType(pub u16);
 
@@ -44,11 +46,12 @@ impl EventType {
 }
 
 
+/// A "synchronization" message type published by the kernel into the events stream.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Synchronization(pub u16);
 
 impl Synchronization {
-    /// Terminates a packet of events from the device.
+    /// Used to mark the end of a single atomic "reading" from the device.
     pub const SYN_REPORT: u16 = 0;
     /// Appears to be unused.
     pub const SYN_CONFIG: u16 = 1;
@@ -97,6 +100,7 @@ impl PropType {
     pub(crate) const COUNT: usize = 0x20;
 }
 
+/// A type of relative axis measurement, typically produced by mice.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RelativeAxisType(pub u16);
 
@@ -121,6 +125,7 @@ impl RelativeAxisType {
     pub(crate) const COUNT: usize = 0x10;
 }
 
+/// A type of absolute axis measurement, typically used for touch events and joysticks.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct AbsoluteAxisType(pub u16);
 
@@ -188,6 +193,7 @@ impl AbsoluteAxisType {
     pub(crate) const COUNT: usize = 0x40;
 }
 
+/// An event type corresponding to a physical or virtual switch.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct SwitchType(pub u16);
 
@@ -260,7 +266,7 @@ impl LedType {
     pub(crate) const COUNT: usize = 0x10;
 }
 
-/// Various miscellaneous event types. Current as of kernel 4.1.
+/// Various miscellaneous event types.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct MiscType(pub u16);
 
@@ -323,6 +329,7 @@ impl MiscType {
 //     pub(crate) const COUNT: usize = 0x02;
 // }
 
+/// A type associated with simple sounds, such as beeps or tones.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct SoundType(pub u16);
 

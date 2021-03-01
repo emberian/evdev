@@ -1,6 +1,11 @@
 use bitvec::prelude::*;
 use std::fmt;
 
+/// A collection of bits representing either device capability or state.
+///
+/// This can be used to iterate across all keys supported by a keyboard, or all buttons supported
+/// by a joystick. You can also query directly whether a specific bit is set (corresponding to
+/// whether a key or button is depressed).
 #[derive(Copy, Clone)]
 pub struct AttributeSet<'a, T> {
     bitslice: &'a BitSlice<Lsb0, u8>,
@@ -17,11 +22,13 @@ impl<'a, T: EvdevEnum> AttributeSet<'a, T> {
     }
 
     #[inline]
+    /// Returns `true` if this AttributeSet contains the passed T.
     pub fn contains(&self, attr: T) -> bool {
         self.bitslice.get(attr.to_index()).map_or(false, |b| *b)
     }
 
     #[inline]
+    /// Provides an iterator over all "set" bits in the collection.
     pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
         self.bitslice.iter_ones().map(T::from_index)
     }

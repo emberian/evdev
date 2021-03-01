@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::unix::AsyncFd;
 
+/// An async stream of events.
 pub struct EventStream {
     device: AsyncFd<Device>,
 }

@@ -81,6 +81,8 @@ use std::{ffi::CString, mem::MaybeUninit};
 pub use crate::attribute_set::AttributeSet;
 pub use crate::constants::*;
 pub use crate::scancodes::*;
+#[cfg(feature = "tokio")]
+pub use crate::tokio_stream::EventStream;
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -350,12 +352,45 @@ impl fmt::Display for Device {
 const DEFAULT_EVENT_COUNT: usize = 32;
 
 impl Device {
-    /// Returns a set of the event types supported by this device (Key, Switch, etc)
+    #[inline(always)]
+    /// Opens a device, given its system path.
     ///
-    /// If you're interested in the individual keys or switches supported, it's probably easier
-    /// to just call the appropriate `supported_*` function instead.
-    pub fn supported_events(&self) -> AttributeSet<'_, EventType> {
-        AttributeSet::new(&self.ty)
+    /// Paths are typically something like `/dev/input/event0`.
+    pub fn open(path: impl AsRef<Path>) -> io::Result<Device> {
+        Self::_open(path.as_ref())
+    }
+
+    /// Fetches and returns events from the kernel ring buffer without doing synchronization on
+    /// SYN_DROPPED.
+    ///
+    /// By default this will block until events are available. Typically, users will want to call
+    /// this in a tight loop within a thread.
+    pub fn fetch_events_no_sync(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
+        self.fill_events(DEFAULT_EVENT_COUNT)?;
+        Ok(self.pending_events.drain(..).map(InputEvent))
+    }
+
+    /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
+    ///
+    /// By default this will block until events are available. Typically, users will want to call
+    /// this in a tight loop within a thread.
+    /// Will insert "fake" events.
+    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
+        self.fill_events(DEFAULT_EVENT_COUNT)?;
+        self.compensate_dropped()?;
+
+        Ok(self.pending_events.drain(..).map(InputEvent))
+    }
+
+    #[cfg(feature = "tokio")]
+    /// Return a `futures::stream` asynchronous stream of `InputEvent` compatible with Tokio.
+    ///
+    /// The stream does NOT compensate for SYN_DROPPED events and will not update internal cached
+    /// state.
+    /// The Tokio runtime is expected to keep up with typical event rates.
+    /// This operation consumes the Device.
+    pub fn into_event_stream_no_sync(self) -> io::Result<tokio_stream::EventStream> {
+        tokio_stream::EventStream::new(self)
     }
 
     /// Returns the device's name as read from the kernel.
@@ -386,6 +421,14 @@ impl Device {
     /// Returns a tuple of the driver version containing major, minor, rev
     pub fn driver_version(&self) -> (u8, u8, u8) {
         self.driver_version
+    }
+
+    /// Returns a set of the event types supported by this device (Key, Switch, etc)
+    ///
+    /// If you're interested in the individual keys or switches supported, it's probably easier
+    /// to just call the appropriate `supported_*` function instead.
+    pub fn supported_events(&self) -> AttributeSet<'_, EventType> {
+        AttributeSet::new(&self.ty)
     }
 
     /// Returns the set of supported keys reported by the device.
@@ -511,14 +554,6 @@ impl Device {
     /// Pulling updates via `fetch_events` or manually invoking `sync_state` will refresh the cache.
     pub fn state(&self) -> &DeviceState {
         &self.state
-    }
-
-    #[inline(always)]
-    /// Opens a device, given its system path.
-    ///
-    /// Paths are typically something like `/dev/input/event0`.
-    pub fn open(path: impl AsRef<Path>) -> io::Result<Device> {
-        Self::_open(path.as_ref())
     }
 
     fn _open(path: &Path) -> io::Result<Device> {
@@ -826,7 +861,7 @@ impl Device {
     /// O_NONBLOCK, this will block.
     ///
     /// Returns the number of events that were read, or an error.
-    pub fn fill_events(&mut self, num: usize) -> io::Result<usize> {
+    fn fill_events(&mut self, num: usize) -> io::Result<usize> {
         let fd = self.as_raw_fd();
         self.read_buf.clear();
         self.read_buf.reserve_exact(num);
@@ -851,42 +886,12 @@ impl Device {
     fn pop_event(&mut self) -> Option<InputEvent> {
         self.pending_events.pop_front().map(InputEvent)
     }
-
-    /// Fetches and returns events from the kernel ring buffer without doing synchronization on
-    /// SYN_DROPPED.
-    ///
-    /// By default this will block until events are available. Typically, users will want to call
-    /// this in a tight loop within a thread.
-    pub fn fetch_events_no_sync(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
-        self.fill_events(DEFAULT_EVENT_COUNT)?;
-        Ok(self.pending_events.drain(..).map(InputEvent))
-    }
-
-    /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
-    ///
-    /// By default this will block until events are available. Typically, users will want to call
-    /// this in a tight loop within a thread.
-    /// Will insert "fake" events.
-    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
-        self.fill_events(DEFAULT_EVENT_COUNT)?;
-        self.compensate_dropped()?;
-
-        Ok(self.pending_events.drain(..).map(InputEvent))
-    }
-
-    #[cfg(feature = "tokio")]
-    /// Return a `futures::stream` asynchronous stream of `InputEvent` compatible with Tokio.
-    ///
-    /// The stream does NOT compensate for SYN_DROPPED events and will not update internal cached
-    /// state.
-    /// The Tokio runtime is expected to keep up with typical event rates.
-    /// This operation consumes the Device.
-    pub fn into_event_stream_no_sync(self) -> io::Result<tokio_stream::EventStream> {
-        tokio_stream::EventStream::new(self)
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// A convenience mapping from an event `(type, code)` to an enumeration.
+///
+/// Note that this does not capture an event's value, just the type and code.
 pub enum InputEventKind {
     Synchronization(Synchronization),
     Key(Key),
@@ -900,26 +905,41 @@ pub enum InputEventKind {
 }
 
 #[repr(transparent)]
+/// A wrapped `libc::input_event` returned by the input device via the kernel.
+///
+/// `input_event` is a struct containing four fields:
+/// - `time: timeval`
+/// - `type_: u16`
+/// - `code: u16`
+/// - `value: s32`
+///
+/// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 pub struct InputEvent(libc::input_event);
 
 impl InputEvent {
     #[inline]
+    /// Returns the timestamp associated with the event.
     pub fn timestamp(&self) -> SystemTime {
         timeval_to_systime(&self.0.time)
     }
 
     #[inline]
+    /// Returns the type of event this describes, e.g. Key, Switch, etc.
     pub fn event_type(&self) -> EventType {
         EventType(self.0.type_)
     }
 
     #[inline]
+    /// Returns the raw "code" field directly from input_event.
     pub fn code(&self) -> u16 {
         self.0.code
     }
 
     /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
     /// the type of this event.
+    ///
+    /// This is useful if you want to match events by specific key codes or axes. Note that this
+    /// does not capture the event value, just the type and code.
     #[inline]
     pub fn kind(&self) -> InputEventKind {
         let code = self.code();
@@ -937,15 +957,23 @@ impl InputEvent {
     }
 
     #[inline]
+    /// Returns the raw "value" field directly from input_event.
+    ///
+    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
+    /// For axes, the values depend on the hardware and driver implementation.
     pub fn value(&self) -> i32 {
         self.0.value
     }
+}
 
-    pub fn from_raw(raw: libc::input_event) -> Self {
+impl From<libc::input_event> for InputEvent {
+    fn from(raw: libc::input_event) -> Self {
         Self(raw)
     }
+}
 
-    pub fn as_raw(&self) -> &libc::input_event {
+impl<'a> Into<&'a libc::input_event> for &'a InputEvent {
+    fn into(self) -> &'a libc::input_event {
         &self.0
     }
 }
