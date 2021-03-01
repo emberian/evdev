@@ -81,7 +81,6 @@ use std::{ffi::CString, mem::MaybeUninit};
 pub use crate::attribute_set::AttributeSet;
 pub use crate::constants::*;
 pub use crate::scancodes::*;
-pub use crate::Synchronization::*;
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -106,19 +105,6 @@ fn ioctl_get_cstring(
         }
         Err(_) => None,
     }
-}
-
-#[repr(u16)]
-#[derive(Copy, Clone, Debug)]
-pub enum Synchronization {
-    /// Terminates a packet of events from the device.
-    SYN_REPORT = 0,
-    /// Appears to be unused.
-    SYN_CONFIG = 1,
-    /// "Used to synchronize and separate touch events"
-    SYN_MT_REPORT = 2,
-    /// Ring buffer filled, events were dropped.
-    SYN_DROPPED = 3,
 }
 
 const fn bit_elts<T>(bits: usize) -> usize {
@@ -737,7 +723,7 @@ impl Device {
     fn compensate_dropped(&mut self) -> io::Result<()> {
         let mut drop_from = None;
         for (idx, event) in self.pending_events.iter().enumerate() {
-            if event.type_ == SYN_DROPPED as u16 {
+            if event.type_ == Synchronization::SYN_DROPPED {
                 drop_from = Some(idx);
                 break;
             }
@@ -748,7 +734,7 @@ impl Device {
             // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
             let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
             for (idx, event) in self.pending_events.iter().take(idx).enumerate().rev() {
-                if event.type_ == SYN_REPORT as u16 {
+                if event.type_ == Synchronization::SYN_REPORT {
                     prev_report = idx;
                     break;
                 }
@@ -830,7 +816,7 @@ impl Device {
         self.pending_events.push_back(libc::input_event {
             time,
             type_: EventType::SYNCHRONIZATION.0 as _,
-            code: SYN_REPORT as u16,
+            code: Synchronization::SYN_REPORT,
             value: 0,
         });
         Ok(())
@@ -902,7 +888,7 @@ impl Device {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum InputEventKind {
-    Synchronization,
+    Synchronization(Synchronization),
     Key(Key),
     RelAxis(RelativeAxisType),
     AbsAxis(AbsoluteAxisType),
@@ -938,7 +924,7 @@ impl InputEvent {
     pub fn kind(&self) -> InputEventKind {
         let code = self.code();
         match self.event_type() {
-            EventType::SYNCHRONIZATION => InputEventKind::Synchronization,
+            EventType::SYNCHRONIZATION => InputEventKind::Synchronization(Synchronization(code)),
             EventType::KEY => InputEventKind::Key(Key::new(code)),
             EventType::RELATIVE => InputEventKind::RelAxis(RelativeAxisType(code)),
             EventType::ABSOLUTE => InputEventKind::AbsAxis(AbsoluteAxisType(code)),
