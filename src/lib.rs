@@ -723,7 +723,7 @@ impl Device {
     fn compensate_dropped(&mut self) -> io::Result<()> {
         let mut drop_from = None;
         for (idx, event) in self.pending_events.iter().enumerate() {
-            if event.type_ == Synchronization::SYN_DROPPED {
+            if event.type_ == EventType::SYNCHRONIZATION.0 && event.code == Synchronization::SYN_DROPPED {
                 drop_from = Some(idx);
                 break;
             }
@@ -734,7 +734,7 @@ impl Device {
             // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
             let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
             for (idx, event) in self.pending_events.iter().take(idx).enumerate().rev() {
-                if event.type_ == Synchronization::SYN_REPORT {
+                if event.type_ == EventType::SYNCHRONIZATION.0 && event.code == Synchronization::SYN_REPORT {
                     prev_report = idx;
                     break;
                 }
