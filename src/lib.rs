@@ -48,6 +48,9 @@
 //! It is recommended that you dedicate a thread to processing input events, or use epoll or an
 //! async runtime with the fd returned by `<Device as AsRawFd>::as_raw_fd` to process events when
 //! they are ready.
+//!
+//! For demonstrations of how to use this library in blocking, nonblocking, and async (tokio) modes,
+//! please reference the "examples" directory.
 
 #![cfg(any(unix, target_os = "android"))]
 #![allow(non_camel_case_types)]
