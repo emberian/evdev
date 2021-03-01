@@ -861,7 +861,8 @@ impl Device {
         Ok(num_read)
     }
 
-    pub fn pop_event(&mut self) -> Option<InputEvent> {
+    #[cfg(feature = "tokio")]
+    fn pop_event(&mut self) -> Option<InputEvent> {
         self.pending_events.pop_front().map(InputEvent)
     }
 
