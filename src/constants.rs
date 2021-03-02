@@ -45,33 +45,21 @@ impl EventType {
     pub(crate) const COUNT: usize = 0x20;
 }
 
-
 /// A "synchronization" message type published by the kernel into the events stream.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Synchronization(pub u16);
 
-impl Synchronization {
+evdev_enum!(
+    Synchronization,
     /// Used to mark the end of a single atomic "reading" from the device.
-    pub const SYN_REPORT: u16 = 0;
+    SYN_REPORT = 0,
     /// Appears to be unused.
-    pub const SYN_CONFIG: u16 = 1;
+    SYN_CONFIG = 1,
     /// "Used to synchronize and separate touch events"
-    pub const SYN_MT_REPORT: u16 = 2;
+    SYN_MT_REPORT = 2,
     /// Ring buffer filled, events were dropped.
-    pub const SYN_DROPPED: u16 = 3;
-}
-
-impl std::fmt::Debug for Synchronization {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.0 {
-            Synchronization::SYN_REPORT => f.pad(stringify!(SYN_REPORT)),
-            Synchronization::SYN_CONFIG => f.pad(stringify!(SYN_CONFIG)),
-            Synchronization::SYN_MT_REPORT => f.pad(stringify!(SYN_MT_REPORT)),
-            Synchronization::SYN_DROPPED => f.pad(stringify!(SYN_DROPPED)),
-            _ => write!(f, "{}", self.0),
-        }
-    }
-}
+    SYN_DROPPED = 3,
+);
 
 /// Device properties.
 #[derive(Copy, Clone, PartialEq, Eq)]
