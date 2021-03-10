@@ -6,6 +6,13 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::{fmt, io};
 
+/// A wrapper over [`RawDevice`] that synchronizes with the kernel's state when events are dropped.
+///
+///
+/// With regards to synchronization, specifically: if `fetch_events()` isn't called often enough and
+/// the kernel drops events from its internal buffer, synthetic events will be injected into the
+/// iterator returned by `fetch_events()` and [`Device::state()`] will be kept up to date when
+/// `fetch_events()` is called.
 pub struct Device {
     raw: RawDevice,
     prev_state: DeviceState,
@@ -72,6 +79,10 @@ impl Device {
             state,
             block_dropped: false,
         })
+    }
+
+    pub fn state(&self) -> &DeviceState {
+        &self.state
     }
 
     /// Returns the device's name as read from the kernel.
@@ -233,17 +244,17 @@ impl Device {
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
     /// Will insert "fake" events.
-    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
+    pub fn fetch_events(&mut self) -> io::Result<FetchEventsSynced<'_>> {
         let block_dropped = std::mem::take(&mut self.block_dropped);
         let sync = if block_dropped {
             self.prev_state.clone_from(&self.state);
             self.raw.sync_state(&mut self.state)?;
-            SyncState::Keys {
+            Some(SyncState::Keys {
                 time: crate::systime_to_timeval(&std::time::SystemTime::now()),
                 start: Key::new(0),
-            }
+            })
         } else {
-            SyncState::None
+            None
         };
 
         self.raw.fill_events()?;
@@ -268,121 +279,20 @@ impl AsRawFd for Device {
     }
 }
 
-macro_rules! try_compensate {
-    ($self:expr, $time:expr, $start:expr, $typ:ident, $evtype:ident, $var:ident, $supporteds:ident, $state:ty, $get_state:expr, $get_value:expr) => {
-        if let Some(supported_types) = $self.$supporteds() {
-            let types_to_check = supported_types.slice($start);
-            let get_state: fn(&DeviceState) -> $state = $get_state;
-            let vals = get_state(&$self.state);
-            let old_vals = get_state(&$self.prev_state);
-            let get_value: fn($state, $typ) -> _ = $get_value;
-            for typ in types_to_check.iter() {
-                let prev = get_value(old_vals, typ);
-                let value = get_value(vals, typ);
-                if prev != value {
-                    let ev = InputEvent(libc::input_event {
-                        time: $time,
-                        type_: EventType::$evtype.0,
-                        code: typ.0,
-                        value: value as _,
-                    });
-                    let state = SyncState::$var {
-                        time: $time,
-                        start: $typ(typ.0 + 1),
-                    };
-                    return Some((ev, state));
-                }
-            }
-        }
-    };
-}
-impl Device {
-    fn compensate_keys(&self, time: libc::timeval, start: Key) -> Option<(InputEvent, SyncState)> {
-        try_compensate!(
-            self,
-            time,
-            start,
-            Key,
-            KEY,
-            Keys,
-            supported_keys,
-            AttributeSet<Key>,
-            |st| st.key_vals().unwrap(),
-            |vals, key| vals.contains(key)
-        );
-        self.compensate_absolutes(time, AbsoluteAxisType(0))
-    }
-
-    fn compensate_absolutes(
-        &self,
-        time: libc::timeval,
-        start: AbsoluteAxisType,
-    ) -> Option<(InputEvent, SyncState)> {
-        try_compensate!(
-            self,
-            time,
-            start,
-            AbsoluteAxisType,
-            ABSOLUTE,
-            Absolutes,
-            supported_absolute_axes,
-            &[libc::input_absinfo],
-            |st| st.abs_vals().unwrap(),
-            |vals, abs| vals[abs.0 as usize].value
-        );
-        self.compensate_switches(time, SwitchType(0))
-    }
-
-    fn compensate_switches(
-        &self,
-        time: libc::timeval,
-        start: SwitchType,
-    ) -> Option<(InputEvent, SyncState)> {
-        try_compensate!(
-            self,
-            time,
-            start,
-            SwitchType,
-            SWITCH,
-            Switches,
-            supported_switches,
-            AttributeSet<SwitchType>,
-            |st| st.switch_vals().unwrap(),
-            |vals, sw| vals.contains(sw)
-        );
-        self.compensate_leds(time, LedType(0))
-    }
-
-    fn compensate_leds(
-        &self,
-        time: libc::timeval,
-        start: LedType,
-    ) -> Option<(InputEvent, SyncState)> {
-        try_compensate!(
-            self,
-            time,
-            start,
-            LedType,
-            LED,
-            Leds,
-            supported_leds,
-            AttributeSet<LedType>,
-            |st| st.led_vals().unwrap(),
-            |vals, led| vals.contains(led)
-        );
-        None
-    }
-}
-
-struct FetchEventsSynced<'a> {
+/// An iterator over events of a [`Device`], produced by [`Device::fetch_events`].
+pub struct FetchEventsSynced<'a> {
     dev: &'a mut Device,
+    /// The current block of the events we're returning to the consumer. If empty
+    /// (i.e. for any x, range == x..x) then we'll find another block on the next `next()` call.
     range: std::ops::Range<usize>,
+    /// The index into dev.raw.event_buf up to which we'll delete events when dropped.
     consumed_to: usize,
-    sync: SyncState,
+    /// Our current synchronization state, i.e. whether we're currently diffing key_vals,
+    /// abs_vals, switch_vals, led_vals, or none of them.
+    sync: Option<SyncState>,
 }
 
 enum SyncState {
-    None,
     Keys {
         time: libc::timeval,
         start: Key,
@@ -401,59 +311,152 @@ enum SyncState {
     },
 }
 
+#[inline]
+fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<InputEvent> {
+    let sync = state.as_mut()?;
+    // this macro checks if there are any differences between the old state and the new for the
+    // specific substate(?) that we're checking and if so returns an input_event with the value set
+    // to the value from the up-to-date state
+    macro_rules! try_compensate {
+        ($time:expr, $start:ident : $typ:ident, $evtype:ident, $sync:ident, $supporteds:ident, $state:ty, $get_state:expr, $get_value:expr) => {
+            if let Some(supported_types) = dev.$supporteds() {
+                let types_to_check = supported_types.slice(*$start);
+                let get_state: fn(&DeviceState) -> $state = $get_state;
+                let vals = get_state(&dev.state);
+                let old_vals = get_state(&dev.prev_state);
+                let get_value: fn($state, $typ) -> _ = $get_value;
+                for typ in types_to_check.iter() {
+                    let prev = get_value(old_vals, typ);
+                    let value = get_value(vals, typ);
+                    if prev != value {
+                        $start.0 = typ.0 + 1;
+                        let ev = InputEvent(libc::input_event {
+                            time: *$time,
+                            type_: EventType::$evtype.0,
+                            code: typ.0,
+                            value: value as _,
+                        });
+                        return Some(ev);
+                    }
+                }
+            }
+        };
+    }
+    loop {
+        // check keys, then abs axes, then switches, then leds
+        match sync {
+            SyncState::Keys { time, start } => {
+                try_compensate!(
+                    time,
+                    start: Key,
+                    KEY,
+                    Keys,
+                    supported_keys,
+                    AttributeSet<Key>,
+                    |st| st.key_vals().unwrap(),
+                    |vals, key| vals.contains(key)
+                );
+                *sync = SyncState::Absolutes {
+                    time: *time,
+                    start: AbsoluteAxisType(0),
+                };
+                continue;
+            }
+            SyncState::Absolutes { time, start } => {
+                try_compensate!(
+                    time,
+                    start: AbsoluteAxisType,
+                    ABSOLUTE,
+                    Absolutes,
+                    supported_absolute_axes,
+                    &[libc::input_absinfo],
+                    |st| st.abs_vals().unwrap(),
+                    |vals, abs| vals[abs.0 as usize].value
+                );
+                *sync = SyncState::Switches {
+                    time: *time,
+                    start: SwitchType(0),
+                };
+                continue;
+            }
+            SyncState::Switches { time, start } => {
+                try_compensate!(
+                    time,
+                    start: SwitchType,
+                    SWITCH,
+                    Switches,
+                    supported_switches,
+                    AttributeSet<SwitchType>,
+                    |st| st.switch_vals().unwrap(),
+                    |vals, sw| vals.contains(sw)
+                );
+                *sync = SyncState::Leds {
+                    time: *time,
+                    start: LedType(0),
+                };
+                continue;
+            }
+            SyncState::Leds { time, start } => {
+                try_compensate!(
+                    time,
+                    start: LedType,
+                    LED,
+                    Leds,
+                    supported_leds,
+                    AttributeSet<LedType>,
+                    |st| st.led_vals().unwrap(),
+                    |vals, led| vals.contains(led)
+                );
+                let ev = InputEvent(libc::input_event {
+                    time: *time,
+                    type_: EventType::SYNCHRONIZATION.0,
+                    code: Synchronization::SYN_REPORT.0,
+                    value: 0,
+                });
+                *state = None;
+                return Some(ev);
+            }
+        }
+    }
+}
+
 impl<'a> Iterator for FetchEventsSynced<'a> {
     type Item = InputEvent;
     fn next(&mut self) -> Option<InputEvent> {
-        match self.sync {
-            SyncState::None => {}
-            _ => {
-                let x = match &self.sync {
-                    SyncState::None => unreachable!(),
-                    SyncState::Keys { time, start } => self.dev.compensate_keys(*time, *start),
-                    SyncState::Absolutes { time, start } => {
-                        self.dev.compensate_absolutes(*time, *start)
+        // first: check if we need to emit compensatory events due to a SYN_DROPPED we found in the
+        // last batch of blocks
+        if let Some(ev) = compensate_events(&mut self.sync, &mut self.dev) {
+            return Some(ev);
+        }
+        loop {
+            if let Some(idx) = self.range.next() {
+                // we're going through and emitting the events of a block that we checked
+                return Some(InputEvent(self.dev.raw.event_buf[idx]));
+            }
+            // find the range of this new block: look for a SYN_REPORT
+            let block_start = self.range.end + 1;
+            let mut block_dropped = false;
+            for (i, ev) in self.dev.raw.event_buf.iter().enumerate().skip(block_start) {
+                let ev = InputEvent(*ev);
+                match ev.kind() {
+                    InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
+                        block_dropped = true;
                     }
-                    SyncState::Switches { time, start } => {
-                        self.dev.compensate_switches(*time, *start)
+                    InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
+                        self.consumed_to = i + 1;
+                        if block_dropped {
+                            self.dev.block_dropped = true;
+                            return None;
+                        } else {
+                            self.range = block_start..i + 1;
+                            continue;
+                        }
                     }
-                    SyncState::Leds { time, start } => self.dev.compensate_leds(*time, *start),
-                };
-                match x {
-                    Some((ev, state)) => {
-                        self.sync = state;
-                        return Some(ev);
-                    }
-                    None => {
-                        self.sync = SyncState::None;
-                    }
+                    _ => self.dev.state.process_event(ev),
                 }
             }
+            return None;
         }
-        if let Some(idx) = self.range.next() {
-            return Some(InputEvent(self.dev.raw.event_buf[idx]));
-        }
-        let block_start = self.range.end + 1;
-        let mut block_dropped = false;
-        for (i, ev) in self.dev.raw.event_buf.iter().enumerate().skip(block_start) {
-            let ev = InputEvent(*ev);
-            match ev.kind() {
-                InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
-                    block_dropped = true;
-                }
-                InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
-                    self.consumed_to = i + 1;
-                    if block_dropped {
-                        self.dev.block_dropped = true;
-                        return None;
-                    } else {
-                        self.range = block_start..i + 1;
-                        return self.next();
-                    }
-                }
-                _ => self.dev.state.process_event(ev),
-            }
-        }
-        None
     }
 }
 
@@ -621,10 +624,12 @@ mod tokio_stream {
     use std::task::{Context, Poll};
     use tokio::io::unix::AsyncFd;
 
-    /// An async stream of events.
+    /// An asynchronous stream of input events.
     ///
-    /// This can be used through the [`futures::Stream`](Stream) implementation, or through simply
-    /// calling [`stream.next_event().await?`](Self::next_event).
+    /// This can be used by calling [`stream.next_event().await?`](Self::next_event), or if you
+    /// need to pass it as a stream somewhere, the [`futures::Stream`](Stream) implementation.
+    /// There's also a lower-level [`poll_event`] function if you need to fetch an event from
+    /// inside a `Future::poll` impl.
     pub struct EventStream {
         device: AsyncFd<Device>,
         events: VecDeque<InputEvent>,
