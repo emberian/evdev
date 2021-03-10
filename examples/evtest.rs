@@ -23,6 +23,5 @@ fn main() {
         for ev in d.fetch_events().unwrap() {
             println!("{:?}", ev);
         }
-        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
