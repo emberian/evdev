@@ -3,7 +3,7 @@
 /// Each associated constant for this struct represents a distinct key.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Key(u16);
+pub struct Key(pub u16);
 
 impl Key {
     #[inline]

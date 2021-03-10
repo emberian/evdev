@@ -60,6 +60,7 @@
 mod attribute_set;
 
 mod constants;
+mod device_state;
 pub mod raw_events;
 mod scancodes;
 mod sync_device;
@@ -74,10 +75,9 @@ use std::{fmt, io};
 // pub use crate::constants::FFEffect::*;
 pub use crate::attribute_set::AttributeSet;
 pub use crate::constants::*;
+pub use crate::device_state::DeviceState;
 pub use crate::scancodes::*;
 pub use crate::sync_device::*;
-#[cfg(feature = "tokio")]
-pub use crate::tokio_stream::EventStream;
 
 const fn bit_elts<T>(bits: usize) -> usize {
     let width = std::mem::size_of::<T>() * 8;
@@ -91,171 +91,10 @@ const KEY_ARRAY_INIT: KeyArray = [0; KEY_ARRAY_LEN];
 
 const EVENT_BATCH_SIZE: usize = 32;
 
-//impl Device {
-//    #[cfg(feature = "tokio")]
-//    /// Return a `futures::stream` asynchronous stream of `InputEvent` compatible with Tokio.
-//    ///
-//    /// The stream does NOT compensate for SYN_DROPPED events and will not update internal cached
-//    /// state.
-//    /// The Tokio runtime is expected to keep up with typical event rates.
-//    /// This operation consumes the Device.
-//    pub fn into_event_stream_no_sync(self) -> io::Result<tokio_stream::EventStream> {
-//        tokio_stream::EventStream::new(self)
-//    }
-
-//    /// Returns the *cached* state of the device.
-//    ///
-//    /// Pulling updates via `fetch_events` or manually invoking `sync_state` will refresh the cache.
-//    pub fn state(&self) -> &DeviceState {
-//        &self.state
-//    }
-
-//    /// Synchronize the `Device` state with the kernel device state.
-//    ///
-//    /// If there is an error at any point, the state will not be synchronized completely.
-//    pub fn sync_state(&mut self) -> io::Result<()> {
-//        let fd = self.as_raw_fd();
-//        if let Some(key_vals) = &mut self.state.key_vals {
-//            unsafe { sys::eviocgkey(fd, &mut key_vals[..]).map_err(nix_err)? };
-//        }
-
-//        if let (Some(supported_abs), Some(abs_vals)) =
-//            (self.supported_absolute, &mut self.state.abs_vals)
-//        {
-//            for idx in supported_abs.iter_ones() {
-//                // ignore multitouch, we'll handle that later.
-//                //
-//                // handling later removed. not sure what the intention of "handling that later" was
-//                // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
-//                unsafe { sys::eviocgabs(fd, idx as u32, &mut abs_vals[idx]).map_err(nix_err)? };
-//            }
-//        }
-
-//        if let Some(switch_vals) = &mut self.state.switch_vals {
-//            unsafe { sys::eviocgsw(fd, switch_vals.as_mut_raw_slice()).map_err(nix_err)? };
-//        }
-
-//        if let Some(led_vals) = &mut self.state.led_vals {
-//            unsafe { sys::eviocgled(fd, led_vals.as_mut_raw_slice()).map_err(nix_err)? };
-//        }
-
-//        Ok(())
-//    }
-
-//    /// Do SYN_DROPPED synchronization, and compensate for missing events by inserting events into
-//    /// the stream which, when applied to any state being kept outside of this `Device`, will
-//    /// synchronize it with the kernel state.
-//    fn compensate_dropped(&mut self) -> io::Result<()> {
-//        let mut drop_from = None;
-//        for (idx, event) in self.pending_events.iter().enumerate() {
-//            if event.type_ == EventType::SYNCHRONIZATION.0
-//                && event.code == Synchronization::SYN_DROPPED.0
-//            {
-//                drop_from = Some(idx);
-//                break;
-//            }
-//        }
-//        // FIXME: see if we can *not* drop EV_REL events. EV_REL doesn't have any state, so
-//        // dropping its events isn't really helping much.
-//        if let Some(idx) = drop_from {
-//            // look for the nearest SYN_REPORT before the SYN_DROPPED, remove everything after it.
-//            let mut prev_report = 0; // (if there's no previous SYN_REPORT, then the entire vector is bogus)
-//            for (idx, event) in self.pending_events.iter().take(idx).enumerate().rev() {
-//                if event.type_ == EventType::SYNCHRONIZATION.0
-//                    && event.code == Synchronization::SYN_REPORT.0
-//                {
-//                    prev_report = idx;
-//                    break;
-//                }
-//            }
-//            self.pending_events.truncate(prev_report);
-//        } else {
-//            return Ok(());
-//        }
-
-//        // Alright, pending_events is in a sane state. Now, let's sync the local state. We will
-//        // create a phony packet that contains deltas from the previous device state to the current
-//        // device state.
-//        let old_state = self.state.clone();
-//        self.sync_state()?;
-
-//        let time = systime_to_timeval(&SystemTime::now());
-
-//        if let (Some(supported_keys), Some(key_vals)) =
-//            (&self.supported_keys, self.state.key_vals())
-//        {
-//            let supported_keys =
-//                AttributeSet::new(BitSlice::from_slice(&supported_keys[..]).unwrap());
-//            let old_vals = old_state.key_vals();
-//            for key in supported_keys.iter() {
-//                if old_vals.map(|v| v.contains(key)) != Some(key_vals.contains(key)) {
-//                    self.pending_events.push_back(libc::input_event {
-//                        time,
-//                        type_: EventType::KEY.0 as _,
-//                        code: key.code() as u16,
-//                        value: if key_vals.contains(key) { 1 } else { 0 },
-//                    });
-//                }
-//            }
-//        }
-
-//        if let (Some(supported_abs), Some(abs_vals)) =
-//            (self.supported_absolute, &self.state.abs_vals)
-//        {
-//            for idx in supported_abs.iter_ones() {
-//                if old_state.abs_vals.as_ref().map(|v| v[idx]) != Some(abs_vals[idx]) {
-//                    self.pending_events.push_back(libc::input_event {
-//                        time,
-//                        type_: EventType::ABSOLUTE.0 as _,
-//                        code: idx as u16,
-//                        value: abs_vals[idx].value,
-//                    });
-//                }
-//            }
-//        }
-
-//        if let (Some(supported_switch), Some(switch_vals)) =
-//            (self.supported_switch, &self.state.switch_vals)
-//        {
-//            for idx in supported_switch.iter_ones() {
-//                if old_state.switch_vals.as_ref().map(|v| v[idx]) != Some(switch_vals[idx]) {
-//                    self.pending_events.push_back(libc::input_event {
-//                        time,
-//                        type_: EventType::SWITCH.0 as _,
-//                        code: idx as u16,
-//                        value: if switch_vals[idx] { 1 } else { 0 },
-//                    });
-//                }
-//            }
-//        }
-
-//        if let (Some(supported_led), Some(led_vals)) = (self.supported_led, &self.state.led_vals) {
-//            for idx in supported_led.iter_ones() {
-//                if old_state.led_vals.as_ref().map(|v| v[idx]) != Some(led_vals[idx]) {
-//                    self.pending_events.push_back(libc::input_event {
-//                        time,
-//                        type_: EventType::LED.0 as _,
-//                        code: idx as u16,
-//                        value: if led_vals[idx] { 1 } else { 0 },
-//                    });
-//                }
-//            }
-//        }
-
-//        self.pending_events.push_back(libc::input_event {
-//            time,
-//            type_: EventType::SYNCHRONIZATION.0 as _,
-//            code: Synchronization::SYN_REPORT.0,
-//            value: 0,
-//        });
-//        Ok(())
-//    }
-//}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// A convenience mapping from an event `(type, code)` to an enumeration.
 ///
 /// Note that this does not capture an event's value, just the type and code.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum InputEventKind {
     Synchronization(Synchronization),
     Key(Key),
@@ -268,7 +107,6 @@ pub enum InputEventKind {
     Other,
 }
 
-#[repr(transparent)]
 /// A wrapped `libc::input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
@@ -278,23 +116,24 @@ pub enum InputEventKind {
 /// - `value: s32`
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
+#[repr(transparent)]
 pub struct InputEvent(libc::input_event);
 
 impl InputEvent {
-    #[inline]
     /// Returns the timestamp associated with the event.
+    #[inline]
     pub fn timestamp(&self) -> SystemTime {
         timeval_to_systime(&self.0.time)
     }
 
-    #[inline]
     /// Returns the type of event this describes, e.g. Key, Switch, etc.
+    #[inline]
     pub fn event_type(&self) -> EventType {
         EventType(self.0.type_)
     }
 
-    #[inline]
     /// Returns the raw "code" field directly from input_event.
+    #[inline]
     pub fn code(&self) -> u16 {
         self.0.code
     }
@@ -320,11 +159,11 @@ impl InputEvent {
         }
     }
 
-    #[inline]
     /// Returns the raw "value" field directly from input_event.
     ///
     /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
     /// For axes, the values depend on the hardware and driver implementation.
+    #[inline]
     pub fn value(&self) -> i32 {
         self.0.value
     }
@@ -336,8 +175,8 @@ impl From<libc::input_event> for InputEvent {
     }
 }
 
-impl<'a> Into<&'a libc::input_event> for &'a InputEvent {
-    fn into(self) -> &'a libc::input_event {
+impl AsRef<libc::input_event> for InputEvent {
+    fn as_ref(&self) -> &libc::input_event {
         &self.0
     }
 }

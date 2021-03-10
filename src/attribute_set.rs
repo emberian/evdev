@@ -21,16 +21,21 @@ impl<'a, T: EvdevEnum> AttributeSet<'a, T> {
         }
     }
 
-    #[inline]
     /// Returns `true` if this AttributeSet contains the passed T.
+    #[inline]
     pub fn contains(&self, attr: T) -> bool {
         self.bitslice.get(attr.to_index()).map_or(false, |b| *b)
     }
 
-    #[inline]
     /// Provides an iterator over all "set" bits in the collection.
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
         self.bitslice.iter_ones().map(T::from_index)
+    }
+
+    #[inline]
+    pub(crate) fn slice(&self, start: T) -> Self {
+        Self::new(&self.bitslice[start.to_index()..])
     }
 }
 

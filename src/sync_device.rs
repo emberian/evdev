@@ -1,14 +1,16 @@
 use crate::constants::*;
 use crate::raw_events::RawDevice;
-use crate::{AttributeSet, InputEvent, InputEventKind, Key, KeyArray};
+use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, Key};
 use bitvec::prelude::*;
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
-use std::time::SystemTime;
 use std::{fmt, io};
 
 pub struct Device {
     raw: RawDevice,
+    prev_state: DeviceState,
     state: DeviceState,
+    block_dropped: bool,
 }
 
 impl Device {
@@ -62,8 +64,14 @@ impl Device {
             switch_vals,
             led_vals,
         };
+        let prev_state = state.clone();
 
-        Ok(Device { raw, state })
+        Ok(Device {
+            raw,
+            prev_state,
+            state,
+            block_dropped: false,
+        })
     }
 
     /// Returns the device's name as read from the kernel.
@@ -226,33 +234,232 @@ impl Device {
     /// this in a tight loop within a thread.
     /// Will insert "fake" events.
     pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
+        let block_dropped = std::mem::take(&mut self.block_dropped);
+        let sync = if block_dropped {
+            self.prev_state.clone_from(&self.state);
+            self.raw.sync_state(&mut self.state)?;
+            SyncState::Keys {
+                time: crate::systime_to_timeval(&std::time::SystemTime::now()),
+                start: Key::new(0),
+            }
+        } else {
+            SyncState::None
+        };
+
         self.raw.fill_events()?;
-        let range = self._fetch_events()?;
-        Ok(self.raw.event_buf.drain(range).map(InputEvent))
+
+        Ok(FetchEventsSynced {
+            dev: self,
+            range: 0..0,
+            consumed_to: 0,
+            sync,
+        })
     }
 
-    fn _fetch_events(&mut self) -> io::Result<std::ops::Range<usize>> {
-        let mut block_start = 0;
-        'outer: loop {
-            let mut block_dropped = false;
-            for (i, ev) in self.raw.event_buf.iter().enumerate().skip(block_start) {
-                match InputEvent(*ev).kind() {
-                    InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
-                        block_dropped = true;
-                    }
-                    InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
-                        if block_dropped {
-                            self.raw.event_buf.drain(block_start..=i);
-                        }
-                        block_start = i + 1;
-                        continue 'outer;
-                    }
-                    _ => {}
+    #[cfg(feature = "tokio")]
+    pub fn into_event_stream(self) -> io::Result<EventStream> {
+        EventStream::new(self)
+    }
+}
+
+impl AsRawFd for Device {
+    fn as_raw_fd(&self) -> RawFd {
+        self.raw.as_raw_fd()
+    }
+}
+
+macro_rules! try_compensate {
+    ($self:expr, $time:expr, $start:expr, $typ:ident, $evtype:ident, $var:ident, $supporteds:ident, $state:ty, $get_state:expr, $get_value:expr) => {
+        if let Some(supported_types) = $self.$supporteds() {
+            let types_to_check = supported_types.slice($start);
+            let get_state: fn(&DeviceState) -> $state = $get_state;
+            let vals = get_state(&$self.state);
+            let old_vals = get_state(&$self.prev_state);
+            let get_value: fn($state, $typ) -> _ = $get_value;
+            for typ in types_to_check.iter() {
+                let prev = get_value(old_vals, typ);
+                let value = get_value(vals, typ);
+                if prev != value {
+                    let ev = InputEvent(libc::input_event {
+                        time: $time,
+                        type_: EventType::$evtype.0,
+                        code: typ.0,
+                        value: value as _,
+                    });
+                    let state = SyncState::$var {
+                        time: $time,
+                        start: $typ(typ.0 + 1),
+                    };
+                    return Some((ev, state));
                 }
             }
-            break;
         }
-        Ok(0..block_start)
+    };
+}
+impl Device {
+    fn compensate_keys(&self, time: libc::timeval, start: Key) -> Option<(InputEvent, SyncState)> {
+        try_compensate!(
+            self,
+            time,
+            start,
+            Key,
+            KEY,
+            Keys,
+            supported_keys,
+            AttributeSet<Key>,
+            |st| st.key_vals().unwrap(),
+            |vals, key| vals.contains(key)
+        );
+        self.compensate_absolutes(time, AbsoluteAxisType(0))
+    }
+
+    fn compensate_absolutes(
+        &self,
+        time: libc::timeval,
+        start: AbsoluteAxisType,
+    ) -> Option<(InputEvent, SyncState)> {
+        try_compensate!(
+            self,
+            time,
+            start,
+            AbsoluteAxisType,
+            ABSOLUTE,
+            Absolutes,
+            supported_absolute_axes,
+            &[libc::input_absinfo],
+            |st| st.abs_vals().unwrap(),
+            |vals, abs| vals[abs.0 as usize].value
+        );
+        self.compensate_switches(time, SwitchType(0))
+    }
+
+    fn compensate_switches(
+        &self,
+        time: libc::timeval,
+        start: SwitchType,
+    ) -> Option<(InputEvent, SyncState)> {
+        try_compensate!(
+            self,
+            time,
+            start,
+            SwitchType,
+            SWITCH,
+            Switches,
+            supported_switches,
+            AttributeSet<SwitchType>,
+            |st| st.switch_vals().unwrap(),
+            |vals, sw| vals.contains(sw)
+        );
+        self.compensate_leds(time, LedType(0))
+    }
+
+    fn compensate_leds(
+        &self,
+        time: libc::timeval,
+        start: LedType,
+    ) -> Option<(InputEvent, SyncState)> {
+        try_compensate!(
+            self,
+            time,
+            start,
+            LedType,
+            LED,
+            Leds,
+            supported_leds,
+            AttributeSet<LedType>,
+            |st| st.led_vals().unwrap(),
+            |vals, led| vals.contains(led)
+        );
+        None
+    }
+}
+
+struct FetchEventsSynced<'a> {
+    dev: &'a mut Device,
+    range: std::ops::Range<usize>,
+    consumed_to: usize,
+    sync: SyncState,
+}
+
+enum SyncState {
+    None,
+    Keys {
+        time: libc::timeval,
+        start: Key,
+    },
+    Absolutes {
+        time: libc::timeval,
+        start: AbsoluteAxisType,
+    },
+    Switches {
+        time: libc::timeval,
+        start: SwitchType,
+    },
+    Leds {
+        time: libc::timeval,
+        start: LedType,
+    },
+}
+
+impl<'a> Iterator for FetchEventsSynced<'a> {
+    type Item = InputEvent;
+    fn next(&mut self) -> Option<InputEvent> {
+        match self.sync {
+            SyncState::None => {}
+            _ => {
+                let x = match &self.sync {
+                    SyncState::None => unreachable!(),
+                    SyncState::Keys { time, start } => self.dev.compensate_keys(*time, *start),
+                    SyncState::Absolutes { time, start } => {
+                        self.dev.compensate_absolutes(*time, *start)
+                    }
+                    SyncState::Switches { time, start } => {
+                        self.dev.compensate_switches(*time, *start)
+                    }
+                    SyncState::Leds { time, start } => self.dev.compensate_leds(*time, *start),
+                };
+                match x {
+                    Some((ev, state)) => {
+                        self.sync = state;
+                        return Some(ev);
+                    }
+                    None => {
+                        self.sync = SyncState::None;
+                    }
+                }
+            }
+        }
+        if let Some(idx) = self.range.next() {
+            return Some(InputEvent(self.dev.raw.event_buf[idx]));
+        }
+        let block_start = self.range.end + 1;
+        let mut block_dropped = false;
+        for (i, ev) in self.dev.raw.event_buf.iter().enumerate().skip(block_start) {
+            let ev = InputEvent(*ev);
+            match ev.kind() {
+                InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
+                    block_dropped = true;
+                }
+                InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
+                    self.consumed_to = i + 1;
+                    if block_dropped {
+                        self.dev.block_dropped = true;
+                        return None;
+                    } else {
+                        self.range = block_start..i + 1;
+                        return self.next();
+                    }
+                }
+                _ => self.dev.state.process_event(ev),
+            }
+        }
+        None
+    }
+}
+
+impl<'a> Drop for FetchEventsSynced<'a> {
+    fn drop(&mut self) {
+        self.dev.raw.event_buf.drain(..self.consumed_to);
     }
 }
 
@@ -401,53 +608,100 @@ const fn bus_name(x: u16) -> &'static str {
     }
 }
 
-/// A cached representation of device state at a certain time.
-#[derive(Debug, Clone)]
-pub struct DeviceState {
-    /// The state corresponds to kernel state at this timestamp.
-    timestamp: libc::timeval,
-    /// Set = key pressed
-    key_vals: Option<Box<KeyArray>>,
-    abs_vals: Option<Box<[libc::input_absinfo; AbsoluteAxisType::COUNT]>>,
-    /// Set = switch enabled (closed)
-    switch_vals: Option<BitArr!(for SwitchType::COUNT, in u8)>,
-    /// Set = LED lit
-    led_vals: Option<BitArr!(for LedType::COUNT, in u8)>,
+#[cfg(feature = "tokio")]
+mod tokio_stream {
+    use super::*;
+
+    use tokio_1 as tokio;
+
+    use crate::nix_err;
+    use futures_core::{ready, Stream};
+    use std::collections::VecDeque;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::unix::AsyncFd;
+
+    /// An async stream of events.
+    ///
+    /// This can be used through the [`futures::Stream`](Stream) implementation, or through simply
+    /// calling [`stream.next_event().await?`](Self::next_event).
+    pub struct EventStream {
+        device: AsyncFd<Device>,
+        events: VecDeque<InputEvent>,
+    }
+    impl Unpin for EventStream {}
+
+    impl EventStream {
+        pub(crate) fn new(device: Device) -> io::Result<Self> {
+            use nix::fcntl;
+            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))
+                .map_err(nix_err)?;
+            let device = AsyncFd::new(device)?;
+            Ok(Self {
+                device,
+                events: VecDeque::new(),
+            })
+        }
+
+        /// Returns a reference to the underlying device
+        pub fn device(&self) -> &Device {
+            self.device.get_ref()
+        }
+
+        /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
+        /// any calls afterwards will likely error as well.
+        pub async fn next_event(&mut self) -> io::Result<InputEvent> {
+            poll_fn(|cx| self.poll_event(cx)).await
+        }
+
+        /// A lower-level function for directly polling this stream.
+        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
+            let Self { device, events } = self;
+
+            if let Some(ev) = events.pop_front() {
+                return Poll::Ready(Ok(ev));
+            }
+
+            loop {
+                let mut guard = ready!(device.poll_read_ready_mut(cx))?;
+
+                let res = guard.try_io(|device| {
+                    events.extend(device.get_mut().fetch_events()?);
+                    Ok(())
+                });
+                match res {
+                    Ok(res) => {
+                        let () = res?;
+                        let ret = match events.pop_front() {
+                            Some(ev) => Poll::Ready(Ok(ev)),
+                            None => Poll::Pending,
+                        };
+                        return ret;
+                    }
+                    Err(_would_block) => continue,
+                }
+            }
+        }
+    }
+
+    impl Stream for EventStream {
+        type Item = InputEvent;
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            self.get_mut().poll_event(cx).map(|res| res.ok())
+        }
+    }
+
+    // version of futures_util::future::poll_fn
+    fn poll_fn<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin>(f: F) -> PollFn<F> {
+        PollFn(f)
+    }
+    struct PollFn<F>(F);
+    impl<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin> std::future::Future for PollFn<F> {
+        type Output = T;
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
+            (self.get_mut().0)(cx)
+        }
+    }
 }
-
-impl DeviceState {
-    /// Returns the time when this snapshot was taken.
-    pub fn timestamp(&self) -> SystemTime {
-        crate::timeval_to_systime(&self.timestamp)
-    }
-
-    /// Returns the set of keys pressed when the snapshot was taken.
-    ///
-    /// Returns `None` if keys are not supported by this device.
-    pub fn key_vals(&self) -> Option<AttributeSet<'_, Key>> {
-        self.key_vals
-            .as_deref()
-            .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
-    }
-
-    /// Returns the set of absolute axis measurements when the snapshot was taken.
-    ///
-    /// Returns `None` if not supported by this device.
-    pub fn abs_vals(&self) -> Option<&[libc::input_absinfo]> {
-        self.abs_vals.as_deref().map(|v| &v[..])
-    }
-
-    /// Returns the set of switches triggered when the snapshot was taken.
-    ///
-    /// Returns `None` if switches are not supported by this device.
-    pub fn switch_vals(&self) -> Option<AttributeSet<'_, SwitchType>> {
-        self.switch_vals.as_deref().map(AttributeSet::new)
-    }
-
-    /// Returns the set of LEDs turned on when the snapshot was taken.
-    ///
-    /// Returns `None` if LEDs are not supported by this device.
-    pub fn led_vals(&self) -> Option<AttributeSet<'_, LedType>> {
-        self.led_vals.as_deref().map(AttributeSet::new)
-    }
-}
+#[cfg(feature = "tokio")]
+pub use tokio_stream::EventStream;

@@ -20,8 +20,9 @@ fn main() {
     println!("{}", d);
     println!("Events:");
     loop {
-        for ev in d.fetch_events_no_sync().unwrap() {
+        for ev in d.fetch_events().unwrap() {
             println!("{:?}", ev);
         }
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
