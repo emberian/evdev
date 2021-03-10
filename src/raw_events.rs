@@ -6,30 +6,25 @@ use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{nix_err, sys, AttributeSet, DeviceState, InputEvent, Key, KeyArray};
+use crate::{nix_err, sys, AttributeSet, DeviceState, InputEvent, InputId, Key, KeyArray};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
     fd: RawFd,
 ) -> Option<Vec<u8>> {
-    const CAPACITY: usize = 256;
-    let mut buf = vec![0; CAPACITY];
+    let mut buf = vec![0; 256];
     match unsafe { f(fd, buf.as_mut_slice()) } {
-        Ok(len) if len as usize > CAPACITY => {
+        Ok(len) if len as usize > buf.capacity() => {
             panic!("ioctl_get_cstring call overran the provided buffer!");
         }
-        Ok(len) if len > 0 => {
+        Ok(len) if len > 1 => {
             // Our ioctl string functions apparently return the number of bytes written, including
             // trailing \0.
             buf.truncate(len as usize);
             assert_eq!(buf.pop().unwrap(), 0);
             Some(buf)
         }
-        Ok(_) => {
-            // if len < 0 => Explicit errno
-            None
-        }
-        Err(_) => None,
+        _ => None,
     }
 }
 
@@ -233,8 +228,8 @@ impl RawDevice {
     }
 
     /// Returns a struct containing bustype, vendor, product, and version identifiers
-    pub fn input_id(&self) -> libc::input_id {
-        self.id
+    pub fn input_id(&self) -> InputId {
+        InputId::from(self.id)
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)

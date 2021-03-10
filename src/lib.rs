@@ -61,6 +61,7 @@ mod attribute_set;
 
 mod constants;
 mod device_state;
+mod inputid;
 pub mod raw_events;
 mod scancodes;
 mod sync_device;
@@ -73,11 +74,12 @@ use std::time::{Duration, SystemTime};
 use std::{fmt, io};
 
 // pub use crate::constants::FFEffect::*;
-pub use crate::attribute_set::AttributeSet;
-pub use crate::constants::*;
-pub use crate::device_state::DeviceState;
-pub use crate::scancodes::*;
-pub use crate::sync_device::*;
+pub use attribute_set::AttributeSet;
+pub use constants::*;
+pub use device_state::DeviceState;
+pub use inputid::*;
+pub use scancodes::*;
+pub use sync_device::*;
 
 const fn bit_elts<T>(bits: usize) -> usize {
     let width = std::mem::size_of::<T>() * 8;

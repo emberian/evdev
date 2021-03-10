@@ -1,6 +1,6 @@
 use crate::constants::*;
 use crate::raw_events::RawDevice;
-use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, Key};
+use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, InputId, Key};
 use bitvec::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -101,7 +101,7 @@ impl Device {
     }
 
     /// Returns a struct containing bustype, vendor, product, and version identifiers
-    pub fn input_id(&self) -> libc::input_id {
+    pub fn input_id(&self) -> InputId {
         self.raw.input_id()
     }
 
@@ -428,7 +428,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
         if let Some(ev) = compensate_events(&mut self.sync, &mut self.dev) {
             return Some(ev);
         }
-        loop {
+        'outer: loop {
             if let Some(idx) = self.range.next() {
                 // we're going through and emitting the events of a block that we checked
                 return Some(InputEvent(self.dev.raw.event_buf[idx]));
@@ -449,7 +449,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
                             return None;
                         } else {
                             self.range = block_start..i + 1;
-                            continue;
+                            continue 'outer;
                         }
                     }
                     _ => self.dev.state.process_event(ev),
@@ -480,10 +480,10 @@ impl fmt::Display for Device {
 
         let id = self.input_id();
 
-        writeln!(f, "  Bus: {}", bus_name(id.bustype))?;
-        writeln!(f, "  Vendor: {:#x}", id.vendor)?;
-        writeln!(f, "  Product: {:#x}", id.product)?;
-        writeln!(f, "  Version: {:#x}", id.version)?;
+        writeln!(f, "  Bus: {}", id.bus_type())?;
+        writeln!(f, "  Vendor: {:#x}", id.vendor())?;
+        writeln!(f, "  Product: {:#x}", id.product())?;
+        writeln!(f, "  Version: {:#x}", id.version())?;
         writeln!(f, "  Properties: {:?}", self.properties())?;
 
         if let (Some(supported_keys), Some(key_vals)) =
@@ -583,31 +583,6 @@ impl fmt::Display for Device {
         }
 
         Ok(())
-    }
-}
-
-const fn bus_name(x: u16) -> &'static str {
-    match x {
-        0x1 => "PCI",
-        0x2 => "ISA Plug 'n Play",
-        0x3 => "USB",
-        0x4 => "HIL",
-        0x5 => "Bluetooth",
-        0x6 => "Virtual",
-        0x10 => "ISA",
-        0x11 => "i8042",
-        0x12 => "XTKBD",
-        0x13 => "RS232",
-        0x14 => "Gameport",
-        0x15 => "Parallel Port",
-        0x16 => "Amiga",
-        0x17 => "ADB",
-        0x18 => "I2C",
-        0x19 => "Host",
-        0x1A => "GSC",
-        0x1B => "Atari",
-        0x1C => "SPI",
-        _ => "Unknown",
     }
 }
 

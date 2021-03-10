@@ -1,7 +1,5 @@
 use tokio_1 as tokio;
 
-use futures_util::TryStreamExt;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os();
@@ -20,10 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("{}", d);
     println!("Events:");
-    let mut events = d.into_event_stream_no_sync()?;
-    while let Some(ev) = events.try_next().await? {
+    let mut events = d.into_event_stream()?;
+    loop {
+        let ev = events.next_event().await?;
         println!("{:?}", ev);
     }
-    println!("EOF!");
-    Ok(())
 }
