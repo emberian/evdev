@@ -5,13 +5,18 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::{fmt, io};
 
-/// A wrapper over [`RawDevice`] that synchronizes with the kernel's state when events are dropped.
+/// A physical or virtual device supported by evdev.
 ///
+/// Each device corresponds to a path typically found in `/dev/input`, and supports access via
+/// one or more "types". For example, an optical mouse has buttons that are represented by "keys",
+/// and reflects changes in its position via "relative axis" reports.
 ///
-/// With regards to synchronization, specifically: if `fetch_events()` isn't called often enough and
-/// the kernel drops events from its internal buffer, synthetic events will be injected into the
-/// iterator returned by `fetch_events()` and [`Device::state()`] will be kept up to date when
-/// `fetch_events()` is called.
+/// This type specifically is a wrapper over [`RawDevice`],that synchronizes with the kernel's
+/// state when events are dropped.
+///
+/// If `fetch_events()` isn't called often enough and the kernel drops events from its internal
+/// buffer, synthetic events will be injected into the iterator returned by `fetch_events()` and
+/// [`Device::state()`] will be kept up to date when `fetch_events()` is called.
 pub struct Device {
     raw: RawDevice,
     prev_state: DeviceState,
