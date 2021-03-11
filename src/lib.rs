@@ -29,10 +29,8 @@
 //! ```
 //!
 //! This state can be queried. For example, the [`DeviceState::led_vals`] method will tell you which
-//! LEDs are currently lit on the device. This state is not automatically synchronized with the
-//! kernel. However, as the application reads events, this state will be updated if the event is
-//! newer than the state timestamp (maintained internally).  Additionally, you can call
-//! [`Device::sync_state`] to explicitly synchronize with the kernel state.
+//! LEDs are currently lit on the device. As the application reads events, this state will be
+//! updated, and it will be fully synchronized with the kernel if the stream drops any events.
 //!
 //! As the state changes, the kernel will write events into a ring buffer. The application can read
 //! from this ring buffer, thus retrieving events. However, if the ring buffer becomes full, the
