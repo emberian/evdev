@@ -62,9 +62,9 @@ mod attribute_set;
 mod constants;
 mod device_state;
 mod inputid;
-pub mod raw_events;
+pub mod raw_stream;
 mod scancodes;
-mod sync_device;
+mod sync_stream;
 mod sys;
 
 #[cfg(feature = "tokio")]
@@ -79,7 +79,7 @@ pub use constants::*;
 pub use device_state::DeviceState;
 pub use inputid::*;
 pub use scancodes::*;
-pub use sync_device::*;
+pub use sync_stream::*;
 
 const fn bit_elts<T>(bits: usize) -> usize {
     let width = std::mem::size_of::<T>() * 8;

@@ -1,5 +1,5 @@
 use crate::constants::*;
-use crate::raw_events::RawDevice;
+use crate::raw_stream::RawDevice;
 use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
