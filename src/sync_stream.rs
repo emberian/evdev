@@ -400,7 +400,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
                 return Some(InputEvent(self.dev.raw.event_buf[idx]));
             }
             // find the range of this new block: look for a SYN_REPORT
-            let block_start = self.range.end + 1;
+            let block_start = self.range.end;
             let mut block_dropped = false;
             for (i, ev) in self.dev.raw.event_buf.iter().enumerate().skip(block_start) {
                 let ev = InputEvent(*ev);
