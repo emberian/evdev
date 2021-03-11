@@ -665,9 +665,9 @@ mod tokio_stream {
     }
 
     impl Stream for EventStream {
-        type Item = InputEvent;
+        type Item = io::Result<InputEvent>;
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            self.get_mut().poll_event(cx).map(|res| res.ok())
+            self.get_mut().poll_event(cx).map(Some)
         }
     }
 

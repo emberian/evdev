@@ -7,7 +7,7 @@ fn main() {
     let mut d = if args.len() > 1 {
         evdev::Device::open(&args.nth(1).unwrap()).unwrap()
     } else {
-        let mut devices = evdev::enumerate().collect::<Vec<_>>();
+        let devices = evdev::enumerate().collect::<Vec<_>>();
         for (i, d) in devices.iter().enumerate() {
             println!("{}: {}", i, d.name().unwrap_or("Unnamed device"));
         }
@@ -15,7 +15,8 @@ fn main() {
         let _ = std::io::stdout().flush();
         let mut chosen = String::new();
         std::io::stdin().read_line(&mut chosen).unwrap();
-        devices.swap_remove(chosen.trim().parse::<usize>().unwrap())
+        let n = chosen.trim().parse::<usize>().unwrap();
+        devices.into_iter().nth(n).unwrap()
     };
     println!("{}", d);
     println!("Events:");
