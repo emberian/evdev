@@ -1,7 +1,6 @@
 use crate::constants::*;
 use crate::raw_events::RawDevice;
 use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, InputId, Key};
-use bitvec::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::{fmt, io};
@@ -32,45 +31,7 @@ impl Device {
     fn _open(path: &Path) -> io::Result<Device> {
         let raw = RawDevice::open(path)?;
 
-        let supports = raw.supported_events();
-
-        let key_vals = if supports.contains(EventType::KEY) {
-            Some(Box::new(crate::KEY_ARRAY_INIT))
-        } else {
-            None
-        };
-        let abs_vals = if supports.contains(EventType::ABSOLUTE) {
-            #[rustfmt::skip]
-            const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
-                value: 0, minimum: 0, maximum: 0, fuzz: 0, flat: 0, resolution: 0,
-            };
-            const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
-                [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
-            Some(Box::new(ABS_VALS_INIT))
-        } else {
-            None
-        };
-        let switch_vals = if supports.contains(EventType::SWITCH) {
-            Some(BitArray::zeroed())
-        } else {
-            None
-        };
-        let led_vals = if supports.contains(EventType::LED) {
-            Some(BitArray::zeroed())
-        } else {
-            None
-        };
-
-        let state = DeviceState {
-            timestamp: libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
-            key_vals,
-            abs_vals,
-            switch_vals,
-            led_vals,
-        };
+        let state = raw.empty_state();
         let prev_state = state.clone();
 
         Ok(Device {

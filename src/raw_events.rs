@@ -401,6 +401,50 @@ impl RawDevice {
         Ok(self.event_buf.drain(..).map(InputEvent))
     }
 
+    /// Create an empty `DeviceState`. The `{abs,key,etc}_vals` for the returned state will return
+    /// `Some` if `self.supported_events()` contains that `EventType`.
+    pub fn empty_state(&self) -> DeviceState {
+        let supports = self.supported_events();
+
+        let key_vals = if supports.contains(EventType::KEY) {
+            Some(Box::new(crate::KEY_ARRAY_INIT))
+        } else {
+            None
+        };
+        let abs_vals = if supports.contains(EventType::ABSOLUTE) {
+            #[rustfmt::skip]
+            const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
+                value: 0, minimum: 0, maximum: 0, fuzz: 0, flat: 0, resolution: 0,
+            };
+            const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
+                [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
+            Some(Box::new(ABS_VALS_INIT))
+        } else {
+            None
+        };
+        let switch_vals = if supports.contains(EventType::SWITCH) {
+            Some(BitArray::zeroed())
+        } else {
+            None
+        };
+        let led_vals = if supports.contains(EventType::LED) {
+            Some(BitArray::zeroed())
+        } else {
+            None
+        };
+
+        DeviceState {
+            timestamp: libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            key_vals,
+            abs_vals,
+            switch_vals,
+            led_vals,
+        }
+    }
+
     pub fn sync_state(&self, state: &mut DeviceState) -> io::Result<()> {
         self.sync_key_state(state)?;
         self.sync_abs_state(state)?;
