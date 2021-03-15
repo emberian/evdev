@@ -64,6 +64,7 @@ pub mod raw_stream;
 mod scancodes;
 mod sync_stream;
 mod sys;
+pub mod uinput;
 
 #[cfg(feature = "tokio")]
 mod tokio_stream;
@@ -156,6 +157,16 @@ impl InputEvent {
     #[inline]
     pub fn value(&self) -> i32 {
         self.0.value
+    }
+
+    /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
+    pub fn new(type_: u16, code: u16, value: i32) -> Self {
+        InputEvent(libc::input_event {
+            time: systime_to_timeval(&SystemTime::now()),
+            type_,
+            code,
+            value,
+        })
     }
 }
 

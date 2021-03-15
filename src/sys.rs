@@ -4,9 +4,10 @@ use libc::{ff_effect, input_absinfo, input_id};
 //     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
 //     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
 // };
+use crate::uinput::uinput_setup;
 use nix::{
-    convert_ioctl_res, ioctl_read, ioctl_read_buf, ioctl_write_int, ioctl_write_ptr,
-    request_code_read,
+    convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_write_buf, ioctl_write_int,
+    ioctl_write_ptr, request_code_read,
 };
 
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
@@ -35,6 +36,22 @@ ioctl_write_ptr!(eviocsff, b'E', 0x80, ff_effect);
 ioctl_write_int!(eviocgrab, b'E', 0x90);
 ioctl_write_int!(eviocrevoke, b'E', 0x91);
 ioctl_write_int!(eviocsclockid, b'E', 0xa0);
+
+const UINPUT_IOCTL_BASE: u8 = b'U';
+ioctl_write_ptr!(ui_dev_setup, UINPUT_IOCTL_BASE, 3, uinput_setup);
+ioctl_none!(ui_dev_create, UINPUT_IOCTL_BASE, 1);
+
+ioctl_write_int!(ui_set_evbit, UINPUT_IOCTL_BASE, 100);
+ioctl_write_int!(ui_set_keybit, UINPUT_IOCTL_BASE, 101);
+ioctl_write_int!(ui_set_relbit, UINPUT_IOCTL_BASE, 102);
+ioctl_write_int!(ui_set_absbit, UINPUT_IOCTL_BASE, 103);
+ioctl_write_int!(ui_set_mscbit, UINPUT_IOCTL_BASE, 104);
+ioctl_write_int!(ui_set_ledbit, UINPUT_IOCTL_BASE, 105);
+ioctl_write_int!(ui_set_sndbit, UINPUT_IOCTL_BASE, 106);
+ioctl_write_int!(ui_set_ffbit, UINPUT_IOCTL_BASE, 107);
+ioctl_write_buf!(ui_set_phys, UINPUT_IOCTL_BASE, 108, u8);
+ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
+ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
 
 macro_rules! eviocgbit_ioctl {
     ($mac:ident!($name:ident, $ev:ident, $ty:ty)) => {
