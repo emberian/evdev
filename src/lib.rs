@@ -74,7 +74,6 @@ use std::{fmt, io};
 // pub use crate::constants::FFEffect::*;
 pub use attribute_set::{AttributeSet, AttributeSetRef};
 pub use constants::*;
-pub use device_state::DeviceState;
 pub use inputid::*;
 pub use scancodes::*;
 pub use sync_stream::*;

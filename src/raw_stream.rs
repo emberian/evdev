@@ -5,7 +5,8 @@ use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{nix_err, sys, AttributeSet, AttributeSetRef, DeviceState, InputEvent, InputId, Key};
+use crate::device_state::DeviceState;
+use crate::{nix_err, sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -400,7 +401,7 @@ impl RawDevice {
 
     /// Create an empty `DeviceState`. The `{abs,key,etc}_vals` for the returned state will return
     /// `Some` if `self.supported_events()` contains that `EventType`.
-    pub fn empty_state(&self) -> DeviceState {
+    pub(crate) fn empty_state(&self) -> DeviceState {
         let supports = self.supported_events();
 
         let key_vals = if supports.contains(EventType::KEY) {
@@ -442,27 +443,55 @@ impl RawDevice {
         }
     }
 
-    pub fn sync_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        self.sync_key_state(state)?;
-        self.sync_abs_state(state)?;
-        self.sync_switch_state(state)?;
-        self.sync_led_state(state)?;
-        Ok(())
-    }
-
-    pub fn sync_key_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        if let Some(key_vals) = &mut state.key_vals {
-            unsafe {
-                sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()).map_err(nix_err)?
-            };
+    pub(crate) fn sync_state(&self, state: &mut DeviceState) -> io::Result<()> {
+        if let Some(ref mut key_vals) = state.key_vals {
+            self.sync_key_state(key_vals)?;
+        }
+        if let Some(ref mut abs_vals) = state.abs_vals {
+            self.sync_abs_state(abs_vals)?;
+        }
+        if let Some(ref mut switch_vals) = state.switch_vals {
+            self.sync_switch_state(switch_vals)?;
+        }
+        if let Some(ref mut led_vals) = state.led_vals {
+            self.sync_led_state(led_vals)?;
         }
         Ok(())
     }
 
-    pub fn sync_abs_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        if let (Some(supported_abs), Some(abs_vals)) =
-            (self.supported_absolute_axes(), &mut state.abs_vals)
-        {
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
+        let mut key_vals = AttributeSet::new();
+        self.sync_key_state(&mut key_vals)?;
+        Ok(key_vals)
+    }
+
+    pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
+        unimplemented!()
+    }
+
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
+        let mut switch_vals = AttributeSet::new();
+        self.sync_switch_state(&mut switch_vals)?;
+        Ok(switch_vals)
+    }
+
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedType>> {
+        let mut led_vals = AttributeSet::new();
+        self.sync_led_state(&mut led_vals)?;
+        Ok(led_vals)
+    }
+
+    pub(crate) fn sync_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
+        unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()) }
+            .map(|_| ())
+            .map_err(nix_err)
+    }
+
+    pub(crate) fn sync_abs_state(
+        &self,
+        abs_vals: &mut [libc::input_absinfo; AbsoluteAxisType::COUNT],
+    ) -> io::Result<()> {
+        if let Some(supported_abs) = self.supported_absolute_axes() {
             for AbsoluteAxisType(idx) in supported_abs.iter() {
                 // ignore multitouch, we'll handle that later.
                 //
@@ -477,22 +506,16 @@ impl RawDevice {
         Ok(())
     }
 
-    pub fn sync_switch_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        if let Some(switch_vals) = &mut state.switch_vals {
-            unsafe {
-                sys::eviocgsw(self.as_raw_fd(), switch_vals.as_mut_raw_slice()).map_err(nix_err)?
-            };
-        }
-        Ok(())
+    pub(crate) fn sync_switch_state(&self, switch_vals: &mut AttributeSet<SwitchType>) -> io::Result<()> {
+        unsafe { sys::eviocgsw(self.as_raw_fd(), switch_vals.as_mut_raw_slice()) }
+            .map(|_| ())
+            .map_err(nix_err)
     }
 
-    pub fn sync_led_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        if let Some(led_vals) = &mut state.led_vals {
-            unsafe {
-                sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()).map_err(nix_err)?
-            };
-        }
-        Ok(())
+    pub(crate) fn sync_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
+        unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
+            .map(|_| ())
+            .map_err(nix_err)
     }
 }
 

@@ -4,7 +4,7 @@ use std::time::SystemTime;
 
 /// A cached representation of device state at a certain time.
 #[derive(Debug)]
-pub struct DeviceState {
+pub(crate) struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub(crate) timestamp: libc::timeval,
     /// Set = key pressed

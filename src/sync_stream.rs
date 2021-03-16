@@ -1,6 +1,7 @@
 use crate::constants::*;
+use crate::device_state::DeviceState;
 use crate::raw_stream::RawDevice;
-use crate::{AttributeSetRef, DeviceState, InputEvent, InputEventKind, InputId, Key};
+use crate::{AttributeSetRef, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::{fmt, io};
@@ -47,7 +48,9 @@ impl Device {
         })
     }
 
-    pub fn state(&self) -> &DeviceState {
+    // TODO: Should we expose the internal inner state machine at all?
+    /// Returns the synchronization engine's current understanding of the device state.
+    fn cached_state(&self) -> &DeviceState {
         &self.state
     }
 
