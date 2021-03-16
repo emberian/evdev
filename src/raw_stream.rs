@@ -256,7 +256,7 @@ impl RawDevice {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, Key};
     /// let device = Device::open("/dev/input/event0")?;
@@ -276,7 +276,7 @@ impl RawDevice {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, RelativeAxisType};
     /// let device = Device::open("/dev/input/event0")?;
@@ -298,7 +298,7 @@ impl RawDevice {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, AbsoluteAxisType};
     /// let device = Device::open("/dev/input/event0")?;
@@ -322,7 +322,7 @@ impl RawDevice {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, SwitchType};
     /// let device = Device::open("/dev/input/event0")?;

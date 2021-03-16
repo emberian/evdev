@@ -96,7 +96,7 @@ impl Device {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, Key};
     /// let device = Device::open("/dev/input/event0")?;
@@ -116,7 +116,7 @@ impl Device {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, RelativeAxisType};
     /// let device = Device::open("/dev/input/event0")?;
@@ -138,7 +138,7 @@ impl Device {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, AbsoluteAxisType};
     /// let device = Device::open("/dev/input/event0")?;
@@ -162,7 +162,7 @@ impl Device {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use evdev::{Device, SwitchType};
     /// let device = Device::open("/dev/input/event0")?;
@@ -394,34 +394,19 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
         if let Some(ev) = compensate_events(&mut self.sync, &mut self.dev) {
             return Some(ev);
         }
-        'outer: loop {
-            if let Some(idx) = self.range.next() {
-                // we're going through and emitting the events of a block that we checked
-                return Some(InputEvent(self.dev.raw.event_buf[idx]));
-            }
-            // find the range of this new block: look for a SYN_REPORT
-            let block_start = self.range.end;
-            let mut block_dropped = false;
-            for (i, ev) in self.dev.raw.event_buf.iter().enumerate().skip(block_start) {
-                let ev = InputEvent(*ev);
-                match ev.kind() {
-                    InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
-                        block_dropped = true;
-                    }
-                    InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
-                        self.consumed_to = i + 1;
-                        if block_dropped {
-                            self.dev.block_dropped = true;
-                            return None;
-                        } else {
-                            self.range = block_start..i + 1;
-                            continue 'outer;
-                        }
-                    }
-                    _ => self.dev.state.process_event(ev),
+        let state = &mut self.dev.state;
+        let (res, consumed_to) = sync_events(&mut self.range, &self.dev.raw.event_buf, |ev| {
+            state.process_event(ev)
+        });
+        self.consumed_to = consumed_to;
+        match res {
+            Ok(ev) => Some(InputEvent(ev)),
+            Err(requires_sync) => {
+                if requires_sync {
+                    self.dev.block_dropped = true;
                 }
+                None
             }
-            return None;
         }
     }
 }
@@ -430,6 +415,45 @@ impl<'a> Drop for FetchEventsSynced<'a> {
     fn drop(&mut self) {
         self.dev.raw.event_buf.drain(..self.consumed_to);
     }
+}
+
+/// Err(true) means the device should sync the state with ioctl
+#[inline]
+fn sync_events(
+    range: &mut std::ops::Range<usize>,
+    event_buf: &[libc::input_event],
+    mut handle_event: impl FnMut(InputEvent),
+) -> (Result<libc::input_event, bool>, usize) {
+    let mut consumed_to = range.end;
+    let res = 'outer: loop {
+        if let Some(idx) = range.next() {
+            // we're going through and emitting the events of a block that we checked
+            break Ok(event_buf[idx]);
+        }
+        // find the range of this new block: look for a SYN_REPORT
+        let block_start = range.end;
+        let mut block_dropped = false;
+        for (i, ev) in event_buf.iter().enumerate().skip(block_start) {
+            let ev = InputEvent(*ev);
+            match ev.kind() {
+                InputEventKind::Synchronization(Synchronization::SYN_DROPPED) => {
+                    block_dropped = true;
+                }
+                InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
+                    consumed_to = i + 1;
+                    if block_dropped {
+                        break 'outer Err(true);
+                    } else {
+                        *range = block_start..i + 1;
+                        continue 'outer;
+                    }
+                }
+                _ => handle_event(ev),
+            }
+        }
+        break Err(false);
+    };
+    (res, consumed_to)
 }
 
 impl fmt::Display for Device {
@@ -651,3 +675,75 @@ mod tokio_stream {
 }
 #[cfg(feature = "tokio")]
 pub use tokio_stream::EventStream;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // from itertools 0.10
+    fn iter_assert_equal<I, J>(a: I, b: J)
+    where
+        I: IntoIterator,
+        J: IntoIterator,
+        I::Item: fmt::Debug + PartialEq<J::Item>,
+        J::Item: fmt::Debug,
+    {
+        let mut ia = a.into_iter();
+        let mut ib = b.into_iter();
+        let mut i = 0;
+        loop {
+            match (ia.next(), ib.next()) {
+                (None, None) => return,
+                (a, b) => {
+                    let equal = match (&a, &b) {
+                        (&Some(ref a), &Some(ref b)) => a == b,
+                        _ => false,
+                    };
+                    assert!(
+                        equal,
+                        "Failed assertion {a:?} == {b:?} for iteration {i}",
+                        i = i,
+                        a = a,
+                        b = b
+                    );
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    fn make_events_iter(
+        events: &[libc::input_event],
+    ) -> impl Iterator<Item = libc::input_event> + '_ {
+        let mut range = 0..0;
+        std::iter::from_fn(move || {
+            let (res, _) = sync_events(&mut range, events, |_| {});
+            res.ok()
+        })
+    }
+
+    #[test]
+    fn test_sync_impl() {
+        let time = libc::timeval {
+            tv_sec: 0,
+            tv_usec: 0,
+        };
+        let key4 = libc::input_event {
+            time,
+            type_: EventType::KEY.0,
+            code: Key::KEY_4.0,
+            value: 1,
+        };
+        let report = libc::input_event {
+            time,
+            type_: EventType::SYNCHRONIZATION.0,
+            code: Synchronization::SYN_REPORT.0,
+            value: 0,
+        };
+
+        iter_assert_equal(make_events_iter(&[]), vec![]);
+        iter_assert_equal(make_events_iter(&[key4]), vec![]);
+        iter_assert_equal(make_events_iter(&[key4, report]), vec![key4, report]);
+        iter_assert_equal(make_events_iter(&[key4, report, key4]), vec![key4, report]);
+    }
+}
