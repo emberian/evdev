@@ -1,6 +1,5 @@
 use crate::constants::*;
-use crate::{AttributeSet, InputEvent, InputEventKind, Key, KeyArray};
-use bitvec::prelude::*;
+use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, Key};
 use std::time::SystemTime;
 
 /// A cached representation of device state at a certain time.
@@ -9,12 +8,12 @@ pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub(crate) timestamp: libc::timeval,
     /// Set = key pressed
-    pub(crate) key_vals: Option<Box<KeyArray>>,
+    pub(crate) key_vals: Option<AttributeSet<Key>>,
     pub(crate) abs_vals: Option<Box<[libc::input_absinfo; AbsoluteAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
-    pub(crate) switch_vals: Option<BitArr!(for SwitchType::COUNT, in u8)>,
+    pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
     /// Set = LED lit
-    pub(crate) led_vals: Option<BitArr!(for LedType::COUNT, in u8)>,
+    pub(crate) led_vals: Option<AttributeSet<LedType>>,
 }
 
 // manual Clone impl for clone_from optimization
@@ -24,8 +23,8 @@ impl Clone for DeviceState {
             timestamp: self.timestamp,
             key_vals: self.key_vals.clone(),
             abs_vals: self.abs_vals.clone(),
-            switch_vals: self.switch_vals,
-            led_vals: self.led_vals,
+            switch_vals: self.switch_vals.clone(),
+            led_vals: self.led_vals.clone(),
         }
     }
     fn clone_from(&mut self, other: &Self) {
@@ -46,10 +45,8 @@ impl DeviceState {
     /// Returns the set of keys pressed when the snapshot was taken.
     ///
     /// Returns `None` if keys are not supported by this device.
-    pub fn key_vals(&self) -> Option<AttributeSet<'_, Key>> {
-        self.key_vals
-            .as_deref()
-            .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
+    pub fn key_vals(&self) -> Option<&AttributeSetRef<Key>> {
+        self.key_vals.as_deref()
     }
 
     /// Returns the set of absolute axis measurements when the snapshot was taken.
@@ -62,15 +59,15 @@ impl DeviceState {
     /// Returns the set of switches triggered when the snapshot was taken.
     ///
     /// Returns `None` if switches are not supported by this device.
-    pub fn switch_vals(&self) -> Option<AttributeSet<'_, SwitchType>> {
-        self.switch_vals.as_deref().map(AttributeSet::new)
+    pub fn switch_vals(&self) -> Option<&AttributeSetRef<SwitchType>> {
+        self.switch_vals.as_deref()
     }
 
     /// Returns the set of LEDs turned on when the snapshot was taken.
     ///
     /// Returns `None` if LEDs are not supported by this device.
-    pub fn led_vals(&self) -> Option<AttributeSet<'_, LedType>> {
-        self.led_vals.as_deref().map(AttributeSet::new)
+    pub fn led_vals(&self) -> Option<&AttributeSetRef<LedType>> {
+        self.led_vals.as_deref()
     }
 
     #[inline]
@@ -81,8 +78,7 @@ impl DeviceState {
                     .key_vals
                     .as_deref_mut()
                     .expect("got a key event despite not supporting keys");
-                let keys = BitSlice::<Lsb0, _>::from_slice_mut(keys).unwrap();
-                keys.set(code.code() as usize, ev.value() != 0);
+                keys.set(code, ev.value() != 0);
             }
             InputEventKind::AbsAxis(axis) => {
                 let axes = self

@@ -6,6 +6,7 @@ pub struct EventType(pub u16);
 
 evdev_enum!(
     EventType,
+    Array,
     /// A bookkeeping event. Usually not important to applications.
     SYNCHRONIZATION = 0x00,
     /// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
@@ -67,6 +68,7 @@ pub struct PropType(pub u16);
 
 evdev_enum!(
     PropType,
+    Array,
     /// This input device needs a pointer ("cursor") for the user to know its state.
     POINTER = 0x00,
     /// "direct input devices", according to the header.
@@ -94,6 +96,7 @@ pub struct RelativeAxisType(pub u16);
 
 evdev_enum!(
     RelativeAxisType,
+    Array,
     REL_X = 0x00,
     REL_Y = 0x01,
     REL_Z = 0x02,
@@ -119,6 +122,7 @@ pub struct AbsoluteAxisType(pub u16);
 
 evdev_enum!(
     AbsoluteAxisType,
+    Array,
     ABS_X = 0x00,
     ABS_Y = 0x01,
     ABS_Z = 0x02,
@@ -187,6 +191,7 @@ pub struct SwitchType(pub u16);
 
 evdev_enum!(
     SwitchType,
+    Array,
     /// "set = lid shut"
     SW_LID = 0x00,
     /// "set = tablet mode"
@@ -233,6 +238,7 @@ pub struct LedType(pub u16);
 
 evdev_enum!(
     LedType,
+    Array,
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
     LED_SCROLLL = 0x02,
@@ -260,6 +266,7 @@ pub struct MiscType(pub u16);
 
 evdev_enum!(
     MiscType,
+    Array,
     /// Serial number, only exported for tablets ("Transducer Serial Number")
     MSC_SERIAL = 0x00,
     /// Only used by the PowerMate driver, right now.
@@ -323,6 +330,7 @@ pub struct SoundType(pub u16);
 
 evdev_enum!(
     SoundType,
+    Array,
     SND_CLICK = 0x00,
     SND_BELL = 0x01,
     SND_TONE = 0x02,

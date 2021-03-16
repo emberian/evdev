@@ -1,4 +1,3 @@
-use bitvec::prelude::*;
 use std::fs::{File, OpenOptions};
 use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -6,7 +5,7 @@ use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{nix_err, sys, AttributeSet, DeviceState, InputEvent, InputId, Key, KeyArray};
+use crate::{nix_err, sys, AttributeSet, AttributeSetRef, DeviceState, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -40,23 +39,23 @@ fn bytes_into_string_lossy(v: Vec<u8>) -> String {
 #[derive(Debug)]
 pub struct RawDevice {
     file: File,
-    ty: BitArr!(for EventType::COUNT, in u8),
+    ty: AttributeSet<EventType>,
     name: Option<String>,
     phys: Option<String>,
     uniq: Option<String>,
     id: libc::input_id,
-    props: BitArr!(for PropType::COUNT, in u8),
+    props: AttributeSet<PropType>,
     driver_version: (u8, u8, u8),
-    supported_keys: Option<Box<KeyArray>>,
-    supported_relative: Option<BitArr!(for RelativeAxisType::COUNT, in u8)>,
-    supported_absolute: Option<BitArr!(for AbsoluteAxisType::COUNT, in u8)>,
-    supported_switch: Option<BitArr!(for SwitchType::COUNT, in u8)>,
-    supported_led: Option<BitArr!(for LedType::COUNT, in u8)>,
-    supported_misc: Option<BitArr!(for MiscType::COUNT, in u8)>,
-    // ff: Option<Box<BitArr!(for _, in u8)>>,
+    supported_keys: Option<AttributeSet<Key>>,
+    supported_relative: Option<AttributeSet<RelativeAxisType>>,
+    supported_absolute: Option<AttributeSet<AbsoluteAxisType>>,
+    supported_switch: Option<AttributeSet<SwitchType>>,
+    supported_led: Option<AttributeSet<LedType>>,
+    supported_misc: Option<AttributeSet<MiscType>>,
+    // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
     // rep: Option<Repeat>,
-    supported_snd: Option<BitArr!(for SoundType::COUNT, in u8)>,
+    supported_snd: Option<AttributeSet<SoundType>>,
     pub(crate) event_buf: Vec<libc::input_event>,
 }
 
@@ -80,7 +79,7 @@ impl RawDevice {
             .or_else(|_| options.write(false).open(path))?;
 
         let ty = {
-            let mut ty = BitArray::zeroed();
+            let mut ty = AttributeSet::<EventType>::new();
             unsafe {
                 sys::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice()).map_err(nix_err)?
             };
@@ -110,25 +109,25 @@ impl RawDevice {
         );
 
         let props = {
-            let mut props = BitArray::zeroed();
+            let mut props = AttributeSet::<PropType>::new();
             unsafe {
                 sys::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice()).map_err(nix_err)?
             };
             props
         }; // FIXME: handle old kernel
 
-        let supported_keys = if ty[EventType::KEY.0 as usize] {
-            let mut supported_keys = Box::new(crate::KEY_ARRAY_INIT);
-            let key_slice = &mut supported_keys[..];
-            unsafe { sys::eviocgbit_key(file.as_raw_fd(), key_slice).map_err(nix_err)? };
-
-            Some(supported_keys)
+        let supported_keys = if ty.contains(EventType::KEY) {
+            let mut keys = AttributeSet::<Key>::new();
+            unsafe {
+                sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice()).map_err(nix_err)?
+            };
+            Some(keys)
         } else {
             None
         };
 
-        let supported_relative = if ty[EventType::RELATIVE.0 as usize] {
-            let mut rel = BitArray::zeroed();
+        let supported_relative = if ty.contains(EventType::RELATIVE) {
+            let mut rel = AttributeSet::<RelativeAxisType>::new();
             unsafe {
                 sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())
                     .map_err(nix_err)?
@@ -138,8 +137,8 @@ impl RawDevice {
             None
         };
 
-        let supported_absolute = if ty[EventType::ABSOLUTE.0 as usize] {
-            let mut abs = BitArray::zeroed();
+        let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
+            let mut abs = AttributeSet::<AbsoluteAxisType>::new();
             unsafe {
                 sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())
                     .map_err(nix_err)?
@@ -149,8 +148,8 @@ impl RawDevice {
             None
         };
 
-        let supported_switch = if ty[EventType::SWITCH.0 as usize] {
-            let mut switch = BitArray::zeroed();
+        let supported_switch = if ty.contains(EventType::SWITCH) {
+            let mut switch = AttributeSet::<SwitchType>::new();
             unsafe {
                 sys::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())
                     .map_err(nix_err)?
@@ -160,8 +159,8 @@ impl RawDevice {
             None
         };
 
-        let supported_led = if ty[EventType::LED.0 as usize] {
-            let mut led = BitArray::zeroed();
+        let supported_led = if ty.contains(EventType::LED) {
+            let mut led = AttributeSet::<LedType>::new();
             unsafe {
                 sys::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice()).map_err(nix_err)?
             };
@@ -170,8 +169,8 @@ impl RawDevice {
             None
         };
 
-        let supported_misc = if ty[EventType::MISC.0 as usize] {
-            let mut misc = BitArray::zeroed();
+        let supported_misc = if ty.contains(EventType::MISC) {
+            let mut misc = AttributeSet::<MiscType>::new();
             unsafe {
                 sys::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice()).map_err(nix_err)?
             };
@@ -182,8 +181,8 @@ impl RawDevice {
 
         //unsafe { sys::eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
 
-        let supported_snd = if ty[EventType::SOUND.0 as usize] {
-            let mut snd = BitArray::zeroed();
+        let supported_snd = if ty.contains(EventType::SOUND) {
+            let mut snd = AttributeSet::<SoundType>::new();
             unsafe {
                 sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice()).map_err(nix_err)?
             };
@@ -233,8 +232,8 @@ impl RawDevice {
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
-    pub fn properties(&self) -> AttributeSet<'_, PropType> {
-        AttributeSet::new(&self.props)
+    pub fn properties(&self) -> &AttributeSetRef<PropType> {
+        &self.props
     }
 
     /// Returns a tuple of the driver version containing major, minor, rev
@@ -246,8 +245,8 @@ impl RawDevice {
     ///
     /// If you're interested in the individual keys or switches supported, it's probably easier
     /// to just call the appropriate `supported_*` function instead.
-    pub fn supported_events(&self) -> AttributeSet<'_, EventType> {
-        AttributeSet::new(&self.ty)
+    pub fn supported_events(&self) -> &AttributeSetRef<EventType> {
+        &self.ty
     }
 
     /// Returns the set of supported keys reported by the device.
@@ -267,10 +266,8 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_keys(&self) -> Option<AttributeSet<'_, Key>> {
-        self.supported_keys
-            .as_deref()
-            .map(|v| AttributeSet::new(BitSlice::from_slice(v).unwrap()))
+    pub fn supported_keys(&self) -> Option<&AttributeSetRef<Key>> {
+        self.supported_keys.as_deref()
     }
 
     /// Returns the set of supported "relative axes" reported by the device.
@@ -291,8 +288,8 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<AttributeSet<'_, RelativeAxisType>> {
-        self.supported_relative.as_deref().map(AttributeSet::new)
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
+        self.supported_relative.as_deref()
     }
 
     /// Returns the set of supported "absolute axes" reported by the device.
@@ -313,8 +310,8 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<AttributeSet<'_, AbsoluteAxisType>> {
-        self.supported_absolute.as_deref().map(AttributeSet::new)
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
+        self.supported_absolute.as_deref()
     }
 
     /// Returns the set of supported switches reported by the device.
@@ -337,23 +334,23 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_switches(&self) -> Option<AttributeSet<'_, SwitchType>> {
-        self.supported_switch.as_deref().map(AttributeSet::new)
+    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchType>> {
+        self.supported_switch.as_deref()
     }
 
     /// Returns a set of supported LEDs on the device.
     ///
     /// Most commonly these are state indicator lights for things like Scroll Lock, but they
     /// can also be found in cameras and other devices.
-    pub fn supported_leds(&self) -> Option<AttributeSet<'_, LedType>> {
-        self.supported_led.as_deref().map(AttributeSet::new)
+    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedType>> {
+        self.supported_led.as_deref()
     }
 
     /// Returns a set of supported "miscellaneous" capabilities.
     ///
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
-    pub fn misc_properties(&self) -> Option<AttributeSet<'_, MiscType>> {
-        self.supported_misc.as_deref().map(AttributeSet::new)
+    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
+        self.supported_misc.as_deref()
     }
 
     // pub fn supported_repeats(&self) -> Option<Repeat> {
@@ -364,8 +361,8 @@ impl RawDevice {
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
     /// speaker, for instance.
-    pub fn supported_sounds(&self) -> Option<AttributeSet<'_, SoundType>> {
-        self.supported_snd.as_deref().map(AttributeSet::new)
+    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundType>> {
+        self.supported_snd.as_deref()
     }
 
     /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
@@ -407,7 +404,7 @@ impl RawDevice {
         let supports = self.supported_events();
 
         let key_vals = if supports.contains(EventType::KEY) {
-            Some(Box::new(crate::KEY_ARRAY_INIT))
+            Some(AttributeSet::new())
         } else {
             None
         };
@@ -423,12 +420,12 @@ impl RawDevice {
             None
         };
         let switch_vals = if supports.contains(EventType::SWITCH) {
-            Some(BitArray::zeroed())
+            Some(AttributeSet::new())
         } else {
             None
         };
         let led_vals = if supports.contains(EventType::LED) {
-            Some(BitArray::zeroed())
+            Some(AttributeSet::new())
         } else {
             None
         };
@@ -455,7 +452,9 @@ impl RawDevice {
 
     pub fn sync_key_state(&self, state: &mut DeviceState) -> io::Result<()> {
         if let Some(key_vals) = &mut state.key_vals {
-            unsafe { sys::eviocgkey(self.as_raw_fd(), &mut key_vals[..]).map_err(nix_err)? };
+            unsafe {
+                sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()).map_err(nix_err)?
+            };
         }
         Ok(())
     }

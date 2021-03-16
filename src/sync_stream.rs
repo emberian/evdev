@@ -1,6 +1,6 @@
 use crate::constants::*;
 use crate::raw_stream::RawDevice;
-use crate::{AttributeSet, DeviceState, InputEvent, InputEventKind, InputId, Key};
+use crate::{AttributeSetRef, DeviceState, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::{fmt, io};
@@ -72,7 +72,7 @@ impl Device {
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
-    pub fn properties(&self) -> AttributeSet<'_, PropType> {
+    pub fn properties(&self) -> &AttributeSetRef<PropType> {
         self.raw.properties()
     }
 
@@ -85,7 +85,7 @@ impl Device {
     ///
     /// If you're interested in the individual keys or switches supported, it's probably easier
     /// to just call the appropriate `supported_*` function instead.
-    pub fn supported_events(&self) -> AttributeSet<'_, EventType> {
+    pub fn supported_events(&self) -> &AttributeSetRef<EventType> {
         self.raw.supported_events()
     }
 
@@ -106,7 +106,7 @@ impl Device {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_keys(&self) -> Option<AttributeSet<'_, Key>> {
+    pub fn supported_keys(&self) -> Option<&AttributeSetRef<Key>> {
         self.raw.supported_keys()
     }
 
@@ -128,7 +128,7 @@ impl Device {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<AttributeSet<'_, RelativeAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
         self.raw.supported_relative_axes()
     }
 
@@ -150,7 +150,7 @@ impl Device {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<AttributeSet<'_, AbsoluteAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
         self.raw.supported_absolute_axes()
     }
 
@@ -174,7 +174,7 @@ impl Device {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_switches(&self) -> Option<AttributeSet<'_, SwitchType>> {
+    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchType>> {
         self.raw.supported_switches()
     }
 
@@ -182,14 +182,14 @@ impl Device {
     ///
     /// Most commonly these are state indicator lights for things like Scroll Lock, but they
     /// can also be found in cameras and other devices.
-    pub fn supported_leds(&self) -> Option<AttributeSet<'_, LedType>> {
+    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedType>> {
         self.raw.supported_leds()
     }
 
     /// Returns a set of supported "miscellaneous" capabilities.
     ///
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
-    pub fn misc_properties(&self) -> Option<AttributeSet<'_, MiscType>> {
+    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.raw.misc_properties()
     }
 
@@ -201,7 +201,7 @@ impl Device {
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
     /// speaker, for instance.
-    pub fn supported_sounds(&self) -> Option<AttributeSet<'_, SoundType>> {
+    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundType>> {
         self.raw.supported_sounds()
     }
 
@@ -318,7 +318,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     KEY,
                     Keys,
                     supported_keys,
-                    AttributeSet<Key>,
+                    &AttributeSetRef<Key>,
                     |st| st.key_vals().unwrap(),
                     |vals, key| vals.contains(key)
                 );
@@ -352,7 +352,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     SWITCH,
                     Switches,
                     supported_switches,
-                    AttributeSet<SwitchType>,
+                    &AttributeSetRef<SwitchType>,
                     |st| st.switch_vals().unwrap(),
                     |vals, sw| vals.contains(sw)
                 );
@@ -369,7 +369,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     LED,
                     Leds,
                     supported_leds,
-                    AttributeSet<LedType>,
+                    &AttributeSetRef<LedType>,
                     |st| st.led_vals().unwrap(),
                     |vals, led| vals.contains(led)
                 );

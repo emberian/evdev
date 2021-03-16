@@ -72,22 +72,12 @@ use std::time::{Duration, SystemTime};
 use std::{fmt, io};
 
 // pub use crate::constants::FFEffect::*;
-pub use attribute_set::AttributeSet;
+pub use attribute_set::{AttributeSet, AttributeSetRef};
 pub use constants::*;
 pub use device_state::DeviceState;
 pub use inputid::*;
 pub use scancodes::*;
 pub use sync_stream::*;
-
-const fn bit_elts<T>(bits: usize) -> usize {
-    let width = std::mem::size_of::<T>() * 8;
-    bits / width + (bits % width != 0) as usize
-}
-// TODO: this is a replacement for BitArr!(for Key::COUNT, in u8), since const generics aren't stable
-// and the BitView impls for arrays only goes up to 64
-const KEY_ARRAY_LEN: usize = bit_elts::<u8>(Key::COUNT);
-type KeyArray = [u8; KEY_ARRAY_LEN];
-const KEY_ARRAY_INIT: KeyArray = [0; KEY_ARRAY_LEN];
 
 const EVENT_BATCH_SIZE: usize = 32;
 
@@ -246,7 +236,7 @@ fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
     }
 }
 
-fn nix_err(err: nix::Error) -> io::Error {
+pub(crate) fn nix_err(err: nix::Error) -> io::Error {
     match err {
         nix::Error::Sys(errno) => io::Error::from_raw_os_error(errno as i32),
         nix::Error::InvalidPath => io::Error::new(io::ErrorKind::InvalidInput, err),
