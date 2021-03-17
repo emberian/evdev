@@ -1,21 +1,13 @@
+//! Demonstrating how to monitor events with evdev + tokio
+
 use tokio_1 as tokio;
+
+// cli/"tui" shared between the evtest examples
+mod _pick_device;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args_os();
-    let d = if args.len() > 1 {
-        evdev::Device::open(&args.nth(1).unwrap())?
-    } else {
-        let mut devices = evdev::enumerate().collect::<Vec<_>>();
-        for (i, d) in devices.iter().enumerate() {
-            println!("{}: {}", i, d.name().unwrap_or("Unnamed device"));
-        }
-        print!("Select the device [0-{}]: ", devices.len());
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-        let mut chosen = String::new();
-        std::io::stdin().read_line(&mut chosen)?;
-        devices.swap_remove(chosen.trim().parse::<usize>()?)
-    };
+    let d = _pick_device::pick_device();
     println!("{}", d);
     println!("Events:");
     let mut events = d.into_event_stream()?;
