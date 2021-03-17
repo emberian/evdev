@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct InputId(libc::input_id);
+pub struct InputId(pub(crate) libc::input_id);
 
 impl From<libc::input_id> for InputId {
     #[inline]
@@ -29,6 +29,16 @@ impl InputId {
     }
     pub fn version(&self) -> u16 {
         self.0.version
+    }
+
+    /// Crate a new InputId, useful for customizing virtual input devices.
+    pub fn new(bus_type: BusType, vendor: u16, product: u16, version: u16) -> Self {
+        Self::from(libc::input_id {
+            bustype: bus_type.0,
+            vendor,
+            product,
+            version,
+        })
     }
 }
 

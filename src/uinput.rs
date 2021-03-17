@@ -3,13 +3,13 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::constants::EventType;
+use crate::inputid::{BusType, InputId};
 use crate::{nix_err, sys, AttributeSetRef, InputEvent, Key, RelativeAxisType};
 use libc::O_NONBLOCK;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd};
 
-const BUS_USB: u16 = 0x03;
 const UINPUT_PATH: &str = "/dev/uinput";
 
 #[derive(Debug)]
@@ -43,8 +43,8 @@ impl<'a> VirtualDeviceBuilder<'a> {
     }
 
     #[inline]
-    pub fn input_id(mut self, id: libc::input_id) -> Self {
-        self.id = Some(id);
+    pub fn input_id(mut self, id: InputId) -> Self {
+        self.id = Some(id.0);
         self
     }
 
@@ -115,7 +115,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
 }
 
 const DEFAULT_ID: libc::input_id = libc::input_id {
-    bustype: BUS_USB,
+    bustype: BusType::BUS_USB.0,
     vendor: 0x1234,  /* sample vendor */
     product: 0x5678, /* sample product */
     version: 0x111,
