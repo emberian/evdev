@@ -15,20 +15,20 @@ fn main() -> std::io::Result<()> {
         .build()
         .unwrap();
 
-    let type_ = EventType::KEY.0 as _;
+    let type_ = EventType::KEY;
     // Note this will ACTUALLY PRESS the button on your computer.
     // Hopefully you don't have BTN_DPAD_UP bound to anything important.
-    let code = Key::BTN_DPAD_UP.code() as u16;
+    let code = Key::BTN_DPAD_UP.code();
 
     println!("Waiting for Ctrl-C...");
     loop {
         let down_event = InputEvent::new(type_, code, 1);
-        device.emit(std::slice::from_ref(&down_event)).unwrap();
+        device.emit(&[down_event]).unwrap();
         println!("Pressed.");
         sleep(Duration::from_secs(2));
 
         let up_event = InputEvent::new(type_, code, 0);
-        device.emit(std::slice::from_ref(&up_event)).unwrap();
+        device.emit(&[up_event]).unwrap();
         println!("Released.");
         sleep(Duration::from_secs(2));
     }

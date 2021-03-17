@@ -107,6 +107,7 @@ pub enum InputEventKind {
 /// - `value: s32`
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
+#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct InputEvent(libc::input_event);
 
@@ -160,10 +161,28 @@ impl InputEvent {
     }
 
     /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
-    pub fn new(type_: u16, code: u16, value: i32) -> Self {
+    pub fn new(type_: EventType, code: u16, value: i32) -> Self {
+        InputEvent(libc::input_event {
+            time: libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            type_: type_.0,
+            code,
+            value,
+        })
+    }
+
+    /// Create a new InputEvent with the time field set to "now" on the system clock.
+    ///
+    /// Note that this isn't usally necessary simply for emitting events on a virtual device, as
+    /// even though [`InputEvent::new`] creates an `input_event` with the time field as zero,
+    /// the kernel will update `input_event.time` when it emits the events to any programs reading
+    /// the event "file".
+    pub fn new_now(type_: EventType, code: u16, value: i32) -> Self {
         InputEvent(libc::input_event {
             time: systime_to_timeval(&SystemTime::now()),
-            type_,
+            type_: type_.0,
             code,
             value,
         })
@@ -257,24 +276,7 @@ pub(crate) fn nix_err(err: nix::Error) -> io::Error {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::mem::MaybeUninit;
-
-    #[test]
-    fn align_to_mut_is_sane() {
-        // We assume align_to_mut -> u8 puts everything in inner. Let's double check.
-        let mut bits: u32 = 0;
-        let (prefix, inner, suffix) =
-            unsafe { std::slice::from_mut(&mut bits).align_to_mut::<u8>() };
-        assert_eq!(prefix.len(), 0);
-        assert_eq!(inner.len(), std::mem::size_of::<u32>());
-        assert_eq!(suffix.len(), 0);
-
-        let mut ev: MaybeUninit<libc::input_event> = MaybeUninit::uninit();
-        let (prefix, inner, suffix) = unsafe { std::slice::from_mut(&mut ev).align_to_mut::<u8>() };
-        assert_eq!(prefix.len(), 0);
-        assert_eq!(inner.len(), std::mem::size_of::<libc::input_event>());
-        assert_eq!(suffix.len(), 0);
-    }
+/// SAFETY: T must not have any padding or otherwise uninitialized bytes inside of it
+pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
+    std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
