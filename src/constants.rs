@@ -6,6 +6,7 @@ pub struct EventType(pub u16);
 
 evdev_enum!(
     EventType,
+    Array,
     /// A bookkeeping event. Usually not important to applications.
     SYNCHRONIZATION = 0x00,
     /// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
@@ -45,33 +46,21 @@ impl EventType {
     pub(crate) const COUNT: usize = 0x20;
 }
 
-
 /// A "synchronization" message type published by the kernel into the events stream.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Synchronization(pub u16);
 
-impl Synchronization {
+evdev_enum!(
+    Synchronization,
     /// Used to mark the end of a single atomic "reading" from the device.
-    pub const SYN_REPORT: u16 = 0;
+    SYN_REPORT = 0,
     /// Appears to be unused.
-    pub const SYN_CONFIG: u16 = 1;
+    SYN_CONFIG = 1,
     /// "Used to synchronize and separate touch events"
-    pub const SYN_MT_REPORT: u16 = 2;
+    SYN_MT_REPORT = 2,
     /// Ring buffer filled, events were dropped.
-    pub const SYN_DROPPED: u16 = 3;
-}
-
-impl std::fmt::Debug for Synchronization {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.0 {
-            Synchronization::SYN_REPORT => f.pad(stringify!(SYN_REPORT)),
-            Synchronization::SYN_CONFIG => f.pad(stringify!(SYN_CONFIG)),
-            Synchronization::SYN_MT_REPORT => f.pad(stringify!(SYN_MT_REPORT)),
-            Synchronization::SYN_DROPPED => f.pad(stringify!(SYN_DROPPED)),
-            _ => write!(f, "{}", self.0),
-        }
-    }
-}
+    SYN_DROPPED = 3,
+);
 
 /// Device properties.
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -79,6 +68,7 @@ pub struct PropType(pub u16);
 
 evdev_enum!(
     PropType,
+    Array,
     /// This input device needs a pointer ("cursor") for the user to know its state.
     POINTER = 0x00,
     /// "direct input devices", according to the header.
@@ -106,6 +96,7 @@ pub struct RelativeAxisType(pub u16);
 
 evdev_enum!(
     RelativeAxisType,
+    Array,
     REL_X = 0x00,
     REL_Y = 0x01,
     REL_Z = 0x02,
@@ -131,6 +122,7 @@ pub struct AbsoluteAxisType(pub u16);
 
 evdev_enum!(
     AbsoluteAxisType,
+    Array,
     ABS_X = 0x00,
     ABS_Y = 0x01,
     ABS_Z = 0x02,
@@ -199,6 +191,7 @@ pub struct SwitchType(pub u16);
 
 evdev_enum!(
     SwitchType,
+    Array,
     /// "set = lid shut"
     SW_LID = 0x00,
     /// "set = tablet mode"
@@ -245,6 +238,7 @@ pub struct LedType(pub u16);
 
 evdev_enum!(
     LedType,
+    Array,
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
     LED_SCROLLL = 0x02,
@@ -272,6 +266,7 @@ pub struct MiscType(pub u16);
 
 evdev_enum!(
     MiscType,
+    Array,
     /// Serial number, only exported for tablets ("Transducer Serial Number")
     MSC_SERIAL = 0x00,
     /// Only used by the PowerMate driver, right now.
@@ -335,6 +330,7 @@ pub struct SoundType(pub u16);
 
 evdev_enum!(
     SoundType,
+    Array,
     SND_CLICK = 0x00,
     SND_BELL = 0x01,
     SND_TONE = 0x02,

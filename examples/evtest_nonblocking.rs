@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Events:");
     loop {
-        match d.fetch_events_no_sync() {
+        match d.fetch_events() {
             Ok(iterator) => {
                 for ev in iterator {
                     println!("{:?}", ev);
