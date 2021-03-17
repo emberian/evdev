@@ -9,22 +9,13 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd};
 
-const UINPUT_MAX_NAME_SIZE: usize = 80;
 const BUS_USB: u16 = 0x03;
 const UINPUT_PATH: &str = "/dev/uinput";
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct uinput_setup {
-    pub id: libc::input_id,
-    pub name: [u8; UINPUT_MAX_NAME_SIZE],
-    pub ff_effects_max: u32,
-}
 
 #[derive(Debug)]
 pub struct VirtualDeviceBuilder<'a> {
     file: File,
-    name: &'a str,
+    name: &'a [u8],
     id: Option<libc::input_id>,
 }
 
@@ -45,11 +36,13 @@ impl<'a> VirtualDeviceBuilder<'a> {
         })
     }
 
-    pub fn name(mut self, name: &'a str) -> Self {
-        self.name = name;
+    #[inline]
+    pub fn name<S: AsRef<[u8]>>(mut self, name: &'a S) -> Self {
+        self.name = name.as_ref();
         self
     }
 
+    #[inline]
     pub fn input_id(mut self, id: libc::input_id) -> Self {
         self.id = Some(id);
         self
@@ -103,17 +96,18 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn build(self) -> io::Result<VirtualDevice> {
         // Populate the uinput_setup struct
 
-        let mut usetup = uinput_setup {
+        let mut usetup = libc::uinput_setup {
             id: self.id.unwrap_or(DEFAULT_ID),
-            name: [0u8; UINPUT_MAX_NAME_SIZE],
+            name: [0; libc::UINPUT_MAX_NAME_SIZE],
             ff_effects_max: 0,
         };
 
-        let name_bytes = self.name.as_bytes();
+        // SAFETY: either casting [u8] to [u8], or [u8] to [i8], which is the same size
+        let name_bytes = unsafe { &*(self.name as *const [u8] as *const [libc::c_char]) };
         // Panic if we're doing something really stupid
         // + 1 for the null terminator; usetup.name was zero-initialized so there will be null
         // bytes after the part we copy into
-        assert!(name_bytes.len() + 1 < UINPUT_MAX_NAME_SIZE);
+        assert!(name_bytes.len() + 1 < libc::UINPUT_MAX_NAME_SIZE);
         usetup.name[..name_bytes.len()].copy_from_slice(name_bytes);
 
         VirtualDevice::new(self.file, &usetup)
@@ -133,7 +127,7 @@ pub struct VirtualDevice {
 
 impl VirtualDevice {
     /// Create a new virtual device.
-    fn new(file: File, usetup: &uinput_setup) -> io::Result<Self> {
+    fn new(file: File, usetup: &libc::uinput_setup) -> io::Result<Self> {
         unsafe { sys::ui_dev_setup(file.as_raw_fd(), usetup) }.map_err(nix_err)?;
         unsafe { sys::ui_dev_create(file.as_raw_fd()) }.map_err(nix_err)?;
 
