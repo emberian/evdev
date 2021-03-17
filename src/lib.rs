@@ -50,8 +50,8 @@
 //! For demonstrations of how to use this library in blocking, nonblocking, and async (tokio) modes,
 //! please reference the "examples" directory.
 
-#![cfg(any(unix, target_os = "android"))]
-#![allow(non_camel_case_types)]
+// should really be cfg(target_os = "linux") and maybe also android?
+#![cfg(unix)]
 
 // has to be first for its macro
 #[macro_use]
@@ -69,6 +69,7 @@ pub mod uinput;
 #[cfg(feature = "tokio")]
 mod tokio_stream;
 
+use std::os::unix::ffi::OsStrExt;
 use std::time::{Duration, SystemTime};
 use std::{fmt, io};
 
@@ -236,8 +237,12 @@ impl Iterator for EnumerateDevices {
         let readdir = self.readdir.as_mut()?;
         loop {
             if let Ok(entry) = readdir.next()? {
-                if let Ok(dev) = Device::open(entry.path()) {
-                    return Some(dev);
+                let path = entry.path();
+                let fname = path.file_name().unwrap();
+                if fname.as_bytes().starts_with(b"event") {
+                    if let Ok(dev) = Device::open(&path) {
+                        return Some(dev);
+                    }
                 }
             }
         }
