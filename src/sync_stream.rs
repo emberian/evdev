@@ -398,7 +398,9 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
         let (res, consumed_to) = sync_events(&mut self.range, &self.dev.raw.event_buf, |ev| {
             state.process_event(ev)
         });
-        self.consumed_to = consumed_to;
+        if let Some(end) = consumed_to {
+            self.consumed_to = end
+        }
         match res {
             Ok(ev) => Some(InputEvent(ev)),
             Err(requires_sync) => {
@@ -423,8 +425,8 @@ fn sync_events(
     range: &mut std::ops::Range<usize>,
     event_buf: &[libc::input_event],
     mut handle_event: impl FnMut(InputEvent),
-) -> (Result<libc::input_event, bool>, usize) {
-    let mut consumed_to = range.end;
+) -> (Result<libc::input_event, bool>, Option<usize>) {
+    let mut consumed_to = None;
     let res = 'outer: loop {
         if let Some(idx) = range.next() {
             // we're going through and emitting the events of a block that we checked
@@ -440,8 +442,9 @@ fn sync_events(
                     block_dropped = true;
                 }
                 InputEventKind::Synchronization(Synchronization::SYN_REPORT) => {
-                    consumed_to = i + 1;
+                    consumed_to = Some(i + 1);
                     if block_dropped {
+                        *range = event_buf.len()..event_buf.len();
                         break 'outer Err(true);
                     } else {
                         *range = block_start..i + 1;
@@ -680,70 +683,70 @@ pub use tokio_stream::EventStream;
 mod tests {
     use super::*;
 
-    // from itertools 0.10
-    fn iter_assert_equal<I, J>(a: I, b: J)
-    where
-        I: IntoIterator,
-        J: IntoIterator,
-        I::Item: fmt::Debug + PartialEq<J::Item>,
-        J::Item: fmt::Debug,
-    {
-        let mut ia = a.into_iter();
-        let mut ib = b.into_iter();
-        let mut i = 0;
-        loop {
-            match (ia.next(), ib.next()) {
-                (None, None) => return,
-                (a, b) => {
-                    let equal = match (&a, &b) {
-                        (&Some(ref a), &Some(ref b)) => a == b,
-                        _ => false,
-                    };
-                    assert!(
-                        equal,
-                        "Failed assertion {a:?} == {b:?} for iteration {i}",
-                        i = i,
-                        a = a,
-                        b = b
-                    );
-                    i += 1;
-                }
-            }
-        }
-    }
-
-    fn make_events_iter(
+    fn result_events_iter(
         events: &[libc::input_event],
-    ) -> impl Iterator<Item = libc::input_event> + '_ {
+    ) -> impl Iterator<Item = Result<libc::input_event, ()>> + '_ {
         let mut range = 0..0;
         std::iter::from_fn(move || {
             let (res, _) = sync_events(&mut range, events, |_| {});
-            res.ok()
+            match res {
+                Ok(x) => Some(Ok(x)),
+                Err(true) => Some(Err(())),
+                Err(false) => None,
+            }
         })
     }
 
+    fn events_iter(events: &[libc::input_event]) -> impl Iterator<Item = libc::input_event> + '_ {
+        result_events_iter(events).flatten()
+    }
+
+    #[allow(non_upper_case_globals)]
+    const time: libc::timeval = libc::timeval {
+        tv_sec: 0,
+        tv_usec: 0,
+    };
+    const KEY4: libc::input_event = libc::input_event {
+        time,
+        type_: EventType::KEY.0,
+        code: Key::KEY_4.0,
+        value: 1,
+    };
+    const REPORT: libc::input_event = libc::input_event {
+        time,
+        type_: EventType::SYNCHRONIZATION.0,
+        code: Synchronization::SYN_REPORT.0,
+        value: 0,
+    };
+    const DROPPED: libc::input_event = libc::input_event {
+        code: Synchronization::SYN_DROPPED.0,
+        ..REPORT
+    };
+
     #[test]
     fn test_sync_impl() {
-        let time = libc::timeval {
-            tv_sec: 0,
-            tv_usec: 0,
-        };
-        let key4 = libc::input_event {
-            time,
-            type_: EventType::KEY.0,
-            code: Key::KEY_4.0,
-            value: 1,
-        };
-        let report = libc::input_event {
-            time,
-            type_: EventType::SYNCHRONIZATION.0,
-            code: Synchronization::SYN_REPORT.0,
-            value: 0,
-        };
+        itertools::assert_equal(events_iter(&[]), vec![]);
+        itertools::assert_equal(events_iter(&[KEY4]), vec![]);
+        itertools::assert_equal(events_iter(&[KEY4, REPORT]), vec![KEY4, REPORT]);
+        itertools::assert_equal(events_iter(&[KEY4, REPORT, KEY4]), vec![KEY4, REPORT]);
+        itertools::assert_equal(
+            result_events_iter(&[KEY4, REPORT, KEY4, DROPPED, REPORT]),
+            vec![Ok(KEY4), Ok(REPORT), Err(())],
+        );
+    }
 
-        iter_assert_equal(make_events_iter(&[]), vec![]);
-        iter_assert_equal(make_events_iter(&[key4]), vec![]);
-        iter_assert_equal(make_events_iter(&[key4, report]), vec![key4, report]);
-        iter_assert_equal(make_events_iter(&[key4, report, key4]), vec![key4, report]);
+    #[test]
+    fn test_iter_consistency() {
+        // once it sees a SYN_DROPPED, it shouldn't mark the block after it as consumed even if we
+        // keep calling the iterator like an idiot
+        let evs = &[KEY4, REPORT, DROPPED, REPORT, KEY4, REPORT, KEY4];
+        let mut range = 0..0;
+        let mut next = || sync_events(&mut range, evs, |_| {});
+        assert_eq!(next(), (Ok(KEY4), Some(2)));
+        assert_eq!(next(), (Ok(REPORT), None));
+        assert_eq!(next(), (Err(true), Some(4)));
+        assert_eq!(next(), (Err(false), None));
+        assert_eq!(next(), (Err(false), None));
+        assert_eq!(next(), (Err(false), None));
     }
 }
