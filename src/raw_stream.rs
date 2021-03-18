@@ -5,7 +5,6 @@ use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::device_state::DeviceState;
 use crate::{nix_err, sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
@@ -36,7 +35,7 @@ fn bytes_into_string_lossy(v: Vec<u8>) -> String {
 const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
     value: 0, minimum: 0, maximum: 0, fuzz: 0, flat: 0, resolution: 0,
 };
-const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
+pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
     [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
 /// A physical or virtual device supported by evdev.
@@ -406,95 +405,51 @@ impl RawDevice {
         Ok(self.event_buf.drain(..).map(InputEvent))
     }
 
-    /// Create an empty `DeviceState`. The `{abs,key,etc}_vals` for the returned state will return
-    /// `Some` if `self.supported_events()` contains that `EventType`.
-    pub(crate) fn empty_state(&self) -> DeviceState {
-        let supports = self.supported_events();
-
-        let key_vals = if supports.contains(EventType::KEY) {
-            Some(AttributeSet::new())
-        } else {
-            None
-        };
-        let abs_vals = if supports.contains(EventType::ABSOLUTE) {
-            Some(Box::new(ABS_VALS_INIT))
-        } else {
-            None
-        };
-        let switch_vals = if supports.contains(EventType::SWITCH) {
-            Some(AttributeSet::new())
-        } else {
-            None
-        };
-        let led_vals = if supports.contains(EventType::LED) {
-            Some(AttributeSet::new())
-        } else {
-            None
-        };
-
-        DeviceState {
-            timestamp: libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
-            key_vals,
-            abs_vals,
-            switch_vals,
-            led_vals,
-        }
-    }
-
-    pub(crate) fn sync_state(&self, state: &mut DeviceState) -> io::Result<()> {
-        if let Some(ref mut key_vals) = state.key_vals {
-            self.sync_key_state(key_vals)?;
-        }
-        if let Some(ref mut abs_vals) = state.abs_vals {
-            self.sync_abs_state(abs_vals)?;
-        }
-        if let Some(ref mut switch_vals) = state.switch_vals {
-            self.sync_switch_state(switch_vals)?;
-        }
-        if let Some(ref mut led_vals) = state.led_vals {
-            self.sync_led_state(led_vals)?;
-        }
-        Ok(())
-    }
-
     /// Retrieve the current keypress state directly via kernel syscall.
+    #[inline]
     pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
         let mut key_vals = AttributeSet::new();
-        self.sync_key_state(&mut key_vals)?;
+        self.update_key_state(&mut key_vals)?;
         Ok(key_vals)
     }
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
+    #[inline]
     pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
         let mut abs_vals: [libc::input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
-        self.sync_abs_state(&mut abs_vals)?;
+        self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
+    #[inline]
     pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
         let mut switch_vals = AttributeSet::new();
-        self.sync_switch_state(&mut switch_vals)?;
+        self.update_switch_state(&mut switch_vals)?;
         Ok(switch_vals)
     }
 
     /// Retrieve the current LED state directly via kernel syscall.
+    #[inline]
     pub fn get_led_state(&self) -> io::Result<AttributeSet<LedType>> {
         let mut led_vals = AttributeSet::new();
-        self.sync_led_state(&mut led_vals)?;
+        self.update_led_state(&mut led_vals)?;
         Ok(led_vals)
     }
 
-    pub(crate) fn sync_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
+    /// Fetch the current kernel key state directly into the provided buffer.
+    /// If you don't already have a buffer, use [`get_key_state`] instead.
+    #[inline]
+    pub fn update_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
         unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()) }
             .map(|_| ())
             .map_err(nix_err)
     }
 
-    pub(crate) fn sync_abs_state(
+    /// Fetch the current kernel absolute axis state directly into the provided buffer.
+    /// If you don't already have a buffer, use [`get_abs_state`] instead.
+    #[inline]
+    pub fn update_abs_state(
         &self,
         abs_vals: &mut [libc::input_absinfo; AbsoluteAxisType::COUNT],
     ) -> io::Result<()> {
@@ -513,7 +468,10 @@ impl RawDevice {
         Ok(())
     }
 
-    pub(crate) fn sync_switch_state(
+    /// Fetch the current kernel switch state directly into the provided buffer.
+    /// If you don't already have a buffer, use [`get_switch_state`] instead.
+    #[inline]
+    pub fn update_switch_state(
         &self,
         switch_vals: &mut AttributeSet<SwitchType>,
     ) -> io::Result<()> {
@@ -522,7 +480,10 @@ impl RawDevice {
             .map_err(nix_err)
     }
 
-    pub(crate) fn sync_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
+    /// Fetch the current kernel LED state directly into the provided buffer.
+    /// If you don't already have a buffer, use [`get_led_state`] instead.
+    #[inline]
+    pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
         unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
             .map(|_| ())
             .map_err(nix_err)

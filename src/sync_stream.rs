@@ -1,9 +1,10 @@
 use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::raw_stream::RawDevice;
-use crate::{AttributeSetRef, InputEvent, InputEventKind, InputId, Key};
+use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
+use std::time::SystemTime;
 use std::{fmt, io};
 
 /// A physical or virtual device supported by evdev.
@@ -37,7 +38,7 @@ impl Device {
     fn _open(path: &Path) -> io::Result<Device> {
         let raw = RawDevice::open(path)?;
 
-        let state = raw.empty_state();
+        let state = DeviceState::new(&raw);
         let prev_state = state.clone();
 
         Ok(Device {
@@ -48,9 +49,14 @@ impl Device {
         })
     }
 
-    // TODO: Should we expose the internal inner state machine at all?
-    /// Returns the synchronization engine's current understanding of the device state.
-    fn cached_state(&self) -> &DeviceState {
+    /// Returns the synchronization engine's current understanding (cache) of the device state.
+    ///
+    /// Note that this represents the internal cache of the synchronization engine as of the last
+    /// entry that was pulled out. The advantage to calling this instead of invoking [`get_key_state`]
+    /// and the like directly is speed: because reading this cache doesn't require any syscalls it's
+    /// easy to do inside a tight loop. The downside is that if the stream is not being driven quickly,
+    /// this can very quickly get desynchronized from the kernel and provide inaccurate data.
+    pub fn cached_state(&self) -> &DeviceState {
         &self.state
     }
 
@@ -208,6 +214,43 @@ impl Device {
         self.raw.supported_sounds()
     }
 
+    /// Retrieve the current keypress state directly via kernel syscall.
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
+        self.raw.get_key_state()
+    }
+
+    /// Retrieve the current absolute axis state directly via kernel syscall.
+    pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
+        self.raw.get_abs_state()
+    }
+
+    /// Retrieve the current switch state directly via kernel syscall.
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
+        self.raw.get_switch_state()
+    }
+
+    /// Retrieve the current LED state directly via kernel syscall.
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedType>> {
+        self.raw.get_led_state()
+    }
+
+    fn sync_state(&mut self, now: SystemTime) -> io::Result<()> {
+        if let Some(ref mut key_vals) = self.state.key_vals {
+            self.raw.update_key_state(key_vals)?;
+        }
+        if let Some(ref mut abs_vals) = self.state.abs_vals {
+            self.raw.update_abs_state(abs_vals)?;
+        }
+        if let Some(ref mut switch_vals) = self.state.switch_vals {
+            self.raw.update_switch_state(switch_vals)?;
+        }
+        if let Some(ref mut led_vals) = self.state.led_vals {
+            self.raw.update_led_state(led_vals)?;
+        }
+        self.state.timestamp = now;
+        Ok(())
+    }
+
     /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
     ///
     /// By default this will block until events are available. Typically, users will want to call
@@ -217,9 +260,10 @@ impl Device {
         let block_dropped = std::mem::take(&mut self.block_dropped);
         let sync = if block_dropped {
             self.prev_state.clone_from(&self.state);
-            self.raw.sync_state(&mut self.state)?;
+            let now = SystemTime::now();
+            self.sync_state(now)?;
             Some(SyncState::Keys {
-                time: crate::systime_to_timeval(&std::time::SystemTime::now()),
+                time: crate::systime_to_timeval(&now),
                 start: Key::new(0),
             })
         } else {
