@@ -18,7 +18,7 @@ use std::{fmt, io};
 ///
 /// If `fetch_events()` isn't called often enough and the kernel drops events from its internal
 /// buffer, synthetic events will be injected into the iterator returned by `fetch_events()` and
-/// [`Device::state()`] will be kept up to date when `fetch_events()` is called.
+/// [`Device::cached_state()`] will be kept up to date when `fetch_events()` is called.
 pub struct Device {
     raw: RawDevice,
     prev_state: DeviceState,
@@ -52,7 +52,8 @@ impl Device {
     /// Returns the synchronization engine's current understanding (cache) of the device state.
     ///
     /// Note that this represents the internal cache of the synchronization engine as of the last
-    /// entry that was pulled out. The advantage to calling this instead of invoking [`get_key_state`]
+    /// entry that was pulled out. The advantage to calling this instead of invoking
+    /// [`get_key_state`](RawDevice::get_key_state)
     /// and the like directly is speed: because reading this cache doesn't require any syscalls it's
     /// easy to do inside a tight loop. The downside is that if the stream is not being driven quickly,
     /// this can very quickly get desynchronized from the kernel and provide inaccurate data.

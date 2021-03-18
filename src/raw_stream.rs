@@ -438,7 +438,8 @@ impl RawDevice {
     }
 
     /// Fetch the current kernel key state directly into the provided buffer.
-    /// If you don't already have a buffer, use [`get_key_state`] instead.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_key_state`](Self::get_key_state) instead.
     #[inline]
     pub fn update_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
         unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()) }
@@ -447,7 +448,8 @@ impl RawDevice {
     }
 
     /// Fetch the current kernel absolute axis state directly into the provided buffer.
-    /// If you don't already have a buffer, use [`get_abs_state`] instead.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_abs_state`](Self::get_abs_state) instead.
     #[inline]
     pub fn update_abs_state(
         &self,
@@ -469,7 +471,8 @@ impl RawDevice {
     }
 
     /// Fetch the current kernel switch state directly into the provided buffer.
-    /// If you don't already have a buffer, use [`get_switch_state`] instead.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_switch_state`](Self::get_switch_state) instead.
     #[inline]
     pub fn update_switch_state(
         &self,
@@ -481,7 +484,8 @@ impl RawDevice {
     }
 
     /// Fetch the current kernel LED state directly into the provided buffer.
-    /// If you don't already have a buffer, use [`get_led_state`] instead.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_led_state`](Self::get_led_state) instead.
     #[inline]
     pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
         unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
