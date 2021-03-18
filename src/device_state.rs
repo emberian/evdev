@@ -1,12 +1,12 @@
-use crate::constants::*;
+use crate::{constants::*, raw_stream::RawDevice};
 use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, Key};
 use std::time::SystemTime;
 
-/// A cached representation of device state at a certain time.
+/// A **cached** representation of device state at a certain time.
 #[derive(Debug)]
 pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
-    pub(crate) timestamp: libc::timeval,
+    pub(crate) timestamp: SystemTime,
     /// Set = key pressed
     pub(crate) key_vals: Option<AttributeSet<Key>>,
     pub(crate) abs_vals: Option<Box<[libc::input_absinfo; AbsoluteAxisType::COUNT]>>,
@@ -37,9 +37,43 @@ impl Clone for DeviceState {
 }
 
 impl DeviceState {
+    /// Create an empty `DeviceState`. The `{abs,key,etc}_vals` for the returned state will return
+    /// `Some` if `supported_events()` contains that `EventType`.
+    pub(crate) fn new(device: &RawDevice) -> Self {
+        let supports = device.supported_events();
+
+        let key_vals = if supports.contains(EventType::KEY) {
+            Some(AttributeSet::new())
+        } else {
+            None
+        };
+        let abs_vals = if supports.contains(EventType::ABSOLUTE) {
+            Some(Box::new(crate::raw_stream::ABS_VALS_INIT))
+        } else {
+            None
+        };
+        let switch_vals = if supports.contains(EventType::SWITCH) {
+            Some(AttributeSet::new())
+        } else {
+            None
+        };
+        let led_vals = if supports.contains(EventType::LED) {
+            Some(AttributeSet::new())
+        } else {
+            None
+        };
+
+        DeviceState {
+            timestamp: std::time::UNIX_EPOCH,
+            key_vals,
+            abs_vals,
+            switch_vals,
+            led_vals,
+        }
+    }
     /// Returns the time when this snapshot was taken.
     pub fn timestamp(&self) -> SystemTime {
-        crate::timeval_to_systime(&self.timestamp)
+        self.timestamp
     }
 
     /// Returns the set of keys pressed when the snapshot was taken.

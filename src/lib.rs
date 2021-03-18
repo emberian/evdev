@@ -28,20 +28,37 @@
 //! # }
 //! ```
 //!
-//! This state can be queried. For example, the [`DeviceState::led_vals`] method will tell you which
-//! LEDs are currently lit on the device. As the application reads events, this state will be
-//! updated, and it will be fully synchronized with the kernel if the stream drops any events.
+//! The evdev crate exposes functions to query the current state of a device from the kernel, as
+//! well as a function that can be called continuously to provide an iterator over update events
+//! as they arrive.
 //!
-//! As the state changes, the kernel will write events into a ring buffer. The application can read
-//! from this ring buffer, thus retrieving events. However, if the ring buffer becomes full, the
-//! kernel will *drop* every event in the ring buffer and leave an event telling userspace that it
+//! # Synchronizing versus Raw modes
+//!
+//! This library can be used in either Raw or Synchronizing modes, which correspond roughly to
+//! evdev's `LIBEVDEV_READ_FLAG_NORMAL` and `LIBEVDEV_READ_FLAG_SYNC` modes, respectively.
+//! In both modes, calling `fetch_events` and driving the resulting iterator to completion
+//! will provide a stream of real-time events from the underlying kernel device state.
+//! As the state changes, the kernel will write events into a ring buffer. If the buffer becomes full, the
+//! kernel will *drop* events from the ring buffer and leave an event telling userspace that it
 //! did so. At this point, if the application were using the events it received to update its
 //! internal idea of what state the hardware device is in, it will be wrong: it is missing some
-//! events. This library tries to ease that pain, but it is best-effort. Events can never be
-//! recovered once lost. For example, if a switch is toggled twice, there will be two switch events
-//! in the buffer. However if the kernel needs to drop events, when the device goes to synchronize
-//! state with the kernel, only one (or zero, if the switch is in the same state as it was before
-//! the sync) switch events will be emulated.
+//! events.
+//!
+//! In synchronous mode, this library tries to ease that pain by removing the corrupted events
+//! and injecting fake events as if the device had updated normally. Note that this is best-effort;
+//! events can never be recovered once lost. This synchronization comes at a performance cost: each
+//! set of input events read from the kernel in turn updates an internal state buffer, and events
+//! must be internally held back until the end of each frame. If this latency is unacceptable or
+//! for any reason you want to see every event directly, a raw stream reader is also provided.
+//!
+//! As an example of how synchronization behaves, if a switch is toggled twice there will be two switch events
+//! in the buffer. However, if the kernel needs to drop events, when the device goes to synchronize
+//! state with the kernel only one (or zero, if the switch is in the same state as it was before
+//! the sync) switch events will be visible in the stream.
+//!
+//! This cache can also be queried. For example, the [`DeviceState::led_vals`] method will tell you which
+//! LEDs are currently lit on the device. As calling code consumes each iterator, this state will be
+//! updated, and it will be fully re-synchronized with the kernel if the stream drops any events.
 //!
 //! It is recommended that you dedicate a thread to processing input events, or use epoll or an
 //! async runtime with the fd returned by `<Device as AsRawFd>::as_raw_fd` to process events when
