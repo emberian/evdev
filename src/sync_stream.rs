@@ -718,6 +718,7 @@ mod tokio_stream {
                     match res {
                         Ok(res) => {
                             self.sync = res?;
+                            self.event_range = 0..0;
                             continue 'outer;
                         }
                         Err(_would_block) => continue,
