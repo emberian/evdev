@@ -176,7 +176,7 @@ impl InputEvent {
 
     /// Create a new InputEvent with the time field set to "now" on the system clock.
     ///
-    /// Note that this isn't usally necessary simply for emitting events on a virtual device, as
+    /// Note that this isn't usually necessary simply for emitting events on a virtual device, as
     /// even though [`InputEvent::new`] creates an `input_event` with the time field as zero,
     /// the kernel will update `input_event.time` when it emits the events to any programs reading
     /// the event "file".
