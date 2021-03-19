@@ -10,7 +10,7 @@ fn main() -> std::io::Result<()> {
     keys.insert(Key::BTN_DPAD_UP);
 
     let mut device = VirtualDeviceBuilder::new()?
-        .name("Fake Keyboard")
+        .name(&"Fake Keyboard")
         .with_keys(&keys)?
         .build()
         .unwrap();
