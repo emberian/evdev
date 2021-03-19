@@ -37,7 +37,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
     }
 
     #[inline]
-    pub fn name<S: AsRef<[u8]>>(mut self, name: &'a S) -> Self {
+    pub fn name<S: AsRef<[u8]> + ?Sized>(mut self, name: &'a S) -> Self {
         self.name = name.as_ref();
         self
     }
