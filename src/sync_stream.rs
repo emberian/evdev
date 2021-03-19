@@ -252,12 +252,7 @@ impl Device {
         Ok(())
     }
 
-    /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
-    ///
-    /// By default this will block until events are available. Typically, users will want to call
-    /// this in a tight loop within a thread.
-    /// Will insert "fake" events.
-    pub fn fetch_events(&mut self) -> io::Result<FetchEventsSynced<'_>> {
+    fn fetch_events_inner(&mut self) -> io::Result<Option<SyncState>> {
         let block_dropped = std::mem::take(&mut self.block_dropped);
         let sync = if block_dropped {
             self.prev_state.clone_from(&self.state);
@@ -272,6 +267,17 @@ impl Device {
         };
 
         self.raw.fill_events()?;
+
+        Ok(sync)
+    }
+
+    /// Fetches and returns events from the kernel ring buffer, doing synchronization on SYN_DROPPED.
+    ///
+    /// By default this will block until events are available. Typically, users will want to call
+    /// this in a tight loop within a thread.
+    /// Will insert "fake" events.
+    pub fn fetch_events(&mut self) -> io::Result<FetchEventsSynced<'_>> {
+        let sync = self.fetch_events_inner()?;
 
         Ok(FetchEventsSynced {
             dev: self,
@@ -634,8 +640,8 @@ mod tokio_stream {
     use tokio_1 as tokio;
 
     use crate::nix_err;
+    use crate::raw_stream::poll_fn;
     use futures_core::{ready, Stream};
-    use std::collections::VecDeque;
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use tokio::io::unix::AsyncFd;
@@ -648,7 +654,9 @@ mod tokio_stream {
     /// inside a `Future::poll` impl.
     pub struct EventStream {
         device: AsyncFd<Device>,
-        events: VecDeque<InputEvent>,
+        event_range: std::ops::Range<usize>,
+        consumed_to: usize,
+        sync: Option<SyncState>,
     }
     impl Unpin for EventStream {}
 
@@ -660,7 +668,9 @@ mod tokio_stream {
             let device = AsyncFd::new(device)?;
             Ok(Self {
                 device,
-                events: VecDeque::new(),
+                event_range: 0..0,
+                consumed_to: 0,
+                sync: None,
             })
         }
 
@@ -677,29 +687,41 @@ mod tokio_stream {
 
         /// A lower-level function for directly polling this stream.
         pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
-            let Self { device, events } = self;
-
-            if let Some(ev) = events.pop_front() {
-                return Poll::Ready(Ok(ev));
-            }
-
-            loop {
-                let mut guard = ready!(device.poll_read_ready_mut(cx))?;
-
-                let res = guard.try_io(|device| {
-                    events.extend(device.get_mut().fetch_events()?);
-                    Ok(())
-                });
+            'outer: loop {
+                let dev = self.device.get_mut();
+                if let Some(ev) = compensate_events(&mut self.sync, dev) {
+                    return Poll::Ready(Ok(ev));
+                }
+                let state = &mut dev.state;
+                let (res, consumed_to) =
+                    sync_events(&mut self.event_range, &dev.raw.event_buf, |ev| {
+                        state.process_event(ev)
+                    });
+                if let Some(end) = consumed_to {
+                    self.consumed_to = end
+                }
                 match res {
-                    Ok(res) => {
-                        let () = res?;
-                        let ret = match events.pop_front() {
-                            Some(ev) => Poll::Ready(Ok(ev)),
-                            None => Poll::Pending,
-                        };
-                        return ret;
+                    Ok(ev) => return Poll::Ready(Ok(InputEvent(ev))),
+                    Err(requires_sync) => {
+                        if requires_sync {
+                            dev.block_dropped = true;
+                        }
                     }
-                    Err(_would_block) => continue,
+                }
+                dev.raw.event_buf.drain(..self.consumed_to);
+                self.consumed_to = 0;
+
+                loop {
+                    let mut guard = ready!(self.device.poll_read_ready_mut(cx))?;
+
+                    let res = guard.try_io(|device| device.get_mut().fetch_events_inner());
+                    match res {
+                        Ok(res) => {
+                            self.sync = res?;
+                            continue 'outer;
+                        }
+                        Err(_would_block) => continue,
+                    }
                 }
             }
         }
@@ -709,18 +731,6 @@ mod tokio_stream {
         type Item = io::Result<InputEvent>;
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
-        }
-    }
-
-    // version of futures_util::future::poll_fn
-    fn poll_fn<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin>(f: F) -> PollFn<F> {
-        PollFn(f)
-    }
-    struct PollFn<F>(F);
-    impl<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin> std::future::Future for PollFn<F> {
-        type Output = T;
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
-            (self.get_mut().0)(cx)
         }
     }
 }
