@@ -1,23 +1,10 @@
-// Similar to the evtest tool.
+//! Similar to the evtest tool.
 
-use std::io::prelude::*;
+// cli/"tui" shared between the evtest examples
+mod _pick_device;
 
 fn main() {
-    let mut args = std::env::args_os();
-    let mut d = if args.len() > 1 {
-        evdev::Device::open(&args.nth(1).unwrap()).unwrap()
-    } else {
-        let devices = evdev::enumerate().collect::<Vec<_>>();
-        for (i, d) in devices.iter().enumerate() {
-            println!("{}: {}", i, d.name().unwrap_or("Unnamed device"));
-        }
-        print!("Select the device [0-{}]: ", devices.len());
-        let _ = std::io::stdout().flush();
-        let mut chosen = String::new();
-        std::io::stdin().read_line(&mut chosen).unwrap();
-        let n = chosen.trim().parse::<usize>().unwrap();
-        devices.into_iter().nth(n).unwrap()
-    };
+    let mut d = _pick_device::pick_device();
     println!("{}", d);
     println!("Events:");
     loop {

@@ -9,24 +9,13 @@ use nix::{
     fcntl::{FcntlArg, OFlag},
     sys::epoll,
 };
-use std::io::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
 
+// cli/"tui" shared between the evtest examples
+mod _pick_device;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args_os();
-    let mut d = if args.len() > 1 {
-        evdev::Device::open(&args.nth(1).unwrap()).unwrap()
-    } else {
-        let mut devices = evdev::enumerate().collect::<Vec<_>>();
-        for (i, d) in devices.iter().enumerate() {
-            println!("{}: {}", i, d.name().unwrap_or("Unnamed device"));
-        }
-        print!("Select the device [0-{}]: ", devices.len());
-        let _ = std::io::stdout().flush();
-        let mut chosen = String::new();
-        std::io::stdin().read_line(&mut chosen).unwrap();
-        devices.swap_remove(chosen.trim().parse::<usize>().unwrap())
-    };
+    let mut d = _pick_device::pick_device();
     println!("{}", d);
 
     let raw_fd = d.as_raw_fd();

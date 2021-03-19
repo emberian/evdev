@@ -16,7 +16,7 @@ impl Key {
         self.0
     }
 
-    pub(crate) const COUNT: usize = 0x300;
+    pub(crate) const COUNT: usize = libc::KEY_CNT;
 }
 
 const fn bit_elts<T>(bits: usize) -> usize {

@@ -382,10 +382,10 @@ impl RawDevice {
 
         // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
         let spare_capacity = vec_spare_capacity_mut(&mut self.event_buf);
-        let (_, uninit_buf, _) = unsafe { spare_capacity.align_to_mut::<mem::MaybeUninit<u8>>() };
+        let spare_capacity_size = std::mem::size_of_val(spare_capacity);
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
-        let res = unsafe { libc::read(fd, uninit_buf.as_mut_ptr() as _, uninit_buf.len()) };
+        let res = unsafe { libc::read(fd, spare_capacity.as_mut_ptr() as _, spare_capacity_size) };
         let bytes_read = nix::errno::Errno::result(res).map_err(nix_err)?;
         let num_read = bytes_read as usize / mem::size_of::<libc::input_event>();
         unsafe {

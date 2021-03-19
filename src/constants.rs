@@ -43,7 +43,7 @@ evdev_enum!(
 );
 
 impl EventType {
-    pub(crate) const COUNT: usize = 0x20;
+    pub(crate) const COUNT: usize = libc::EV_CNT;
 }
 
 /// A "synchronization" message type published by the kernel into the events stream.
@@ -87,7 +87,7 @@ evdev_enum!(
 );
 
 impl PropType {
-    pub(crate) const COUNT: usize = 0x20;
+    pub(crate) const COUNT: usize = libc::INPUT_PROP_CNT;
 }
 
 /// A type of relative axis measurement, typically produced by mice.
@@ -113,7 +113,7 @@ evdev_enum!(
 );
 
 impl RelativeAxisType {
-    pub(crate) const COUNT: usize = 0x10;
+    pub(crate) const COUNT: usize = libc::REL_CNT;
 }
 
 /// A type of absolute axis measurement, typically used for touch events and joysticks.
@@ -182,7 +182,7 @@ evdev_enum!(
 );
 
 impl AbsoluteAxisType {
-    pub(crate) const COUNT: usize = 0x40;
+    pub(crate) const COUNT: usize = libc::ABS_CNT;
 }
 
 /// An event type corresponding to a physical or virtual switch.
@@ -229,7 +229,7 @@ evdev_enum!(
 );
 
 impl SwitchType {
-    pub(crate) const COUNT: usize = 0x11;
+    pub(crate) const COUNT: usize = libc::SW_CNT;
 }
 
 /// LEDs specified by USB HID.
@@ -257,7 +257,7 @@ evdev_enum!(
 );
 
 impl LedType {
-    pub(crate) const COUNT: usize = 0x10;
+    pub(crate) const COUNT: usize = libc::LED_CNT;
 }
 
 /// Various miscellaneous event types.
@@ -282,7 +282,7 @@ evdev_enum!(
 );
 
 impl MiscType {
-    pub(crate) const COUNT: usize = 0x08;
+    pub(crate) const COUNT: usize = libc::MSC_CNT;
 }
 
 // pub enum FFStatusDataIndex {
@@ -312,7 +312,7 @@ impl MiscType {
 
 // impl FFEffect {
 //     // Needs to be a multiple of 8
-//     pub const COUNT: usize = 0x80;
+//     pub const COUNT: usize = libc::FF_CNT;
 // }
 
 // #[derive(Copy, Clone, PartialEq, Eq)]
@@ -321,7 +321,7 @@ impl MiscType {
 // evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
 // impl RepeatType {
-//     pub(crate) const COUNT: usize = 0x02;
+//     pub(crate) const COUNT: usize = libc::REP_CNT;
 // }
 
 /// A type associated with simple sounds, such as beeps or tones.
@@ -337,5 +337,5 @@ evdev_enum!(
 );
 
 impl SoundType {
-    pub(crate) const COUNT: usize = 0x08;
+    pub(crate) const COUNT: usize = libc::SND_CNT;
 }
