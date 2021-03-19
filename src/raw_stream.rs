@@ -492,6 +492,12 @@ impl RawDevice {
             .map(|_| ())
             .map_err(nix_err)
     }
+
+    #[cfg(feature = "tokio")]
+    #[inline]
+    pub fn into_event_stream(self) -> io::Result<EventStream> {
+        EventStream::new(self)
+    }
 }
 
 impl AsRawFd for RawDevice {
@@ -511,3 +517,96 @@ fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
         )
     }
 }
+
+#[cfg(feature = "tokio")]
+mod tokio_stream {
+    use super::*;
+
+    use tokio_1 as tokio;
+
+    use futures_core::{ready, Stream};
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::unix::AsyncFd;
+
+    /// An asynchronous stream of input events.
+    ///
+    /// This can be used by calling [`stream.next_event().await?`](Self::next_event), or if you
+    /// need to pass it as a stream somewhere, the [`futures::Stream`](Stream) implementation.
+    /// There's also a lower-level [`poll_event`] function if you need to fetch an event from
+    /// inside a `Future::poll` impl.
+    pub struct EventStream {
+        device: AsyncFd<RawDevice>,
+        index: usize,
+    }
+    impl Unpin for EventStream {}
+
+    impl EventStream {
+        pub(crate) fn new(device: RawDevice) -> io::Result<Self> {
+            use nix::fcntl;
+            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))
+                .map_err(nix_err)?;
+            let device = AsyncFd::new(device)?;
+            Ok(Self { device, index: 0 })
+        }
+
+        /// Returns a reference to the underlying device
+        pub fn device(&self) -> &RawDevice {
+            self.device.get_ref()
+        }
+
+        /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
+        /// any calls afterwards will likely error as well.
+        pub async fn next_event(&mut self) -> io::Result<InputEvent> {
+            poll_fn(|cx| self.poll_event(cx)).await
+        }
+
+        /// A lower-level function for directly polling this stream.
+        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
+            'outer: loop {
+                if let Some(&ev) = self.device.get_ref().event_buf.get(self.index) {
+                    self.index += 1;
+                    return Poll::Ready(Ok(InputEvent(ev)));
+                }
+
+                self.device.get_mut().event_buf.clear();
+
+                loop {
+                    let mut guard = ready!(self.device.poll_read_ready_mut(cx))?;
+
+                    let res = guard.try_io(|device| device.get_mut().fill_events());
+                    match res {
+                        Ok(res) => {
+                            let _ = res?;
+                            continue 'outer;
+                        }
+                        Err(_would_block) => continue,
+                    }
+                }
+            }
+        }
+    }
+
+    impl Stream for EventStream {
+        type Item = io::Result<InputEvent>;
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            self.get_mut().poll_event(cx).map(Some)
+        }
+    }
+
+    // version of futures_util::future::poll_fn
+    pub(crate) fn poll_fn<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin>(f: F) -> PollFn<F> {
+        PollFn(f)
+    }
+    pub(crate) struct PollFn<F>(F);
+    impl<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin> std::future::Future for PollFn<F> {
+        type Output = T;
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
+            (self.get_mut().0)(cx)
+        }
+    }
+}
+#[cfg(feature = "tokio")]
+pub(crate) use tokio_stream::poll_fn;
+#[cfg(feature = "tokio")]
+pub use tokio_stream::EventStream;
