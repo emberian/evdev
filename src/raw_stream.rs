@@ -518,6 +518,38 @@ fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
     }
 }
 
+/// Crawls `/dev/input` for evdev devices.
+///
+/// Will not bubble up any errors in opening devices or traversing the directory. Instead returns
+/// an empty iterator or omits the devices that could not be opened.
+pub fn enumerate() -> EnumerateDevices {
+    EnumerateDevices {
+        readdir: std::fs::read_dir("/dev/input").ok(),
+    }
+}
+
+pub struct EnumerateDevices {
+    readdir: Option<std::fs::ReadDir>,
+}
+impl Iterator for EnumerateDevices {
+    type Item = RawDevice;
+    fn next(&mut self) -> Option<RawDevice> {
+        use std::os::unix::ffi::OsStrExt;
+        let readdir = self.readdir.as_mut()?;
+        loop {
+            if let Ok(entry) = readdir.next()? {
+                let path = entry.path();
+                let fname = path.file_name().unwrap();
+                if fname.as_bytes().starts_with(b"event") {
+                    if let Ok(dev) = RawDevice::open(&path) {
+                        return Some(dev);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(feature = "tokio")]
 mod tokio_stream {
     use super::*;

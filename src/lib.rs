@@ -86,7 +86,6 @@ pub mod uinput;
 #[cfg(feature = "tokio")]
 mod tokio_stream;
 
-use std::os::unix::ffi::OsStrExt;
 use std::time::{Duration, SystemTime};
 use std::{fmt, io};
 
@@ -241,28 +240,17 @@ impl fmt::Debug for InputEvent {
 /// an empty iterator or omits the devices that could not be opened.
 pub fn enumerate() -> EnumerateDevices {
     EnumerateDevices {
-        readdir: std::fs::read_dir("/dev/input").ok(),
+        inner: raw_stream::enumerate(),
     }
 }
 
 pub struct EnumerateDevices {
-    readdir: Option<std::fs::ReadDir>,
+    inner: raw_stream::EnumerateDevices,
 }
 impl Iterator for EnumerateDevices {
     type Item = Device;
     fn next(&mut self) -> Option<Device> {
-        let readdir = self.readdir.as_mut()?;
-        loop {
-            if let Ok(entry) = readdir.next()? {
-                let path = entry.path();
-                let fname = path.file_name().unwrap();
-                if fname.as_bytes().starts_with(b"event") {
-                    if let Ok(dev) = Device::open(&path) {
-                        return Some(dev);
-                    }
-                }
-            }
-        }
+        self.inner.next().map(Device::from_raw_device)
     }
 }
 
