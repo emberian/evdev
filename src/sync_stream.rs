@@ -35,18 +35,22 @@ impl Device {
         Self::_open(path.as_ref())
     }
 
+    #[inline]
     fn _open(path: &Path) -> io::Result<Device> {
-        let raw = RawDevice::open(path)?;
+        RawDevice::open(path).map(Self::from_raw_device)
+    }
 
+    // TODO: should this be public?
+    pub(crate) fn from_raw_device(raw: RawDevice) -> Device {
         let state = DeviceState::new(&raw);
         let prev_state = state.clone();
 
-        Ok(Device {
+        Device {
             raw,
             prev_state,
             state,
             block_dropped: false,
-        })
+        }
     }
 
     /// Returns the synchronization engine's current understanding (cache) of the device state.
