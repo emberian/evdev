@@ -602,6 +602,7 @@ mod tokio_stream {
                 }
 
                 self.device.get_mut().event_buf.clear();
+                self.index = 0;
 
                 loop {
                     let mut guard = ready!(self.device.poll_read_ready_mut(cx))?;
