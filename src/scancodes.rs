@@ -555,3 +555,11 @@ evdev_enum!(
     BTN_TRIGGER_HAPPY39 = 0x2e6,
     BTN_TRIGGER_HAPPY40 = 0x2e7,
 );
+
+#[test]
+fn from_str() {
+    use std::str::FromStr;
+
+    assert_eq!(Key::from_str("KEY_A"), Ok(Key::KEY_A));
+    assert!(Key::from_str("KEY_FOOBAR").is_err());
+}

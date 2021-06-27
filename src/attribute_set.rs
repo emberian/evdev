@@ -182,6 +182,20 @@ macro_rules! evdev_enum {
         impl $t {
             $($(#[$attr])* pub const $c: Self = Self($val);)*
         }
+        impl std::str::FromStr for $t {
+            type Err = crate::EnumParseError;
+
+            fn from_str(s: &str) ->  Result<Self, Self::Err> {
+                let map: &[(&'static str, $t)] = &[
+                    $((stringify!($c), Self::$c),)*
+                ];
+
+                match map.iter().find(|e| e.0 == s) {
+                    Some(e) => Ok(e.1),
+                    None => Err(crate::EnumParseError(())),
+                }
+            }
+        }
         impl std::fmt::Debug for $t {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 match *self {
