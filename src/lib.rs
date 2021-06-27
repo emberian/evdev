@@ -290,3 +290,6 @@ pub(crate) fn nix_err(err: nix::Error) -> io::Error {
 pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
     std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumParseError(());
