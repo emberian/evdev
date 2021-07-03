@@ -59,11 +59,18 @@ pub struct RawDevice {
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
+    auto_repeat: Option<AutoRepeat>,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
-    // rep: Option<Repeat>,
     supported_snd: Option<AttributeSet<SoundType>>,
     pub(crate) event_buf: Vec<libc::input_event>,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct AutoRepeat {
+    pub delay: u32,
+    pub period: u32,
 }
 
 impl RawDevice {
@@ -198,6 +205,25 @@ impl RawDevice {
             None
         };
 
+        let auto_repeat = if ty.contains(EventType::REPEAT) {
+            let mut auto_repeat: AutoRepeat = AutoRepeat {
+                delay: 0,
+                period: 0,
+            };
+
+            unsafe {
+                sys::eviocgrep(
+                    file.as_raw_fd(),
+                    &mut auto_repeat as *mut AutoRepeat as *mut [u32; 2],
+                )
+                .map_err(nix_err)?
+            };
+
+            Some(auto_repeat)
+        } else {
+            None
+        };
+
         Ok(RawDevice {
             file,
             ty,
@@ -214,6 +240,7 @@ impl RawDevice {
             supported_led,
             supported_misc,
             supported_snd,
+            auto_repeat,
             event_buf: Vec::new(),
         })
     }
@@ -236,6 +263,11 @@ impl RawDevice {
     /// Returns a struct containing bustype, vendor, product, and version identifiers
     pub fn input_id(&self) -> InputId {
         InputId::from(self.id)
+    }
+
+    /// Returns the current auto repeat settings
+    pub fn get_auto_repeat(&self) -> Option<AutoRepeat> {
+        self.auto_repeat.clone()
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
@@ -359,10 +391,6 @@ impl RawDevice {
     pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.supported_misc.as_deref()
     }
-
-    // pub fn supported_repeats(&self) -> Option<Repeat> {
-    //     self.rep
-    // }
 
     /// Returns the set of supported simple sounds supported by a device.
     ///
@@ -491,6 +519,21 @@ impl RawDevice {
         unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
             .map(|_| ())
             .map_err(nix_err)
+    }
+
+    /// Update the auto repeat delays
+    #[inline]
+    pub fn update_auto_repeat(&mut self, repeat: &AutoRepeat) -> io::Result<()> {
+        unsafe {
+            sys::eviocsrep(
+                self.as_raw_fd(),
+                repeat as *const AutoRepeat as *const [u32; 2],
+            )
+        }
+        .map(|_| {
+            self.auto_repeat = Some(repeat.clone());
+        })
+        .map_err(nix_err)
     }
 
     #[cfg(feature = "tokio")]

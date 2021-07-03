@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::raw_stream::RawDevice;
-use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, InputId, Key};
+use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
@@ -83,6 +83,16 @@ impl Device {
     /// Returns a struct containing bustype, vendor, product, and version identifiers
     pub fn input_id(&self) -> InputId {
         self.raw.input_id()
+    }
+
+    /// Returns a struct containing the delay and period for auto repeat
+    pub fn get_auto_repeat(&self) -> Option<AutoRepeat> {
+        self.raw.get_auto_repeat()
+    }
+
+    /// Update the delay and period for autorepeat
+    pub fn update_auto_repeat(&mut self, repeat: &AutoRepeat) -> io::Result<()> {
+        self.raw.update_auto_repeat(repeat)
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
@@ -206,10 +216,6 @@ impl Device {
     pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.raw.misc_properties()
     }
-
-    // pub fn supported_repeats(&self) -> Option<Repeat> {
-    //     self.rep
-    // }
 
     /// Returns the set of supported simple sounds supported by a device.
     ///
