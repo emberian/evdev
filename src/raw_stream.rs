@@ -38,6 +38,8 @@ const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
 pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
     [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
+const INPUT_KEYMAP_BY_INDEX: u8 = 1;
+
 /// A physical or virtual device supported by evdev.
 ///
 /// Each device corresponds to a path typically found in `/dev/input`, and supports access via
@@ -534,6 +536,84 @@ impl RawDevice {
             self.auto_repeat = Some(repeat.clone());
         })
         .map_err(nix_err)
+    }
+
+    /// Retrieve the scancode for a keycode, if any
+    pub fn get_scancode_by_keycode(&self, keycode: u32) -> io::Result<Vec<u8>> {
+        let mut keymap = libc::input_keymap_entry {
+            flags: 0,
+            len: 0,
+            index: 0,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
+            .map(|_| keymap.scancode[..keymap.len as usize].to_vec())
+            .map_err(nix_err)
+    }
+
+    /// Retrieve the keycode and scancode by index, starting at 0
+    pub fn get_scancode_by_index(&self, index: u16) -> io::Result<(u32, Vec<u8>)> {
+        let mut keymap = libc::input_keymap_entry {
+            flags: INPUT_KEYMAP_BY_INDEX,
+            len: 0,
+            index,
+            keycode: 0,
+            scancode: [0u8; 32],
+        };
+
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
+            .map(|_| {
+                (
+                    keymap.keycode,
+                    keymap.scancode[..keymap.len as usize].to_vec(),
+                )
+            })
+            .map_err(nix_err)
+    }
+
+    /// Update a scancode by index. The return value is the previous keycode
+    pub fn update_scancode_by_index(
+        &self,
+        index: u16,
+        keycode: u32,
+        scancode: &[u8],
+    ) -> io::Result<u32> {
+        let len = scancode.len();
+
+        let mut keymap = libc::input_keymap_entry {
+            flags: INPUT_KEYMAP_BY_INDEX,
+            len: len as u8,
+            index,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        keymap.scancode[..len].copy_from_slice(scancode);
+
+        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
+            .map(|keycode| keycode as u32)
+            .map_err(nix_err)
+    }
+
+    /// Update a scancode. The return value is the previous keycode
+    pub fn update_scancode(&self, keycode: u32, scancode: &[u8]) -> io::Result<u32> {
+        let len = scancode.len();
+
+        let mut keymap = libc::input_keymap_entry {
+            flags: 0,
+            len: len as u8,
+            index: 0,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        keymap.scancode[..len].copy_from_slice(scancode);
+
+        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
+            .map(|keycode| keycode as u32)
+            .map_err(nix_err)
     }
 
     #[cfg(feature = "tokio")]

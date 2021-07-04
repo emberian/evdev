@@ -95,6 +95,34 @@ impl Device {
         self.raw.update_auto_repeat(repeat)
     }
 
+    /// Retrieve the scancode for a keycode, if any
+    pub fn get_scancode_by_keycode(&self, keycode: Key) -> io::Result<Vec<u8>> {
+        self.raw.get_scancode_by_keycode(keycode.code() as u32)
+    }
+
+    /// Retrieve the keycode and scancode by index, starting at 0
+    pub fn get_scancode_by_index(&self, index: u16) -> io::Result<(u32, Vec<u8>)> {
+        self.raw.get_scancode_by_index(index)
+    }
+
+    /// Update a scancode. The return value is the previous keycode
+    pub fn update_scancode(&self, keycode: Key, scancode: &[u8]) -> io::Result<Key> {
+        self.raw
+            .update_scancode(keycode.code() as u32, scancode)
+            .map(|keycode| Key::new(keycode as u16))
+    }
+
+    /// Update a scancode by index. The return value is the previous keycode
+    pub fn update_scancode_by_index(
+        &self,
+        index: u16,
+        keycode: Key,
+        scancode: &[u8],
+    ) -> io::Result<u32> {
+        self.raw
+            .update_scancode_by_index(index, keycode.code() as u32, scancode)
+    }
+
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
     pub fn properties(&self) -> &AttributeSetRef<PropType> {
         self.raw.properties()

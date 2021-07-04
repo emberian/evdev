@@ -1,5 +1,5 @@
 use libc::c_int;
-use libc::{ff_effect, input_absinfo, input_id, uinput_setup};
+use libc::{ff_effect, input_absinfo, input_id, input_keymap_entry, uinput_setup};
 // use libc::{
 //     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
 //     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
@@ -15,10 +15,11 @@ ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);
 ioctl_read!(eviocgrep, b'E', 0x03, [::libc::c_uint; 2]);
 ioctl_read!(eviocgversion, b'E', 0x01, ::libc::c_int);
 ioctl_write_int!(eviocrmff, b'E', 0x81);
-// ioctl!(read eviocgkeycode_v2 with b'E', 0x04; /*struct*/ input_keymap_entry);
+
+ioctl_read!(eviocgkeycode_v2, b'E', 0x04, input_keymap_entry);
 // TODO #define EVIOCSFF _IOC ( _IOC_WRITE , 'E' , 0x80 , sizeof ( struct ff_effect ) )
 ioctl_write_ptr!(eviocskeycode, b'E', 0x04, [::libc::c_uint; 2]);
-// ioctl!(write_int eviocskeycode_v2 with b'E', 0x04; /*struct*/ input_keymap_entry);
+ioctl_write_ptr!(eviocskeycode_v2, b'E', 0x04, input_keymap_entry);
 ioctl_write_ptr!(eviocsrep, b'E', 0x03, [::libc::c_uint; 2]);
 
 ioctl_read_buf!(eviocgname, b'E', 0x06, u8);
