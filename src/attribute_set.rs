@@ -198,6 +198,7 @@ macro_rules! evdev_enum {
         }
         impl std::fmt::Debug for $t {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                #[allow(unreachable_patterns)]
                 match *self {
                     $(Self::$c => f.pad(stringify!($c)),)*
                     _ => write!(f, "unknown key: {}", self.0),
