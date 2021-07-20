@@ -94,6 +94,7 @@ pub use attribute_set::{AttributeSet, AttributeSetRef};
 pub use constants::*;
 pub use device_state::DeviceState;
 pub use inputid::*;
+pub use raw_stream::AutoRepeat;
 pub use scancodes::*;
 pub use sync_stream::*;
 

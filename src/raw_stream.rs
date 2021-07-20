@@ -38,6 +38,8 @@ const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
 pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
     [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
+const INPUT_KEYMAP_BY_INDEX: u8 = 1;
+
 /// A physical or virtual device supported by evdev.
 ///
 /// Each device corresponds to a path typically found in `/dev/input`, and supports access via
@@ -59,11 +61,18 @@ pub struct RawDevice {
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
+    auto_repeat: Option<AutoRepeat>,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
-    // rep: Option<Repeat>,
     supported_snd: Option<AttributeSet<SoundType>>,
     pub(crate) event_buf: Vec<libc::input_event>,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct AutoRepeat {
+    pub delay: u32,
+    pub period: u32,
 }
 
 impl RawDevice {
@@ -198,6 +207,25 @@ impl RawDevice {
             None
         };
 
+        let auto_repeat = if ty.contains(EventType::REPEAT) {
+            let mut auto_repeat: AutoRepeat = AutoRepeat {
+                delay: 0,
+                period: 0,
+            };
+
+            unsafe {
+                sys::eviocgrep(
+                    file.as_raw_fd(),
+                    &mut auto_repeat as *mut AutoRepeat as *mut [u32; 2],
+                )
+                .map_err(nix_err)?
+            };
+
+            Some(auto_repeat)
+        } else {
+            None
+        };
+
         Ok(RawDevice {
             file,
             ty,
@@ -214,6 +242,7 @@ impl RawDevice {
             supported_led,
             supported_misc,
             supported_snd,
+            auto_repeat,
             event_buf: Vec::new(),
         })
     }
@@ -236,6 +265,11 @@ impl RawDevice {
     /// Returns a struct containing bustype, vendor, product, and version identifiers
     pub fn input_id(&self) -> InputId {
         InputId::from(self.id)
+    }
+
+    /// Returns the current auto repeat settings
+    pub fn get_auto_repeat(&self) -> Option<AutoRepeat> {
+        self.auto_repeat.clone()
     }
 
     /// Returns the set of supported "properties" for the device (see `INPUT_PROP_*` in kernel headers)
@@ -359,10 +393,6 @@ impl RawDevice {
     pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.supported_misc.as_deref()
     }
-
-    // pub fn supported_repeats(&self) -> Option<Repeat> {
-    //     self.rep
-    // }
 
     /// Returns the set of supported simple sounds supported by a device.
     ///
@@ -490,6 +520,99 @@ impl RawDevice {
     pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
         unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
             .map(|_| ())
+            .map_err(nix_err)
+    }
+
+    /// Update the auto repeat delays
+    #[inline]
+    pub fn update_auto_repeat(&mut self, repeat: &AutoRepeat) -> io::Result<()> {
+        unsafe {
+            sys::eviocsrep(
+                self.as_raw_fd(),
+                repeat as *const AutoRepeat as *const [u32; 2],
+            )
+        }
+        .map(|_| {
+            self.auto_repeat = Some(repeat.clone());
+        })
+        .map_err(nix_err)
+    }
+
+    /// Retrieve the scancode for a keycode, if any
+    pub fn get_scancode_by_keycode(&self, keycode: u32) -> io::Result<Vec<u8>> {
+        let mut keymap = libc::input_keymap_entry {
+            flags: 0,
+            len: 0,
+            index: 0,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
+            .map(|_| keymap.scancode[..keymap.len as usize].to_vec())
+            .map_err(nix_err)
+    }
+
+    /// Retrieve the keycode and scancode by index, starting at 0
+    pub fn get_scancode_by_index(&self, index: u16) -> io::Result<(u32, Vec<u8>)> {
+        let mut keymap = libc::input_keymap_entry {
+            flags: INPUT_KEYMAP_BY_INDEX,
+            len: 0,
+            index,
+            keycode: 0,
+            scancode: [0u8; 32],
+        };
+
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
+            .map(|_| {
+                (
+                    keymap.keycode,
+                    keymap.scancode[..keymap.len as usize].to_vec(),
+                )
+            })
+            .map_err(nix_err)
+    }
+
+    /// Update a scancode by index. The return value is the previous keycode
+    pub fn update_scancode_by_index(
+        &self,
+        index: u16,
+        keycode: u32,
+        scancode: &[u8],
+    ) -> io::Result<u32> {
+        let len = scancode.len();
+
+        let mut keymap = libc::input_keymap_entry {
+            flags: INPUT_KEYMAP_BY_INDEX,
+            len: len as u8,
+            index,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        keymap.scancode[..len].copy_from_slice(scancode);
+
+        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
+            .map(|keycode| keycode as u32)
+            .map_err(nix_err)
+    }
+
+    /// Update a scancode. The return value is the previous keycode
+    pub fn update_scancode(&self, keycode: u32, scancode: &[u8]) -> io::Result<u32> {
+        let len = scancode.len();
+
+        let mut keymap = libc::input_keymap_entry {
+            flags: 0,
+            len: len as u8,
+            index: 0,
+            keycode,
+            scancode: [0u8; 32],
+        };
+
+        keymap.scancode[..len].copy_from_slice(scancode);
+
+        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
+            .map(|keycode| keycode as u32)
             .map_err(nix_err)
     }
 
