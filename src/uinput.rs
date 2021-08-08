@@ -4,7 +4,7 @@
 
 use crate::constants::EventType;
 use crate::inputid::{BusType, InputId};
-use crate::{nix_err, sys, AttributeSetRef, InputEvent, Key, RelativeAxisType};
+use crate::{nix_err, sys, AttributeSetRef, InputEvent, Key, RelativeAxisType, SwitchType};
 use libc::O_NONBLOCK;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -83,6 +83,28 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in axes.iter() {
             unsafe {
                 sys::ui_set_relbit(
+                    self.file.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )
+            }
+            .map_err(nix_err)?;
+        }
+
+        Ok(self)
+    }
+
+    pub fn with_switches(self, switches: &AttributeSetRef<SwitchType>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.file.as_raw_fd(),
+                crate::EventType::SWITCH.0 as nix::sys::ioctl::ioctl_param_type,
+            )
+        }
+        .map_err(nix_err)?;
+
+        for bit in switches.iter() {
+            unsafe {
+                sys::ui_set_swbit(
                     self.file.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )
