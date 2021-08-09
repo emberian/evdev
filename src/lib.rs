@@ -86,8 +86,8 @@ pub mod uinput;
 #[cfg(feature = "tokio")]
 mod tokio_stream;
 
+use std::fmt;
 use std::time::{Duration, SystemTime};
-use std::{fmt, io};
 
 // pub use crate::constants::FFEffect::*;
 pub use attribute_set::{AttributeSet, AttributeSetRef};
@@ -274,16 +274,6 @@ fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
         SystemTime::UNIX_EPOCH + dur
     } else {
         SystemTime::UNIX_EPOCH - dur
-    }
-}
-
-pub(crate) fn nix_err(err: nix::Error) -> io::Error {
-    match err {
-        nix::Error::Sys(errno) => io::Error::from_raw_os_error(errno as i32),
-        nix::Error::InvalidPath => io::Error::new(io::ErrorKind::InvalidInput, err),
-        nix::Error::InvalidUtf8 => io::Error::new(io::ErrorKind::Other, err),
-        // TODO: io::ErrorKind::NotSupported once stable
-        nix::Error::UnsupportedOperation => io::Error::new(io::ErrorKind::Other, err),
     }
 }
 

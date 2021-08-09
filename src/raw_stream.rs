@@ -5,7 +5,7 @@ use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{nix_err, sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
+use crate::{sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -96,9 +96,7 @@ impl RawDevice {
 
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
-            unsafe {
-                sys::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
             ty
         };
 
@@ -111,12 +109,12 @@ impl RawDevice {
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
-            sys::eviocgid(file.as_raw_fd(), id.as_mut_ptr()).map_err(nix_err)?;
+            sys::eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
             id.assume_init()
         };
         let mut driver_version: i32 = 0;
         unsafe {
-            sys::eviocgversion(file.as_raw_fd(), &mut driver_version).map_err(nix_err)?;
+            sys::eviocgversion(file.as_raw_fd(), &mut driver_version)?;
         }
         let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -126,17 +124,13 @@ impl RawDevice {
 
         let props = {
             let mut props = AttributeSet::<PropType>::new();
-            unsafe {
-                sys::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
             props
         }; // FIXME: handle old kernel
 
         let supported_keys = if ty.contains(EventType::KEY) {
             let mut keys = AttributeSet::<Key>::new();
-            unsafe {
-                sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice())? };
             Some(keys)
         } else {
             None
@@ -144,10 +138,7 @@ impl RawDevice {
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
             let mut rel = AttributeSet::<RelativeAxisType>::new();
-            unsafe {
-                sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())
-                    .map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
             None
@@ -155,10 +146,7 @@ impl RawDevice {
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
             let mut abs = AttributeSet::<AbsoluteAxisType>::new();
-            unsafe {
-                sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())
-                    .map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
             None
@@ -166,10 +154,7 @@ impl RawDevice {
 
         let supported_switch = if ty.contains(EventType::SWITCH) {
             let mut switch = AttributeSet::<SwitchType>::new();
-            unsafe {
-                sys::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())
-                    .map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
             Some(switch)
         } else {
             None
@@ -177,9 +162,7 @@ impl RawDevice {
 
         let supported_led = if ty.contains(EventType::LED) {
             let mut led = AttributeSet::<LedType>::new();
-            unsafe {
-                sys::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
             Some(led)
         } else {
             None
@@ -187,9 +170,7 @@ impl RawDevice {
 
         let supported_misc = if ty.contains(EventType::MISC) {
             let mut misc = AttributeSet::<MiscType>::new();
-            unsafe {
-                sys::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
             Some(misc)
         } else {
             None
@@ -199,9 +180,7 @@ impl RawDevice {
 
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
-            unsafe {
-                sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice()).map_err(nix_err)?
-            };
+            unsafe { sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
             Some(snd)
         } else {
             None
@@ -217,9 +196,8 @@ impl RawDevice {
                 sys::eviocgrep(
                     file.as_raw_fd(),
                     &mut auto_repeat as *mut AutoRepeat as *mut [u32; 2],
-                )
-                .map_err(nix_err)?
-            };
+                )?;
+            }
 
             Some(auto_repeat)
         } else {
@@ -416,7 +394,7 @@ impl RawDevice {
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, spare_capacity.as_mut_ptr() as _, spare_capacity_size) };
-        let bytes_read = nix::errno::Errno::result(res).map_err(nix_err)?;
+        let bytes_read = nix::errno::Errno::result(res)?;
         let num_read = bytes_read as usize / mem::size_of::<libc::input_event>();
         unsafe {
             let len = self.event_buf.len();
@@ -472,9 +450,8 @@ impl RawDevice {
     /// [`get_key_state`](Self::get_key_state) instead.
     #[inline]
     pub fn update_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
-        unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice()) }
-            .map(|_| ())
-            .map_err(nix_err)
+        unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice())? };
+        Ok(())
     }
 
     /// Fetch the current kernel absolute axis state directly into the provided buffer.
@@ -492,8 +469,7 @@ impl RawDevice {
                 // handling later removed. not sure what the intention of "handling that later" was
                 // the abs data seems to be fine (tested ABS_MT_POSITION_X/Y)
                 unsafe {
-                    sys::eviocgabs(self.as_raw_fd(), idx as u32, &mut abs_vals[idx as usize])
-                        .map_err(nix_err)?
+                    sys::eviocgabs(self.as_raw_fd(), idx as u32, &mut abs_vals[idx as usize])?
                 };
             }
         }
@@ -508,9 +484,8 @@ impl RawDevice {
         &self,
         switch_vals: &mut AttributeSet<SwitchType>,
     ) -> io::Result<()> {
-        unsafe { sys::eviocgsw(self.as_raw_fd(), switch_vals.as_mut_raw_slice()) }
-            .map(|_| ())
-            .map_err(nix_err)
+        unsafe { sys::eviocgsw(self.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
+        Ok(())
     }
 
     /// Fetch the current kernel LED state directly into the provided buffer.
@@ -518,9 +493,8 @@ impl RawDevice {
     /// [`get_led_state`](Self::get_led_state) instead.
     #[inline]
     pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
-        unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice()) }
-            .map(|_| ())
-            .map_err(nix_err)
+        unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice())? };
+        Ok(())
     }
 
     /// Update the auto repeat delays
@@ -530,12 +504,10 @@ impl RawDevice {
             sys::eviocsrep(
                 self.as_raw_fd(),
                 repeat as *const AutoRepeat as *const [u32; 2],
-            )
+            )?;
         }
-        .map(|_| {
-            self.auto_repeat = Some(repeat.clone());
-        })
-        .map_err(nix_err)
+        self.auto_repeat = Some(repeat.clone());
+        Ok(())
     }
 
     /// Retrieve the scancode for a keycode, if any
@@ -547,10 +519,8 @@ impl RawDevice {
             keycode,
             scancode: [0u8; 32],
         };
-
-        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
-            .map(|_| keymap.scancode[..keymap.len as usize].to_vec())
-            .map_err(nix_err)
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap)? };
+        Ok(keymap.scancode[..keymap.len as usize].to_vec())
     }
 
     /// Retrieve the keycode and scancode by index, starting at 0
@@ -563,14 +533,11 @@ impl RawDevice {
             scancode: [0u8; 32],
         };
 
-        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap) }
-            .map(|_| {
-                (
-                    keymap.keycode,
-                    keymap.scancode[..keymap.len as usize].to_vec(),
-                )
-            })
-            .map_err(nix_err)
+        unsafe { sys::eviocgkeycode_v2(self.as_raw_fd(), &mut keymap)? };
+        Ok((
+            keymap.keycode,
+            keymap.scancode[..keymap.len as usize].to_vec(),
+        ))
     }
 
     /// Update a scancode by index. The return value is the previous keycode
@@ -592,9 +559,9 @@ impl RawDevice {
 
         keymap.scancode[..len].copy_from_slice(scancode);
 
-        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
-            .map(|keycode| keycode as u32)
-            .map_err(nix_err)
+        let keycode = unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap)? };
+
+        Ok(keycode as u32)
     }
 
     /// Update a scancode. The return value is the previous keycode
@@ -611,9 +578,9 @@ impl RawDevice {
 
         keymap.scancode[..len].copy_from_slice(scancode);
 
-        unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap) }
-            .map(|keycode| keycode as u32)
-            .map_err(nix_err)
+        let keycode = unsafe { sys::eviocskeycode_v2(self.as_raw_fd(), &keymap)? };
+
+        Ok(keycode as u32)
     }
 
     #[cfg(feature = "tokio")]
@@ -699,8 +666,7 @@ mod tokio_stream {
     impl EventStream {
         pub(crate) fn new(device: RawDevice) -> io::Result<Self> {
             use nix::fcntl;
-            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))
-                .map_err(nix_err)?;
+            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
             let device = AsyncFd::new(device)?;
             Ok(Self { device, index: 0 })
         }
