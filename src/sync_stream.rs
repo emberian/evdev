@@ -677,7 +677,6 @@ mod tokio_stream {
 
     use tokio_1 as tokio;
 
-    use crate::nix_err;
     use crate::raw_stream::poll_fn;
     use futures_core::{ready, Stream};
     use std::pin::Pin;
@@ -701,8 +700,7 @@ mod tokio_stream {
     impl EventStream {
         pub(crate) fn new(device: Device) -> io::Result<Self> {
             use nix::fcntl;
-            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))
-                .map_err(nix_err)?;
+            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
             let device = AsyncFd::new(device)?;
             Ok(Self {
                 device,
