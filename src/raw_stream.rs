@@ -66,6 +66,7 @@ pub struct RawDevice {
     // ff_stat: Option<FFStatus>,
     supported_snd: Option<AttributeSet<SoundType>>,
     pub(crate) event_buf: Vec<libc::input_event>,
+    grabbed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -222,6 +223,7 @@ impl RawDevice {
             supported_snd,
             auto_repeat,
             event_buf: Vec::new(),
+            grabbed: false,
         })
     }
 
@@ -587,6 +589,26 @@ impl RawDevice {
     #[inline]
     pub fn into_event_stream(self) -> io::Result<EventStream> {
         EventStream::new(self)
+    }
+
+    pub fn grab(&mut self) -> io::Result<()> {
+        if !self.grabbed {
+            unsafe {
+                sys::eviocgrab(self.as_raw_fd(), 1)?;
+            }
+            self.grabbed = true;
+        }
+        Ok(())
+    }
+
+    pub fn ungrab(&mut self) -> io::Result<()> {
+        if self.grabbed {
+            unsafe {
+                sys::eviocgrab(self.as_raw_fd(), 0)?;
+            }
+            self.grabbed = false;
+        }
+        Ok(())
     }
 }
 
