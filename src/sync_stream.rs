@@ -329,6 +329,19 @@ impl Device {
     pub fn into_event_stream(self) -> io::Result<EventStream> {
         EventStream::new(self)
     }
+
+    /// Grab the device through a kernel syscall.
+    ///
+    /// This prevents other clients (including kernel-internal ones such as rfkill) from receiving
+    /// events from this device.
+    pub fn grab(&mut self) -> io::Result<()> {
+        self.raw.grab()
+    }
+
+    /// Ungrab the device through a kernel syscall.
+    pub fn ungrab(&mut self) -> io::Result<()> {
+        self.raw.ungrab()
+    }
 }
 
 impl AsRawFd for Device {
