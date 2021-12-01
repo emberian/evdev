@@ -145,7 +145,7 @@ macro_rules! evdev_enum {
     ($t:ty, Array, $($(#[$attr:meta])* $c:ident = $val:expr,)*) => {
         evdev_enum!(
             $t,
-            Array:bitvec::BitArr!(for <$t>::COUNT, in u8),
+            Array: bitvec::BitArr!(for <$t>::COUNT, in u8),
             bitvec::array::BitArray::as_mut_raw_slice,
             bitvec::array::BitArray::zeroed(),
             $($(#[$attr])* $c = $val,)*
@@ -154,7 +154,7 @@ macro_rules! evdev_enum {
     ($t:ty, box Array, $($(#[$attr:meta])* $c:ident = $val:expr,)*) => {
         evdev_enum!(
             $t,
-            Array:Box<bitvec::BitArr!(for <$t>::COUNT, in u8)>,
+            Array: Box<bitvec::BitArr!(for <$t>::COUNT, in u8)>,
             bitvec::array::BitArray::as_mut_raw_slice,
             Box::new(bitvec::array::BitArray::zeroed()),
             $($(#[$attr])* $c = $val,)*
@@ -189,7 +189,7 @@ macro_rules! evdev_enum {
         impl std::str::FromStr for $t {
             type Err = crate::EnumParseError;
 
-            fn from_str(s: &str) ->  Result<Self, Self::Err> {
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
                 let map: &[(&'static str, $t)] = &[
                     $((stringify!($c), Self::$c),)*
                 ];
