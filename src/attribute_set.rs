@@ -146,34 +146,38 @@ macro_rules! evdev_enum {
         evdev_enum!(
             $t,
             Array:bitvec::BitArr!(for <$t>::COUNT, in u8),
-            |x| x,
-            |x| x,
             bitvec::array::BitArray::as_mut_raw_slice,
-            bitvec::array::BitArray::zeroed,
+            bitvec::array::BitArray::zeroed(),
+            $($(#[$attr])* $c = $val,)*
+        );
+    };
+    ($t:ty, box Array, $($(#[$attr:meta])* $c:ident = $val:expr,)*) => {
+        evdev_enum!(
+            $t,
+            Array:Box<bitvec::BitArr!(for <$t>::COUNT, in u8)>,
+            bitvec::array::BitArray::as_mut_raw_slice,
+            Box::new(bitvec::array::BitArray::zeroed()),
             $($(#[$attr])* $c = $val,)*
         );
     };
     (
         $t:ty,
-        Array: $Array:ty, $arr_as_slice:expr, $arr_as_slice_mut:expr, $arr_as_buf:expr, $zero:expr,
+        Array: $Array:ty, $arr_as_buf:expr, $zero:expr,
         $($(#[$attr:meta])* $c:ident = $val:expr,)*
     ) => {
         impl $crate::attribute_set::ArrayedEvdevEnum for $t {
             type Array = $Array;
             fn array_as_slice(arr: &Self::Array) -> &bitvec::slice::BitSlice<bitvec::order::Lsb0, u8> {
-                let f: fn(&Self::Array) -> &bitvec::slice::BitSlice<bitvec::order::Lsb0, u8> = $arr_as_slice;
-                f(arr)
+                arr
             }
             fn array_as_slice_mut(arr: &mut Self::Array) -> &mut bitvec::slice::BitSlice<bitvec::order::Lsb0, u8> {
-                let f: fn(&mut Self::Array) -> &mut bitvec::slice::BitSlice<bitvec::order::Lsb0, u8> = $arr_as_slice_mut;
-                f(arr)
+                arr
             }
             fn array_as_buf(arr: &mut Self::Array) -> &mut [u8] {
-                let f: fn(&mut Self::Array) -> &mut [u8] = $arr_as_buf;
-                f(arr)
+                $arr_as_buf(arr)
             }
             fn zeroed_array() -> Self::Array {
-                $zero()
+                $zero
             }
         }
         evdev_enum!($t, $($(#[$attr])* $c = $val,)*);

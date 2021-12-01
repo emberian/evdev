@@ -19,22 +19,9 @@ impl Key {
     pub(crate) const COUNT: usize = libc::KEY_CNT;
 }
 
-const fn bit_elts<T>(bits: usize) -> usize {
-    let width = std::mem::size_of::<T>() * 8;
-    bits / width + (bits % width != 0) as usize
-}
-// TODO: replace with BitArr!() once const generics is stable and BitView is implemented for any [T; N]
-const KEY_ARRAY_LEN: usize = bit_elts::<u8>(Key::COUNT);
-type KeyArray = [u8; KEY_ARRAY_LEN];
-const KEY_ARRAY_INIT: KeyArray = [0; KEY_ARRAY_LEN];
-
 evdev_enum!(
     Key,
-    Array: Box<[u8; KEY_ARRAY_LEN]>,
-    |x| bitvec::slice::BitSlice::from_slice(&x[..]).unwrap(),
-    |x| bitvec::slice::BitSlice::from_slice_mut(&mut x[..]).unwrap(),
-    |x| &mut x[..],
-    || Box::new(KEY_ARRAY_INIT),
+    box Array,
     KEY_RESERVED = 0,
     KEY_ESC = 1,
     KEY_1 = 2,
