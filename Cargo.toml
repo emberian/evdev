@@ -13,7 +13,7 @@ tokio = ["tokio_1", "futures-core"]
 
 [dependencies]
 libc = "0.2.89"
-bitvec = "0.21"
+bitvec = "0.22"
 nix = "0.23"
 
 tokio_1 = { package = "tokio", version = "1.0", features = ["net"], optional = true }
