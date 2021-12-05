@@ -610,6 +610,22 @@ impl RawDevice {
         }
         Ok(())
     }
+
+    /// Send an event to the device.
+    ///
+    /// Events that are typically sent to devices are
+    /// [EventType::LED] (turn device LEDs on and off),
+    /// [EventType::SOUND] (play a sound on the device)
+    /// and [EventType::FORCEFEEDBACK] (play force feedback events on the device, i.e. rumble).
+    pub fn send_event(&mut self, event: &InputEvent) -> io::Result<()> {
+        let raw_event = event.as_ref();
+        let bytes_written = unsafe {
+            let buf = crate::cast_to_bytes(raw_event);
+            nix::unistd::write(self.as_raw_fd(), buf)?
+        };
+        debug_assert_eq!(bytes_written, mem::size_of_val(raw_event));
+        Ok(())
+    }
 }
 
 impl AsRawFd for RawDevice {
