@@ -497,6 +497,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
         // first: check if we need to emit compensatory events due to a SYN_DROPPED we found in the
         // last batch of blocks
         if let Some(ev) = compensate_events(&mut self.sync, &mut self.dev) {
+            self.dev.prev_state.process_event(ev);
             return Some(ev);
         }
         let state = &mut self.dev.state;
