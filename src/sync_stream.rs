@@ -342,6 +342,16 @@ impl Device {
     pub fn ungrab(&mut self) -> io::Result<()> {
         self.raw.ungrab()
     }
+
+    /// Send an event to the device.
+    ///
+    /// Events that are typically sent to devices are
+    /// [EventType::LED] (turn device LEDs on and off),
+    /// [EventType::SOUND] (play a sound on the device)
+    /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
+    pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
+        self.raw.send_events(events)
+    }
 }
 
 impl AsRawFd for Device {

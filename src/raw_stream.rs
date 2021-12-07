@@ -1,4 +1,5 @@
 use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -609,6 +610,17 @@ impl RawDevice {
             self.grabbed = false;
         }
         Ok(())
+    }
+
+    /// Send an event to the device.
+    ///
+    /// Events that are typically sent to devices are
+    /// [EventType::LED] (turn device LEDs on and off),
+    /// [EventType::SOUND] (play a sound on the device)
+    /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
+    pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
+        let bytes = unsafe { crate::cast_to_bytes(events) };
+        self.file.write_all(bytes)
     }
 }
 
