@@ -253,6 +253,11 @@ impl Device {
         self.raw.supported_sounds()
     }
 
+    /// Returns the system path used to open the device.
+    pub fn system_path(&self) -> &Path {
+        self.raw.system_path()
+    }
+
     /// Retrieve the current keypress state directly via kernel syscall.
     pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
         self.raw.get_key_state()
