@@ -2,7 +2,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::constants::*;
@@ -656,8 +656,8 @@ pub struct EnumerateDevices {
     readdir: Option<std::fs::ReadDir>,
 }
 impl Iterator for EnumerateDevices {
-    type Item = RawDevice;
-    fn next(&mut self) -> Option<RawDevice> {
+    type Item = (PathBuf, RawDevice);
+    fn next(&mut self) -> Option<(PathBuf, RawDevice)> {
         use std::os::unix::ffi::OsStrExt;
         let readdir = self.readdir.as_mut()?;
         loop {
@@ -666,7 +666,7 @@ impl Iterator for EnumerateDevices {
                 let fname = path.file_name().unwrap();
                 if fname.as_bytes().starts_with(b"event") {
                     if let Ok(dev) = RawDevice::open(&path) {
-                        return Some(dev);
+                        return Some((path, dev));
                     }
                 }
             }
