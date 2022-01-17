@@ -2,7 +2,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{io, mem};
 
 use crate::constants::*;
@@ -68,7 +68,6 @@ pub struct RawDevice {
     supported_snd: Option<AttributeSet<SoundType>>,
     pub(crate) event_buf: Vec<libc::input_event>,
     grabbed: bool,
-    system_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -226,7 +225,6 @@ impl RawDevice {
             auto_repeat,
             event_buf: Vec::new(),
             grabbed: false,
-            system_path: path.to_path_buf(),
         })
     }
 
@@ -383,11 +381,6 @@ impl RawDevice {
     /// speaker, for instance.
     pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundType>> {
         self.supported_snd.as_deref()
-    }
-
-    /// Returns the system path used to open the device.
-    pub fn system_path(&self) -> &Path {
-        self.system_path.as_ref()
     }
 
     /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
