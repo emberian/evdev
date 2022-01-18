@@ -9,7 +9,9 @@ pub fn pick_device() -> evdev::Device {
     if let Some(dev_file) = args.next() {
         evdev::Device::open(dev_file).unwrap()
     } else {
-        let mut devices = evdev::enumerate().collect::<Vec<_>>();
+        let mut devices = evdev::enumerate()
+            .map(|t| t.1)
+            .collect::<Vec<_>>();
         // readdir returns them in reverse order from their eventN names for some reason
         devices.reverse();
         for (i, d) in devices.iter().enumerate() {
