@@ -87,6 +87,7 @@ pub mod uinput;
 mod tokio_stream;
 
 use std::fmt;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 // pub use crate::constants::FFEffect::*;
@@ -249,9 +250,9 @@ pub struct EnumerateDevices {
     inner: raw_stream::EnumerateDevices,
 }
 impl Iterator for EnumerateDevices {
-    type Item = Device;
-    fn next(&mut self) -> Option<Device> {
-        self.inner.next().map(Device::from_raw_device)
+    type Item = (PathBuf, Device);
+    fn next(&mut self) -> Option<(PathBuf, Device)> {
+        self.inner.next().map(|(pb, dev)| (pb, Device::from_raw_device(dev)))
     }
 }
 
