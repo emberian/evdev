@@ -206,6 +206,16 @@ impl InputEvent {
             value,
         })
     }
+    
+    /// Create a new InputEvent with specified time.
+    pub fn new_time(time: libc::timeval, type_: EventType, code: u16, value: i32) -> Self {
+        InputEvent(libc::input_event {
+            time: time,
+            type_: type_.0,
+            code,
+            value,
+        })
+    }
 }
 
 impl From<libc::input_event> for InputEvent {
