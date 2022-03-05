@@ -95,6 +95,14 @@ impl<T: ArrayedEvdevEnum> Default for AttributeSet<T> {
     }
 }
 
+impl<T: ArrayedEvdevEnum> std::iter::FromIterator<T> for AttributeSet<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut set = AttributeSet::default();
+        iter.into_iter().for_each(|el| set.insert(el));
+        set
+    }
+}
+
 impl<T: ArrayedEvdevEnum> Deref for AttributeSet<T> {
     type Target = AttributeSetRef<T>;
     fn deref(&self) -> &AttributeSetRef<T> {
