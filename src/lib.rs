@@ -4,8 +4,8 @@
 //! consistent way. I'll try to explain the device model as completely as possible. The upstream
 //! kernel documentation is split across two files:
 //!
-//! - https://www.kernel.org/doc/Documentation/input/event-codes.txt
-//! - https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt
+//! - <https://www.kernel.org/doc/Documentation/input/event-codes.txt>
+//! - <https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt>
 //!
 //! Devices emit events, represented by the [`InputEvent`] type. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
