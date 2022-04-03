@@ -2,13 +2,17 @@
 # https://docs.travis-ci.com/user/deployment/cargo/
 
 language: rust
-os: linux
-dist: xenial
 rust:
 - stable
 - beta
 - nightly
 jobs:
+  include:
+    -
+      os: linux
+      dist: xenial
+    -
+      os: freebsd
   allow_failures:
     - rust: nightly
 before_script:
