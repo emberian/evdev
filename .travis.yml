@@ -15,6 +15,7 @@ jobs:
       os: freebsd
   allow_failures:
     - rust: nightly
+    - os: freebsd
 before_script:
 - |
   rustup component add rustfmt clippy &&
