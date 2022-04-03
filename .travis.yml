@@ -23,7 +23,7 @@ script:
   cargo test --verbose &&
   cargo doc
 after_success:
-- travis-cargo --only beta doc-upload
+- travis-cargo --only stable doc-upload
 deploy:
   provider: cargo
   on:
