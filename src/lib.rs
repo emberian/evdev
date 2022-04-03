@@ -67,6 +67,8 @@
 //! For demonstrations of how to use this library in blocking, nonblocking, and async (tokio) modes,
 //! please reference the "examples" directory.
 
+#![deny(warnings)]
+
 // should really be cfg(target_os = "linux") and maybe also android?
 #![cfg(unix)]
 
