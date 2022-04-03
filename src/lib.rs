@@ -83,9 +83,6 @@ mod sync_stream;
 mod sys;
 pub mod uinput;
 
-#[cfg(feature = "tokio")]
-mod tokio_stream;
-
 use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
