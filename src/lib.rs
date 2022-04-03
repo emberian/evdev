@@ -252,7 +252,9 @@ pub struct EnumerateDevices {
 impl Iterator for EnumerateDevices {
     type Item = (PathBuf, Device);
     fn next(&mut self) -> Option<(PathBuf, Device)> {
-        self.inner.next().map(|(pb, dev)| (pb, Device::from_raw_device(dev)))
+        self.inner
+            .next()
+            .map(|(pb, dev)| (pb, Device::from_raw_device(dev)))
     }
 }
 

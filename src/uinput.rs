@@ -165,8 +165,6 @@ impl VirtualDevice {
 
         // Now we have to write a SYN_REPORT as well.
         let syn = InputEvent::new(EventType::SYNCHRONIZATION, 0, 0);
-        self.write_raw(&[syn])?;
-
-        Ok(())
+        self.write_raw(&[syn])
     }
 }
