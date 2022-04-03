@@ -7,6 +7,16 @@
 //! - <https://www.kernel.org/doc/Documentation/input/event-codes.txt>
 //! - <https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt>
 //!
+//! The `evdev` kernel system exposes input devices as character devices in `/dev/input`,
+//! typically `/dev/input/eventX` where `X` is an integer.
+//! Userspace applications can use `ioctl` system calls to interact with these devices.
+//! Libraries such as this one abstract away the low level calls to provide a high level
+//! interface.
+//!
+//! Applications can interact with `uinput` by writing to `/dev/uinput` to create virtual
+//! devices and send events to the virtual devices.
+//! Virtual devices are created in `/sys/devices/virtual/input`.
+//!
 //! Devices emit events, represented by the [`InputEvent`] type. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
 //! method. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code. This
@@ -28,9 +38,16 @@
 //! # }
 //! ```
 //!
+//! All events (even single events) are sent in batches followed by a synchronization event:
+//! `EV_SYN / SYN_REPORT / 0`.
+//! Events are grouped into batches based on if they are related and occur simultaneously,
+//! for example movement of a mouse triggers a movement event for the `X` and `Y` axes
+//! separately in a batch of 2 events.
+//!
 //! The evdev crate exposes functions to query the current state of a device from the kernel, as
 //! well as a function that can be called continuously to provide an iterator over update events
 //! as they arrive.
+//!
 //!
 //! # Synchronizing versus Raw modes
 //!
