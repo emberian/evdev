@@ -23,7 +23,7 @@ evdev_enum!(
     /// Movement on an absolute axis. Used for things such as touch events and joysticks.
     ABSOLUTE = 0x03,
     /// Miscellaneous events that don't fall into other categories. For example, Key presses may
-    /// send MSC_SCAN events before each KEY event
+    /// send `MSC_SCAN` events before each KEY event
     MISC = 0x04,
     /// Change in a switch value. Switches are boolean conditions and usually correspond to a
     /// toggle switch of some kind in hardware.
