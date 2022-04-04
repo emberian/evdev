@@ -1,5 +1,7 @@
 /// Event types supported by the device.
 ///
+/// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
+///
 /// This is implemented as a newtype around the u16 "type" field of `libc::input_event`.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct EventType(pub u16);
@@ -20,8 +22,8 @@ evdev_enum!(
     RELATIVE = 0x02,
     /// Movement on an absolute axis. Used for things such as touch events and joysticks.
     ABSOLUTE = 0x03,
-    /// Miscellaneous events that don't fall into other categories. I'm not quite sure when
-    /// these happen or what they correspond to.
+    /// Miscellaneous events that don't fall into other categories. For example, Key presses may
+    /// send `MSC_SCAN` events before each KEY event
     MISC = 0x04,
     /// Change in a switch value. Switches are boolean conditions and usually correspond to a
     /// toggle switch of some kind in hardware.
@@ -80,7 +82,7 @@ evdev_enum!(
     SEMI_MT = 0x03,
     /// "softbuttons at top of pad", according to the header.
     TOPBUTTONPAD = 0x04,
-    /// Is a pointing stick ("nub" etc, https://xkcd.com/243/)
+    /// Is a pointing stick ("nub" etc, <https://xkcd.com/243/>)
     POINTING_STICK = 0x05,
     /// Has an accelerometer. Probably reports relative events in that case?
     ACCELEROMETER = 0x06,

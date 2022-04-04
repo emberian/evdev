@@ -156,17 +156,16 @@ impl VirtualDevice {
         self.file.write_all(bytes)
     }
 
-    /// Post a set of messages to the virtual device.
+    /// Post a batch of events to the virtual device.
     ///
-    /// This inserts a SYN_REPORT for you, because apparently uinput requires that for the
-    /// kernel to realize we're done.
+    /// The batch is automatically terminated with a `SYN_REPORT` event.
+    /// Events from physical devices are batched based on if they occur simultaneously, for example movement
+    /// of a mouse triggers a movement events for the X and Y axes separately in a batch of 2 events.
+    ///
+    /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
     pub fn emit(&mut self, messages: &[InputEvent]) -> io::Result<()> {
         self.write_raw(messages)?;
-
-        // Now we have to write a SYN_REPORT as well.
         let syn = InputEvent::new(EventType::SYNCHRONIZATION, 0, 0);
-        self.write_raw(&[syn])?;
-
-        Ok(())
+        self.write_raw(&[syn])
     }
 }

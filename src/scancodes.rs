@@ -1,5 +1,7 @@
 /// Scancodes for key presses.
 ///
+/// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
+///
 /// Each associated constant for this struct represents a distinct key.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]

@@ -1,18 +1,38 @@
+# https://doc.rust-lang.org/cargo/guide/continuous-integration.html
+# https://docs.travis-ci.com/user/deployment/cargo/
+
 language: rust
-sudo: false
 rust:
-- nightly
+- stable
 - beta
+- nightly
+jobs:
+  include:
+    -
+      os: linux
+      dist: xenial
+    -
+      os: freebsd
+  allow_failures:
+    - rust: nightly
+    - os: freebsd
 before_script:
-- pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+- |
+  rustup component add rustfmt clippy &&
+  pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
 - |
-  travis-cargo build &&
-  travis-cargo test &&
-  travis-cargo bench &&
-  travis-cargo doc
+  cargo fmt -- --check &&
+  cargo clippy &&
+  cargo build --verbose --release &&
+  cargo test --verbose &&
+  cargo doc
 after_success:
-- travis-cargo --only beta doc-upload
+- travis-cargo --only stable doc-upload
+deploy:
+  provider: cargo
+  on:
+    branch: release
 env:
   global:
   - secure: rFkOMXHERQhTse4FnnAYDJXIJSGYvJ/YkkFGBjz25YEFUYmuW+ueCvErrpQPCySD+Kf5MeolN3M6qkvP6DUid+31BlBejuEQeDZtBu52IURZst3gSLkSkj7HwImlqNMx31JX47wEYDychaMcmyP9kNjiTfI8vCK+AJALl3H6foC+VTDL6CHAokWwOjAmDF79ysahRUXYknzKjDFkU2JF2k6Z0h1rerv531w+Jf1e3O78OVgY3nWiZAcZWfhYAxyZgwZ7zZeoksRqW9nTesJca28uQ0y/L/sn4EsfEuoU+xiDLg1PUH/JUkxxxAVEIWvCKSl8nHybbs9Z9VOJp/ZpdS2TqMCEY6151cbSS9cX/kLpPOHXa73LFJcp0klzrsdlCitJnddBU+Y1x8t7PpJUntiOiQ2TnJh7kh1MrDFgiFCd8PEyuY3jFisXR64sMH8lkYASyqNfNTlOcBvqgYC3WQYEy81hesS4e49mKwx3wBaJT2TdfT0LE8EumgFkLQ/vZkdH0xaqan43Oqh+WPVlcZ78Aq/QBd7xF4L319oWrsKE0V/m0ZRIoTvv8ogF3Wr03wSyhUtfOV7qjnBSUOa9GUKfioGFVGJbqsvAnavltz5Y4SE7dcmTwtyFFS9fQ66hEVYJlR3AGvFnbXOflU+GU8IZOfNVFXyEcnmyJ4p5drU=
