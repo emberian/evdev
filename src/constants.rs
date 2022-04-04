@@ -1,6 +1,6 @@
 /// Event types supported by the device.
 ///
-/// Values correspond to [/usr/include/linux/input-event-codes.h](https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/input-event-codes.h)
+/// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
 ///
 /// This is implemented as a newtype around the u16 "type" field of `libc::input_event`.
 #[derive(Copy, Clone, PartialEq, Eq)]
