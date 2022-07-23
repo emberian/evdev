@@ -1,5 +1,5 @@
 use libc::c_int;
-use libc::{ff_effect, input_absinfo, input_id, input_keymap_entry, uinput_setup};
+use libc::{ff_effect, input_absinfo, input_id, input_keymap_entry, uinput_setup, uinput_abs_setup};
 // use libc::{
 //     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
 //     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
@@ -39,6 +39,7 @@ ioctl_write_int!(eviocsclockid, b'E', 0xa0);
 
 const UINPUT_IOCTL_BASE: u8 = b'U';
 ioctl_write_ptr!(ui_dev_setup, UINPUT_IOCTL_BASE, 3, uinput_setup);
+ioctl_write_ptr!(ui_abs_setup, UINPUT_IOCTL_BASE, 4, uinput_abs_setup);
 ioctl_none!(ui_dev_create, UINPUT_IOCTL_BASE, 1);
 
 ioctl_write_int!(ui_set_evbit, UINPUT_IOCTL_BASE, 100);

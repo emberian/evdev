@@ -4,8 +4,8 @@
 
 use crate::constants::EventType;
 use crate::inputid::{BusType, InputId};
-use crate::{sys, AttributeSetRef, InputEvent, Key, RelativeAxisType, SwitchType};
-use libc::O_NONBLOCK;
+use crate::{sys, AttributeSetRef, InputEvent, Key, RelativeAxisType, SwitchType, UinputAbsSetup};
+use libc::{O_NONBLOCK, uinput_abs_setup};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd};
@@ -64,6 +64,25 @@ impl<'a> VirtualDeviceBuilder<'a> {
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
+        }
+
+        Ok(self)
+    }
+
+    pub fn with_absolute_axis(self, axis: &UinputAbsSetup) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.file.as_raw_fd(),
+                crate::EventType::ABSOLUTE.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+            sys::ui_set_absbit(
+                self.file.as_raw_fd(),
+                axis.code() as nix::sys::ioctl::ioctl_param_type,
+            )?;
+            sys::ui_abs_setup(
+                self.file.as_raw_fd(),
+                &axis.0 as *const uinput_abs_setup,
+            )?;
         }
 
         Ok(self)

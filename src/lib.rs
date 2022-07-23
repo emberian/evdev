@@ -132,6 +132,87 @@ pub enum InputEventKind {
     Other,
 }
 
+/// A wrapped `libc::input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
+/// axes
+///
+/// `input_absinfo` is a struct containing six fields:
+/// - `value: s32`
+/// - `minimum: s32`
+/// - `maximum: s32`
+/// - `fuzz: s32`
+/// - `flat: s32`
+/// - `resolution: s32`
+///
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct AbsInfo(libc::input_absinfo);
+
+impl AbsInfo {
+    #[inline]
+    pub fn value(&self) -> i32 {
+        self.0.value
+    }
+    #[inline]
+    pub fn minimum(&self) -> i32 {
+        self.0.minimum
+    }
+    #[inline]
+    pub fn maximum(&self) -> i32 {
+        self.0.maximum
+    }
+    #[inline]
+    pub fn fuzz(&self) -> i32 {
+        self.0.fuzz
+    }
+    #[inline]
+    pub fn flat(&self) -> i32 {
+        self.0.flat
+    }
+    #[inline]
+    pub fn resolution(&self) -> i32 {
+        self.0.resolution
+    }
+
+    /// Creates a new AbsInfo, particurarily useful for uinput
+    pub fn new(value: i32, minimum: i32, maximum: i32, fuzz: i32, flat: i32, resolution: i32) -> Self {
+        AbsInfo(libc::input_absinfo {
+            value,
+            minimum,
+            maximum,
+            fuzz,
+            flat,
+            resolution,
+        })
+    }
+}
+
+/// A wrapped `libc::uinput_abs_setup`, used to set up analogue axes with uinput
+///
+/// `uinput_abs_setup` is a struct containing two fields:
+/// - `code: u16`
+/// - `absinfo: input_absinfo`
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct UinputAbsSetup(libc::uinput_abs_setup);
+
+impl UinputAbsSetup {
+    #[inline]
+    pub fn code(&self) -> u16 {
+        self.0.code
+    }
+    #[inline]
+    pub fn absinfo(&self) -> AbsInfo {
+        AbsInfo(self.0.absinfo)
+    }
+    /// Creates new UinputAbsSetup
+    pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
+        UinputAbsSetup(libc::uinput_abs_setup {
+            code: code.0,
+            absinfo: absinfo.0,
+        })
+    }
+}
+
 /// A wrapped `libc::input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
