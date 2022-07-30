@@ -9,8 +9,11 @@ use libc::{O_NONBLOCK, uinput_abs_setup};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd};
+use std::path::PathBuf;
 
 const UINPUT_PATH: &str = "/dev/uinput";
+const SYSFS_PATH: &str = "/sys/devices/virtual/input";
+const DEV_PATH: &str = "/dev/input";
 
 #[derive(Debug)]
 pub struct VirtualDeviceBuilder<'a> {
@@ -175,6 +178,47 @@ impl VirtualDevice {
         self.file.write_all(bytes)
     }
 
+    /// Get the syspath representing this uinput device.
+    ///
+    /// The syspath returned is the one of the input node itself (e.g.
+    /// `/sys/devices/virtual/input/input123`), not the syspath of the device node.
+    pub fn get_syspath(&mut self) -> io::Result<PathBuf> {
+        let mut bytes = vec![0u8; 256];
+        unsafe { sys::ui_get_sysname(self.file.as_raw_fd(), &mut bytes)? };
+
+        if let Some(end) = bytes.iter().position(|c| *c == 0) {
+            bytes.truncate(end);
+        }
+
+        let s = std::str::from_utf8(&bytes).expect("invalid sys path");
+        let mut path = PathBuf::from(SYSFS_PATH);
+        path.push(s);
+
+        Ok(path)
+    }
+
+    /// Get the syspaths of the corresponding device nodes in /dev/input.
+    #[cfg(not(feature = "tokio"))]
+    pub fn enumerate_dev_nodes(&mut self) -> io::Result<DevNodes> {
+        let path = self.get_syspath()?;
+        let dir = std::fs::read_dir(path)?;
+
+        Ok(DevNodes {
+            dir,
+        })
+    }
+
+    /// Get the syspaths of the corresponding device nodes in /dev/input.
+    #[cfg(feature = "tokio")]
+    pub async fn enumerate_dev_nodes(&mut self) -> io::Result<DevNodes> {
+        let path = self.get_syspath()?;
+        let dir = tokio_1::fs::read_dir(path).await?;
+
+        Ok(DevNodes {
+            dir,
+        })
+    }
+
     /// Post a batch of events to the virtual device.
     ///
     /// The batch is automatically terminated with a `SYN_REPORT` event.
@@ -186,5 +230,95 @@ impl VirtualDevice {
         self.write_raw(messages)?;
         let syn = InputEvent::new(EventType::SYNCHRONIZATION, 0, 0);
         self.write_raw(&[syn])
+    }
+}
+
+/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
+/// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
+#[cfg(not(feature = "tokio"))]
+pub struct DevNodes {
+    dir: std::fs::ReadDir,
+}
+
+#[cfg(not(feature = "tokio"))]
+impl Iterator for DevNodes {
+    type Item = io::Result<PathBuf>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let entry = match self.dir.next() {
+                Some(entry) => entry,
+                _ => return None,
+            };
+
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => return Some(Err(e)),
+            };
+
+            let path = entry.path();
+
+            let name = match path.file_name() {
+                Some(name) => name,
+                _ => continue,
+            };
+
+            let name = match name.to_str() {
+                Some(name) => name,
+                _ => continue,
+            };
+
+            if !name.starts_with("event") {
+                continue;
+            }
+
+            let mut path = PathBuf::from(DEV_PATH);
+            path.push(name);
+
+            return Some(Ok(path));
+        }
+    }
+}
+
+/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
+/// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
+#[cfg(feature = "tokio")]
+pub struct DevNodes {
+    dir: tokio_1::fs::ReadDir,
+}
+
+#[cfg(feature = "tokio")]
+impl DevNodes {
+    /// Returns the next entry in the set of device nodes.
+    pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
+        loop {
+            let entry = self.dir.next_entry().await?;
+
+            let entry = match entry {
+                Some(entry) => entry,
+                None => return Ok(None),
+            };
+
+            let path = entry.path();
+
+            let name = match path.file_name() {
+                Some(name) => name,
+                _ => continue,
+            };
+
+            let name = match name.to_str() {
+                Some(name) => name,
+                _ => continue,
+            };
+
+            if !name.starts_with("event") {
+                continue;
+            }
+
+            let mut path = PathBuf::from(DEV_PATH);
+            path.push(name);
+
+            return Ok(Some(path));
+        }
     }
 }
