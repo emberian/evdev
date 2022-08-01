@@ -94,6 +94,7 @@ mod attribute_set;
 
 mod constants;
 mod device_state;
+mod error;
 mod inputid;
 pub mod raw_stream;
 mod scancodes;
@@ -109,6 +110,7 @@ use std::time::{Duration, SystemTime};
 pub use attribute_set::{AttributeSet, AttributeSetRef};
 pub use constants::*;
 pub use device_state::DeviceState;
+pub use error::Error;
 pub use inputid::*;
 pub use raw_stream::AutoRepeat;
 pub use scancodes::*;
