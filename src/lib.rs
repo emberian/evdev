@@ -135,6 +135,7 @@ pub enum InputEventKind {
     Sound(SoundType),
     ForceFeedback(u16),
     ForceFeedbackStatus(u16),
+    UInput(u16),
     Other,
 }
 
@@ -270,6 +271,7 @@ impl InputEvent {
             EventType::SOUND => InputEventKind::Sound(SoundType(code)),
             EventType::FORCEFEEDBACK => InputEventKind::ForceFeedback(code),
             EventType::FORCEFEEDBACKSTATUS => InputEventKind::ForceFeedbackStatus(code),
+            EventType::UINPUT => InputEventKind::UInput(code),
             _ => InputEventKind::Other,
         }
     }

@@ -42,6 +42,8 @@ evdev_enum!(
     POWER = 0x16,
     /// A force feedback effect's state changed.
     FORCEFEEDBACKSTATUS = 0x17,
+    /// An event originating from uinput.
+    UINPUT = 0x0101,
 );
 
 impl EventType {
@@ -373,3 +375,15 @@ evdev_enum!(
 impl SoundType {
     pub(crate) const COUNT: usize = libc::SND_CNT;
 }
+
+/// A uinput event published by the kernel into the events stream for uinput devices.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct UInputEventType(pub u16);
+
+evdev_enum!(
+    UInputEventType,
+    /// The virtual uinput device is uploading a force feedback effect.
+    UI_FF_UPLOAD = 1,
+    /// The virtual uinput device is erasing a force feedback event.
+    UI_FF_ERASE = 2,
+);
