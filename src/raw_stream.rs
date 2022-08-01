@@ -732,7 +732,7 @@ impl AsRawFd for RawDevice {
 
 /// A copy of the unstable Vec::spare_capacity_mut
 #[inline]
-fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
+pub(crate) fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
     let (len, cap) = (v.len(), v.capacity());
     unsafe {
         std::slice::from_raw_parts_mut(
