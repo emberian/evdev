@@ -190,7 +190,7 @@ impl VirtualDevice {
             bytes.truncate(end);
         }
 
-        let s = std::str::from_utf8(&bytes).expect("invalid sys path");
+        let s = String::from_utf8_lossy(&bytes).into_owned();
         let mut path = PathBuf::from(SYSFS_PATH);
         path.push(s);
 
