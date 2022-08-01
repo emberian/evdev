@@ -199,7 +199,7 @@ impl VirtualDevice {
 
     /// Get the syspaths of the corresponding device nodes in /dev/input.
     #[cfg(not(feature = "tokio"))]
-    pub fn enumerate_dev_nodes(&mut self) -> io::Result<DevNodes> {
+    pub fn enumerate_dev_nodes_blocking(&mut self) -> io::Result<DevNodes> {
         let path = self.get_syspath()?;
         let dir = std::fs::read_dir(path)?;
 
