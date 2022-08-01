@@ -287,35 +287,67 @@ impl MiscType {
     pub(crate) const COUNT: usize = libc::MSC_CNT;
 }
 
-// pub enum FFStatusDataIndex {
-//     FF_STATUS_STOPPED = 0x00,
-//     FF_STATUS_PLAYING = 0x01,
-// }
+/// Force feedback effect types
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct FFEffectType(pub u16);
 
-// #[derive(Copy, Clone, Copy, Clone)]
-// pub enum FFEffect {
-//     FF_RUMBLE = 0x50,
-//     FF_PERIODIC = 0x51,
-//     FF_CONSTANT = 0x52,
-//     FF_SPRING = 0x53,
-//     FF_FRICTION = 0x54,
-//     FF_DAMPER = 0x55,
-//     FF_INERTIA = 0x56,
-//     FF_RAMP = 0x57,
-//     FF_SQUARE = 0x58,
-//     FF_TRIANGLE = 0x59,
-//     FF_SINE = 0x5a,
-//     FF_SAW_UP = 0x5b,
-//     FF_SAW_DOWN = 0x5c,
-//     FF_CUSTOM = 0x5d,
-//     FF_GAIN = 0x60,
-//     FF_AUTOCENTER = 0x61,
-// }
+evdev_enum!(
+    FFEffectType,
+    Array,
+    /// Rumble effects.
+    FF_RUMBLE = 0x50,
+    /// Can render periodic effects with any of the waveforms.
+    FF_PERIODIC = 0x51,
+    /// Can render constant force effects.
+    FF_CONSTANT = 0x52,
+    /// Can simulate the presence of a spring.
+    FF_SPRING = 0x53,
+    /// Can simulate friction.
+    FF_FRICTION = 0x54,
+    /// Can simulate damper effects.
+    FF_DAMPER = 0x55,
+    /// Can simulate inertia.
+    FF_INERTIA = 0x56,
+    /// Can render ramp effects.
+    FF_RAMP = 0x57,
+    /// Square waveform.
+    FF_SQUARE = 0x58,
+    /// Triangle waveform.
+    FF_TRIANGLE = 0x59,
+    /// Sine waveform.
+    FF_SINE = 0x5a,
+    /// Sawtooth up waveform.
+    FF_SAW_UP = 0x5b,
+    /// Sawtooth down waveform.
+    FF_SAW_DOWN = 0x5c,
+    /// Custom waveform.
+    FF_CUSTOM = 0x5d,
+    /// The gain is adjustable.
+    FF_GAIN = 0x60,
+    /// The autocenter is adjustable.
+    FF_AUTOCENTER = 0x61,
+);
 
-// impl FFEffect {
-//     // Needs to be a multiple of 8
-//     pub const COUNT: usize = libc::FF_CNT;
-// }
+impl FFEffectType {
+    pub(crate) const COUNT: usize = libc::FF_CNT;
+}
+
+/// Force feedback effect status
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct FFStatus(pub u16);
+
+evdev_enum!(
+    FFStatus,
+    Array,
+    /// The force feedback event is currently stopped.
+    FF_STATUS_STOPPED = 0x00,
+    /// The force feedback event is currently playing.
+    FF_STATUS_PLAYING = 0x01,
+);
+
+impl FFStatus {
+    pub(crate) const COUNT: usize = 2;
+}
 
 // #[derive(Copy, Clone, PartialEq, Eq)]
 // pub struct RepeatType(pub u16);
