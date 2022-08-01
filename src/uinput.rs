@@ -2,8 +2,9 @@
 //!
 //! This is quite useful when testing/debugging devices, or synchronization.
 
-use crate::constants::EventType;
+use crate::constants::{EventType, UInputEventType};
 use crate::inputid::{BusType, InputId};
+use crate::ff::FFEffectData;
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{sys, AttributeSetRef, Error, InputEvent, InputEventKind, FFEffectType, Key, RelativeAxisType, SwitchType, UinputAbsSetup};
 use libc::uinput_abs_setup;
@@ -265,6 +266,56 @@ impl VirtualDevice {
         self.write_raw(&[syn])
     }
 
+    /// Processes the given [`UInputEvent`] if it is a force feedback upload event, in which case
+    /// this function will start the force feedback upload and claim ownership over the
+    /// [`UInputEvent`] and return a [`FFUploadEvent`] instead.
+    ///
+    /// The returned event allows the user to allocate and set the effect ID as well as access the
+    /// effect data.
+    pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
+        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_UPLOAD.0) {
+            return Err(Error::InvalidEvent);
+        }
+
+        let mut request: sys::uinput_ff_upload = unsafe { std::mem::zeroed() };
+        request.request_id = event.value() as u32;
+        unsafe { sys::ui_begin_ff_upload(self.file.as_raw_fd(), &mut request)? };
+
+        request.retval = 0;
+
+        let file = self.file.try_clone()?;
+
+        Ok(FFUploadEvent {
+            file,
+            request,
+        })
+    }
+
+    /// Processes the given [`UInputEvent`] if it is a force feedback erase event, in which case
+    /// this function will start the force feedback erasure and claim ownership over the
+    /// [`UInputEvent`] and return a [`FFEraseEvent`] instead.
+    ///
+    /// The returned event allows the user to access the effect ID, such that it can free any
+    /// memory used for the given effect ID.
+    pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
+        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_ERASE.0) {
+            return Err(Error::InvalidEvent);
+        }
+
+        let mut request: sys::uinput_ff_erase = unsafe { std::mem::zeroed() };
+        request.request_id = event.value() as u32;
+        unsafe { sys::ui_begin_ff_erase(self.file.as_raw_fd(), &mut request)? };
+
+        request.retval = 0;
+
+        let file = self.file.try_clone()?;
+
+        Ok(FFEraseEvent {
+            file,
+            request,
+        })
+    }
+
     /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
     /// O_NONBLOCK, this will block.
     ///
@@ -418,6 +469,83 @@ impl UInputEvent {
     #[inline]
     pub fn value(&self) -> i32 {
         self.0.value()
+    }
+}
+
+/// Represents a force feedback upload event that we are currently processing.
+pub struct FFUploadEvent {
+    file: File,
+    request: sys::uinput_ff_upload,
+}
+
+impl FFUploadEvent {
+    /// Returns the old effect data.
+    pub fn old_effect(&self) -> FFEffectData {
+        self.request.old.into()
+    }
+
+    /// Returns the new effect ID.
+    pub fn effect_id(&self) -> i16 {
+        self.request.effect.id
+    }
+
+    /// Sets the new effect ID.
+    pub fn set_effect_id(&mut self, id: i16) {
+        self.request.effect.id = id;
+    }
+
+    /// Returns the new effect data.
+    pub fn effect(&self) -> FFEffectData {
+        self.request.effect.into()
+    }
+
+    /// Returns the currently set return value for the upload event.
+    pub fn retval(&self) -> i32 {
+        self.request.retval
+    }
+
+    /// Sets the return value to return for the upload event.
+    pub fn set_retval(&mut self, value: i32) {
+        self.request.retval = value;
+    }
+}
+
+impl Drop for FFUploadEvent {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = sys::ui_end_ff_upload(self.file.as_raw_fd(), &self.request);
+        }
+    }
+}
+
+/// Represents a force feedback erase event that we are currently processing.
+pub struct FFEraseEvent {
+    file: File,
+    request: sys::uinput_ff_erase,
+}
+
+impl FFEraseEvent {
+    /// Returns the effect ID to erase.
+    pub fn effect_id(&self) -> u32 {
+        self.request.effect_id
+    }
+
+    /// Returns the currently set return value for the erase event.
+    pub fn retval(&self) -> i32 {
+        self.request.retval
+    }
+
+    /// Sets the return value to return for the erase event.
+    pub fn set_retval(&mut self, value: i32) {
+        self.request.retval = value;
+    }
+}
+
+impl Drop for FFEraseEvent {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = sys::ui_end_ff_erase(self.file.as_raw_fd(), &self.request);
+        }
     }
 }
 
