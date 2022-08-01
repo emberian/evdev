@@ -246,36 +246,27 @@ impl Iterator for DevNodes {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let entry = match self.dir.next() {
-                Some(entry) => entry,
-                _ => return None,
-            };
+            let path = self.dir.next()
+                // Map the directory name to its file name.
+                .map(|entry| entry.map(|entry|
+                    entry.file_name().to_string_lossy().to_owned().to_string()
+                ))
+                // Ignore file names that do not start with "event".
+                .filter(|name| name
+                    .as_ref()
+                    .map(|name| name.starts_with("event"))
+                    .unwrap_or(true)
+                )
+                // Construct the path of the form `/dev/input/eventX`.
+                .map(|name| name.map(|name| {
+                    let mut path = PathBuf::from(DEV_PATH);
+                    path.push(name);
+                    path
+                }));
 
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(e) => return Some(Err(e)),
-            };
-
-            let path = entry.path();
-
-            let name = match path.file_name() {
-                Some(name) => name,
-                _ => continue,
-            };
-
-            let name = match name.to_str() {
-                Some(name) => name,
-                _ => continue,
-            };
-
-            if !name.starts_with("event") {
-                continue;
+            if let Some(value) = path {
+                return Some(value);
             }
-
-            let mut path = PathBuf::from(DEV_PATH);
-            path.push(name);
-
-            return Some(Ok(path));
         }
     }
 }
@@ -292,33 +283,27 @@ impl DevNodes {
     /// Returns the next entry in the set of device nodes.
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
         loop {
-            let entry = self.dir.next_entry().await?;
+            let path = self.dir.next_entry().await?
+                // Map the directory name to its file name.
+                .map(|entry| entry.map(|entry|
+                    entry.file_name().to_string_lossy().to_owned().to_string()
+                ))
+                // Ignore file names that do not start with "event".
+                .filter(|name| name
+                    .as_ref()
+                    .map(|name| name.starts_with("event"))
+                    .unwrap_or(true)
+                )
+                // Construct the path of the form `/dev/input/eventX`.
+                .map(|name| name.map(|name| {
+                    let mut path = PathBuf::from(DEV_PATH);
+                    path.push(name);
+                    path
+                }));
 
-            let entry = match entry {
-                Some(entry) => entry,
-                None => return Ok(None),
-            };
-
-            let path = entry.path();
-
-            let name = match path.file_name() {
-                Some(name) => name,
-                _ => continue,
-            };
-
-            let name = match name.to_str() {
-                Some(name) => name,
-                _ => continue,
-            };
-
-            if !name.starts_with("event") {
-                continue;
+            if let Some(value) = path {
+                return Some(value);
             }
-
-            let mut path = PathBuf::from(DEV_PATH);
-            path.push(name);
-
-            return Ok(Some(path));
         }
     }
 }
