@@ -107,7 +107,7 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 // pub use crate::constants::FFEffect::*;
-pub use attribute_set::{AttributeSet, AttributeSetRef};
+pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
 pub use error::Error;
