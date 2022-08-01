@@ -1,5 +1,5 @@
 use libc::c_int;
-use libc::{ff_effect, input_absinfo, input_id, input_keymap_entry, uinput_setup, uinput_abs_setup};
+use libc::{input_absinfo, input_id, input_keymap_entry, uinput_setup, uinput_abs_setup};
 // use libc::{
 //     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
 //     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
@@ -9,6 +9,27 @@ use nix::{
     ioctl_write_ptr, request_code_read,
 };
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union ff_effect_union {
+    pub constant: libc::ff_constant_effect,
+    pub ramp: libc::ff_ramp_effect,
+    pub periodic: libc::ff_periodic_effect,
+    pub condition: [libc::ff_condition_effect; 2],
+    pub rumble: libc::ff_rumble_effect,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ff_effect {
+    pub type_: u16,
+    pub id: i16,
+    pub direction: u16,
+    pub trigger: libc::ff_trigger,
+    pub replay: libc::ff_replay,
+    pub u: ff_effect_union,
+}
+
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
 ioctl_read!(eviocgkeycode, b'E', 0x04, [::libc::c_uint; 2]);
@@ -17,7 +38,6 @@ ioctl_read!(eviocgversion, b'E', 0x01, ::libc::c_int);
 ioctl_write_int!(eviocrmff, b'E', 0x81);
 
 ioctl_read!(eviocgkeycode_v2, b'E', 0x04, input_keymap_entry);
-// TODO #define EVIOCSFF _IOC ( _IOC_WRITE , 'E' , 0x80 , sizeof ( struct ff_effect ) )
 ioctl_write_ptr!(eviocskeycode, b'E', 0x04, [::libc::c_uint; 2]);
 ioctl_write_ptr!(eviocskeycode_v2, b'E', 0x04, input_keymap_entry);
 ioctl_write_ptr!(eviocsrep, b'E', 0x03, [::libc::c_uint; 2]);
