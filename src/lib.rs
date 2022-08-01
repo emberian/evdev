@@ -133,6 +133,8 @@ pub enum InputEventKind {
     Switch(SwitchType),
     Led(LedType),
     Sound(SoundType),
+    ForceFeedback(u16),
+    ForceFeedbackStatus(u16),
     Other,
 }
 
@@ -266,6 +268,8 @@ impl InputEvent {
             EventType::SWITCH => InputEventKind::Switch(SwitchType(code)),
             EventType::LED => InputEventKind::Led(LedType(code)),
             EventType::SOUND => InputEventKind::Sound(SoundType(code)),
+            EventType::FORCEFEEDBACK => InputEventKind::ForceFeedback(code),
+            EventType::FORCEFEEDBACKSTATUS => InputEventKind::ForceFeedbackStatus(code),
             _ => InputEventKind::Other,
         }
     }
