@@ -5,6 +5,7 @@
 use crate::constants::EventType;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
+use crate::{sys, AttributeSetRef, Error, InputEvent, InputEventKind, FFEffectType, Key, RelativeAxisType, SwitchType, UinputAbsSetup};
 use libc::uinput_abs_setup;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -22,6 +23,7 @@ pub struct VirtualDeviceBuilder<'a> {
     file: File,
     name: &'a [u8],
     id: Option<libc::input_id>,
+    ff_effects_max: u32,
 }
 
 impl<'a> VirtualDeviceBuilder<'a> {
@@ -38,6 +40,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
             file,
             name: Default::default(),
             id: None,
+            ff_effects_max: 0,
         })
     }
 
@@ -133,13 +136,38 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    pub fn with_ff(self, ff: &AttributeSetRef<FFEffectType>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.file.as_raw_fd(),
+                crate::EventType::FORCEFEEDBACK.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in ff.iter() {
+            unsafe {
+                sys::ui_set_ffbit(
+                    self.file.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    pub fn with_ff_effects_max(mut self, ff_effects_max: u32) -> Self {
+        self.ff_effects_max = ff_effects_max;
+        self
+    }
+
     pub fn build(self) -> io::Result<VirtualDevice> {
         // Populate the uinput_setup struct
 
         let mut usetup = libc::uinput_setup {
             id: self.id.unwrap_or(DEFAULT_ID),
             name: [0; libc::UINPUT_MAX_NAME_SIZE],
-            ff_effects_max: 0,
+            ff_effects_max: self.ff_effects_max,
         };
 
         // SAFETY: either casting [u8] to [u8], or [u8] to [i8], which is the same size
