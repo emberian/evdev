@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
+use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -62,6 +62,7 @@ pub struct RawDevice {
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
+    supported_ff: Option<AttributeSet<FFEffectType>>,
     auto_repeat: Option<AutoRepeat>,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
@@ -178,7 +179,13 @@ impl RawDevice {
             None
         };
 
-        //unsafe { sys::eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
+        let supported_ff = if ty.contains(EventType::FORCEFEEDBACK) {
+            let mut ff = AttributeSet::<FFEffectType>::new();
+            unsafe { sys::eviocgbit_ff(file.as_raw_fd(), ff.as_mut_raw_slice())? };
+            Some(ff)
+        } else {
+            None
+        };
 
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
@@ -221,6 +228,7 @@ impl RawDevice {
             supported_switch,
             supported_led,
             supported_misc,
+            supported_ff,
             supported_snd,
             auto_repeat,
             event_buf: Vec::new(),
@@ -373,6 +381,11 @@ impl RawDevice {
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
     pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.supported_misc.as_deref()
+    }
+
+    /// Returns the set of supported force feedback effects supported by a device.
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+        self.supported_ff.as_deref()
     }
 
     /// Returns the set of supported simple sounds supported by a device.

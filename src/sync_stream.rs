@@ -245,6 +245,11 @@ impl Device {
         self.raw.misc_properties()
     }
 
+    /// Returns the set of supported force feedback effects supported by a device.
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+        self.raw.supported_ff()
+    }
+
     /// Returns the set of supported simple sounds supported by a device.
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
