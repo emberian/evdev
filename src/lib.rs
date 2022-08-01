@@ -102,6 +102,9 @@ mod sync_stream;
 mod sys;
 pub mod uinput;
 
+#[cfg(feature = "serde")]
+use serde_1::{Deserialize, Serialize};
+
 use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
@@ -122,6 +125,8 @@ const EVENT_BATCH_SIZE: usize = 32;
 ///
 /// Note that this does not capture an event's value, just the type and code.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
     Synchronization(Synchronization),
     Key(Key),
