@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::constants::*;
+use crate::ff::*;
 use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
@@ -40,6 +41,49 @@ pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
     [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
+
+#[derive(Debug)]
+pub struct FFEffect {
+    file: File,
+    id: u16,
+}
+
+impl FFEffect {
+    /// Plays the force feedback effect with the `count` argument specifying how often the effect
+    /// should be played.
+    pub fn play(&mut self, count: i32) -> io::Result<()> {
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, count)];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Stops playback of the force feedback effect.
+    pub fn stop(&mut self) -> io::Result<()> {
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, 0)];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Updates the force feedback effect.
+    pub fn update(&mut self, data: FFEffectData) -> io::Result<()> {
+        let mut effect: sys::ff_effect = data.into();
+        effect.id = self.id as i16;
+
+        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+
+        Ok(())
+    }
+}
+
+impl Drop for FFEffect {
+    fn drop(&mut self) {
+        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as u64) };
+    }
+}
 
 /// A physical or virtual device supported by evdev.
 ///
@@ -634,6 +678,49 @@ impl RawDevice {
     pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
         let bytes = unsafe { crate::cast_to_bytes(events) };
         self.file.write_all(bytes)
+    }
+
+    /// Uploads a force feedback effect to the device.
+    pub fn upload_ff_effect(&mut self, data: FFEffectData) -> io::Result<FFEffect> {
+        let mut effect: sys::ff_effect = data.into();
+        effect.id = -1;
+
+        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+
+        let file = self.file.try_clone()?;
+        let id = effect.id as u16;
+
+        Ok(FFEffect {
+            file,
+            id,
+        })
+    }
+
+    /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
+    /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
+    pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
+        let events = [InputEvent::new(
+            EventType::FORCEFEEDBACK,
+            FFEffectType::FF_GAIN.0,
+            value.into(),
+        )];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Enables or disables autocenter for the force feedback device.
+    pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
+        let events = [InputEvent::new(
+            EventType::FORCEFEEDBACK,
+            FFEffectType::FF_AUTOCENTER.0,
+            value.into(),
+        )];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
     }
 }
 
