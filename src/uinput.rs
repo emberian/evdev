@@ -4,11 +4,10 @@
 
 use crate::constants::EventType;
 use crate::inputid::{BusType, InputId};
-use crate::{sys, AttributeSetRef, InputEvent, Key, RelativeAxisType, SwitchType, UinputAbsSetup};
-use libc::{O_NONBLOCK, uinput_abs_setup};
+use libc::uinput_abs_setup;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd};
+use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 
 const UINPUT_PATH: &str = "/dev/uinput";
@@ -26,10 +25,10 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn new() -> io::Result<Self> {
         let mut options = OpenOptions::new();
 
-        // Open in write-only, in nonblocking mode.
+        // Open in read-write mode.
         let file = options
+            .read(true)
             .write(true)
-            .custom_flags(O_NONBLOCK)
             .open(UINPUT_PATH)?;
 
         Ok(VirtualDeviceBuilder {
