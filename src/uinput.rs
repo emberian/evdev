@@ -284,24 +284,18 @@ impl DevNodes {
         loop {
             let path = self.dir.next_entry().await?
                 // Map the directory name to its file name.
-                .map(|entry| entry.map(|entry|
-                    entry.file_name().to_string_lossy().to_owned().to_string()
-                ))
+                .map(|entry| entry.file_name().to_string_lossy().to_owned().to_string())
                 // Ignore file names that do not start with "event".
-                .filter(|name| name
-                    .as_ref()
-                    .map(|name| name.starts_with("event"))
-                    .unwrap_or(true)
-                )
+                .filter(|name| name.starts_with("event"))
                 // Construct the path of the form `/dev/input/eventX`.
-                .map(|name| name.map(|name| {
+                .map(|name| {
                     let mut path = PathBuf::from(DEV_PATH);
                     path.push(name);
                     path
-                }));
+                });
 
             if let Some(value) = path {
-                return Some(value);
+                return Ok(Some(value));
             }
         }
     }
