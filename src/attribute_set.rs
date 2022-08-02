@@ -244,9 +244,7 @@ macro_rules! evdev_enum {
         }
         #[cfg(feature = "serde")]
         paste::paste! {
-            #[cfg(feature = "serde")]
             struct [<$t Visitor>];
-            #[cfg(feature = "serde")]
             impl<'de> serde_1::de::Visitor<'de> for [<$t Visitor>] {
                 type Value = $t;
 
@@ -264,7 +262,6 @@ macro_rules! evdev_enum {
                     }
                 }
             }
-            #[cfg(feature = "serde")]
             impl<'de> serde_1::Deserialize<'de> for $t {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
