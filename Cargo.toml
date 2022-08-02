@@ -16,7 +16,7 @@ libc = "0.2.121"
 bitvec = "1.0.0"
 nix = "0.23"
 
-tokio_1 = { package = "tokio", version = "1.17", features = ["net"], optional = true }
+tokio_1 = { package = "tokio", version = "1.17", features = ["fs", "net"], optional = true }
 futures-core = { version = "0.3", optional = true }
 
 [dev-dependencies]
