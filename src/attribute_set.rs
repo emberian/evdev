@@ -242,6 +242,7 @@ macro_rules! evdev_enum {
                 serializer.serialize_str(value)
             }
         }
+        #[cfg(feature = "serde")]
         paste::paste! {
             #[cfg(feature = "serde")]
             struct [<$t Visitor>];
