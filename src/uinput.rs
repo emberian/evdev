@@ -198,11 +198,11 @@ impl VirtualDevice {
     }
 
     /// Get the syspaths of the corresponding device nodes in /dev/input.
-    pub fn enumerate_dev_nodes_blocking(&mut self) -> io::Result<DevNodes> {
+    pub fn enumerate_dev_nodes_blocking(&mut self) -> io::Result<DevNodesBlocking> {
         let path = self.get_syspath()?;
         let dir = std::fs::read_dir(path)?;
 
-        Ok(DevNodes {
+        Ok(DevNodesBlocking {
             dir,
         })
     }
@@ -234,13 +234,11 @@ impl VirtualDevice {
 
 /// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
 /// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
-#[cfg(not(feature = "tokio"))]
-pub struct DevNodes {
+pub struct DevNodesBlocking {
     dir: std::fs::ReadDir,
 }
 
-#[cfg(not(feature = "tokio"))]
-impl Iterator for DevNodes {
+impl Iterator for DevNodesBlocking {
     type Item = io::Result<PathBuf>;
 
     fn next(&mut self) -> Option<Self::Item> {
