@@ -95,6 +95,7 @@ mod attribute_set;
 mod constants;
 mod device_state;
 mod error;
+mod ff;
 mod inputid;
 pub mod raw_stream;
 mod scancodes;
@@ -110,10 +111,11 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 // pub use crate::constants::FFEffect::*;
-pub use attribute_set::{AttributeSet, AttributeSetRef};
+pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
 pub use error::Error;
+pub use ff::*;
 pub use inputid::*;
 pub use raw_stream::AutoRepeat;
 pub use scancodes::*;
@@ -136,6 +138,9 @@ pub enum InputEventKind {
     Switch(SwitchType),
     Led(LedType),
     Sound(SoundType),
+    ForceFeedback(u16),
+    ForceFeedbackStatus(u16),
+    UInput(u16),
     Other,
 }
 
@@ -269,6 +274,9 @@ impl InputEvent {
             EventType::SWITCH => InputEventKind::Switch(SwitchType(code)),
             EventType::LED => InputEventKind::Led(LedType(code)),
             EventType::SOUND => InputEventKind::Sound(SoundType(code)),
+            EventType::FORCEFEEDBACK => InputEventKind::ForceFeedback(code),
+            EventType::FORCEFEEDBACKSTATUS => InputEventKind::ForceFeedbackStatus(code),
+            EventType::UINPUT => InputEventKind::UInput(code),
             _ => InputEventKind::Other,
         }
     }

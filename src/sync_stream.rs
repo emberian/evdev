@@ -1,6 +1,7 @@
 use crate::constants::*;
+use crate::ff::*;
 use crate::device_state::DeviceState;
-use crate::raw_stream::RawDevice;
+use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -245,6 +246,11 @@ impl Device {
         self.raw.misc_properties()
     }
 
+    /// Returns the set of supported force feedback effects supported by a device.
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+        self.raw.supported_ff()
+    }
+
     /// Returns the set of supported simple sounds supported by a device.
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
@@ -351,6 +357,22 @@ impl Device {
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
     pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
         self.raw.send_events(events)
+    }
+
+    /// Uploads a force feedback effect to the device.
+    pub fn upload_ff_effect(&mut self, data: FFEffectData) -> io::Result<FFEffect> {
+        self.raw.upload_ff_effect(data)
+    }
+
+    /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
+    /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
+    pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
+        self.raw.set_ff_gain(value)
+    }
+
+    /// Enables or disables autocenter for the force feedback device.
+    pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
+        self.raw.set_ff_autocenter(value)
     }
 }
 

@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::constants::*;
-use crate::{sys, AttributeSet, AttributeSetRef, InputEvent, InputId, Key};
+use crate::ff::*;
+use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -41,6 +42,49 @@ pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
+#[derive(Debug)]
+pub struct FFEffect {
+    file: File,
+    id: u16,
+}
+
+impl FFEffect {
+    /// Plays the force feedback effect with the `count` argument specifying how often the effect
+    /// should be played.
+    pub fn play(&mut self, count: i32) -> io::Result<()> {
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, count)];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Stops playback of the force feedback effect.
+    pub fn stop(&mut self) -> io::Result<()> {
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, 0)];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Updates the force feedback effect.
+    pub fn update(&mut self, data: FFEffectData) -> io::Result<()> {
+        let mut effect: sys::ff_effect = data.into();
+        effect.id = self.id as i16;
+
+        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+
+        Ok(())
+    }
+}
+
+impl Drop for FFEffect {
+    fn drop(&mut self) {
+        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as u64) };
+    }
+}
+
 /// A physical or virtual device supported by evdev.
 ///
 /// Each device corresponds to a path typically found in `/dev/input`, and supports access via
@@ -62,6 +106,7 @@ pub struct RawDevice {
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
+    supported_ff: Option<AttributeSet<FFEffectType>>,
     auto_repeat: Option<AutoRepeat>,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
@@ -178,7 +223,13 @@ impl RawDevice {
             None
         };
 
-        //unsafe { sys::eviocgbit(file.as_raw_fd(), ffs(FORCEFEEDBACK.bits()), 0x7f, bits_as_u8_slice)?; }
+        let supported_ff = if ty.contains(EventType::FORCEFEEDBACK) {
+            let mut ff = AttributeSet::<FFEffectType>::new();
+            unsafe { sys::eviocgbit_ff(file.as_raw_fd(), ff.as_mut_raw_slice())? };
+            Some(ff)
+        } else {
+            None
+        };
 
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
@@ -221,6 +272,7 @@ impl RawDevice {
             supported_switch,
             supported_led,
             supported_misc,
+            supported_ff,
             supported_snd,
             auto_repeat,
             event_buf: Vec::new(),
@@ -373,6 +425,11 @@ impl RawDevice {
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
     pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
         self.supported_misc.as_deref()
+    }
+
+    /// Returns the set of supported force feedback effects supported by a device.
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+        self.supported_ff.as_deref()
     }
 
     /// Returns the set of supported simple sounds supported by a device.
@@ -622,6 +679,49 @@ impl RawDevice {
         let bytes = unsafe { crate::cast_to_bytes(events) };
         self.file.write_all(bytes)
     }
+
+    /// Uploads a force feedback effect to the device.
+    pub fn upload_ff_effect(&mut self, data: FFEffectData) -> io::Result<FFEffect> {
+        let mut effect: sys::ff_effect = data.into();
+        effect.id = -1;
+
+        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+
+        let file = self.file.try_clone()?;
+        let id = effect.id as u16;
+
+        Ok(FFEffect {
+            file,
+            id,
+        })
+    }
+
+    /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
+    /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
+    pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
+        let events = [InputEvent::new(
+            EventType::FORCEFEEDBACK,
+            FFEffectType::FF_GAIN.0,
+            value.into(),
+        )];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    /// Enables or disables autocenter for the force feedback device.
+    pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
+        let events = [InputEvent::new(
+            EventType::FORCEFEEDBACK,
+            FFEffectType::FF_AUTOCENTER.0,
+            value.into(),
+        )];
+        let bytes = unsafe { crate::cast_to_bytes(&events) };
+        self.file.write_all(bytes)?;
+
+        Ok(())
+    }
 }
 
 impl AsRawFd for RawDevice {
@@ -632,7 +732,7 @@ impl AsRawFd for RawDevice {
 
 /// A copy of the unstable Vec::spare_capacity_mut
 #[inline]
-fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
+pub(crate) fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
     let (len, cap) = (v.len(), v.capacity());
     unsafe {
         std::slice::from_raw_parts_mut(
