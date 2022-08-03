@@ -227,5 +227,49 @@ macro_rules! evdev_enum {
                 self.0 as _
             }
         }
+        #[cfg(feature = "serde")]
+        #[allow(unreachable_patterns)]
+        impl serde_1::Serialize for $t {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde_1::ser::Serializer,
+            {
+                let value = match *self {
+                    $(Self::$c => stringify!($c),)*
+                    _ => unreachable!(),
+                };
+
+                serializer.serialize_str(value)
+            }
+        }
+        #[cfg(feature = "serde")]
+        paste::paste! {
+            struct [<$t Visitor>];
+            impl<'de> serde_1::de::Visitor<'de> for [<$t Visitor>] {
+                type Value = $t;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    write!(formatter, "a string with any of the constants in {}", stringify!($t))
+                }
+
+                fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+                where
+                    E: serde_1::de::Error,
+                {
+                    match s.to_lowercase().as_str() {
+                        $(stringify!([<$c:lower>]) => Ok($t::$c),)*
+                        _ => Err(serde_1::de::Error::invalid_value(serde_1::de::Unexpected::Str(s), &self)),
+                    }
+                }
+            }
+            impl<'de> serde_1::Deserialize<'de> for $t {
+                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                where
+                    D: serde_1::de::Deserializer<'de>,
+                {
+                    deserializer.deserialize_str([<$t Visitor>])
+                }
+            }
+        }
     }
 }

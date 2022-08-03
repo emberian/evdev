@@ -9,6 +9,7 @@ documentation = "https://docs.rs/evdev"
 edition = "2021"
 
 [features]
+serde = ["serde_1", "paste"]
 tokio = ["tokio_1", "futures-core"]
 
 [dependencies]
@@ -16,7 +17,9 @@ libc = "0.2.121"
 bitvec = "1.0.0"
 nix = "0.23"
 thiserror = "1"
+paste = { version = "1.0", optional = true }
 
+serde_1 = { package = "serde", version = "1.0", features = ["derive"], optional = true }
 tokio_1 = { package = "tokio", version = "1.17", features = ["fs", "net"], optional = true }
 futures-core = { version = "0.3", optional = true }
 
