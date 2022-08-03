@@ -55,6 +55,11 @@ in a higher-level crate, likely supporting multiple platforms.
 Example
 =======
 
-See <examples/evtest.rs> for an example of using this library (which roughly
+Plenty of nice examples of how to use this crate can be found in the
+[examples](examples) directory of this repository. If you feel like an example of
+how to use a certain part of the evdev crate is missing, then feel free to open a
+pull request.
+
+A good introduction is the [evtest.rs](examples/evtest) example (which roughly
 corresponds to the userspace [evtest](https://cgit.freedesktop.org/evtest/)
 tool.
