@@ -63,3 +63,8 @@ pull request.
 A good introduction is the [evtest.rs](examples/evtest) example (which roughly
 corresponds to the userspace [evtest](https://cgit.freedesktop.org/evtest/)
 tool.
+
+Releases
+========
+
+Detailed release notes are available in this repository at [CHANGELOG.md](CHANGELOG.md).
