@@ -5,7 +5,7 @@
 
 ### Added
 
-- a `CHANELOG.md` with a changelog for each new release.
+- a `CHANGELOG.md` with a changelog for each new release.
 - Force feedback support [#74](https://github.com/emberian/evdev/pull/74).
 - Implement serde support for `evdev_enum!` types and `InputEventKind` [#76](https://github.com/emberian/evdev/pull/76).
 - Implement `VirtualDevice::get_sys_path()` as well as an iterator over the device node paths for virtual devices [#72](https://github.com/emberian/evdev/pull/72).
