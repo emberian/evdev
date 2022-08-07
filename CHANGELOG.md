@@ -5,6 +5,8 @@
 
 ### Added
 
+- Add missing `EventStream::device_mut()` in `sync_stream.rs`.
+
 ### Changed
 
 ### Fixed

@@ -761,6 +761,11 @@ mod tokio_stream {
             self.device.get_ref()
         }
 
+        /// Returns a mutable reference to the underlying device
+        pub fn device_mut(&self) -> &mut Device {
+            self.device.get_mut()
+        }
+
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
         /// any calls afterwards will likely error as well.
         pub async fn next_event(&mut self) -> io::Result<InputEvent> {
