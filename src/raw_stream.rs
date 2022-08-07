@@ -42,6 +42,8 @@ pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
+/// Represents a force feedback effect that has been successfully uploaded to the device for
+/// playback.
 #[derive(Debug)]
 pub struct FFEffect {
     file: File,
