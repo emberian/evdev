@@ -117,7 +117,7 @@ pub use device_state::DeviceState;
 pub use error::Error;
 pub use ff::*;
 pub use inputid::*;
-pub use raw_stream::AutoRepeat;
+pub use raw_stream::{AutoRepeat, FFEffect};
 pub use scancodes::*;
 pub use sync_stream::*;
 
