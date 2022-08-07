@@ -5,6 +5,7 @@
 
 ### Added
 
+- Add `FFEffect::id()` as an accessor for the effect ID.
 - Add missing `EventStream::device_mut()` in `sync_stream.rs`.
 
 ### Changed

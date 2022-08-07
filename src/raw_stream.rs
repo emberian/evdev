@@ -49,6 +49,11 @@ pub struct FFEffect {
 }
 
 impl FFEffect {
+    /// Returns the effect ID.
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
