@@ -366,29 +366,28 @@ impl Iterator for DevNodesBlocking {
     type Item = io::Result<PathBuf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let path = self.dir.next()
-                // Map the directory name to its file name.
-                .map(|entry| entry.map(|entry|
-                    entry.file_name().to_string_lossy().to_owned().to_string()
-                ))
-                // Ignore file names that do not start with "event".
-                .filter(|name| name
-                    .as_ref()
-                    .map(|name| name.starts_with("event"))
-                    .unwrap_or(true)
-                )
-                // Construct the path of the form `/dev/input/eventX`.
-                .map(|name| name.map(|name| {
-                    let mut path = PathBuf::from(DEV_PATH);
-                    path.push(name);
-                    path
-                }));
+        while let Some(entry) = self.dir.next() {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => return Some(Err(e)),
+            };
 
-            if let Some(value) = path {
-                return Some(value);
+            // Map the directory name to its file name.
+            let name = entry.file_name().to_string_lossy().to_owned().to_string();
+
+            // Ignore file names that do not start with event.
+            if !name.starts_with("event") {
+                continue;
             }
+
+            // Construct the path of the form '/dev/input/eventX'.
+            let mut path: PathBuf = PathBuf::from(DEV_PATH);
+            path.push(name);
+
+            return Some(Ok(path));
         }
+
+        None
     }
 }
 
