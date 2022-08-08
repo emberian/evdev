@@ -42,6 +42,8 @@ pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
+/// Represents a force feedback effect that has been successfully uploaded to the device for
+/// playback.
 #[derive(Debug)]
 pub struct FFEffect {
     file: File,
@@ -49,6 +51,11 @@ pub struct FFEffect {
 }
 
 impl FFEffect {
+    /// Returns the effect ID.
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
