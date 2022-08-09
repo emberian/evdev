@@ -762,7 +762,7 @@ mod tokio_stream {
         }
 
         /// Returns a mutable reference to the underlying device
-        pub fn device_mut(&self) -> &mut Device {
+        pub fn device_mut(&mut self) -> &mut Device {
             self.device.get_mut()
         }
 
