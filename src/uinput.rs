@@ -642,6 +642,4 @@ mod tokio_stream {
     }
 }
 #[cfg(feature = "tokio")]
-pub(crate) use tokio_stream::poll_fn;
-#[cfg(feature = "tokio")]
 pub use tokio_stream::VirtualEventStream;
