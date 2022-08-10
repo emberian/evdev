@@ -1,3 +1,4 @@
+use crate::compat::{input_absinfo, input_event};
 use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::ff::*;
@@ -265,7 +266,7 @@ impl Device {
     }
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
-    pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
         self.raw.get_abs_state()
     }
 
@@ -433,7 +434,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     let value = get_value(vals, typ);
                     if prev != value {
                         $start.0 = typ.0 + 1;
-                        let ev = InputEvent(libc::input_event {
+                        let ev = InputEvent(input_event {
                             time: *$time,
                             type_: EventType::$evtype.0,
                             code: typ.0,
@@ -472,7 +473,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     ABSOLUTE,
                     Absolutes,
                     supported_absolute_axes,
-                    &[libc::input_absinfo],
+                    &[input_absinfo],
                     |st| st.abs_vals().unwrap(),
                     |vals, abs| vals[abs.0 as usize].value
                 );
@@ -510,7 +511,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     |st| st.led_vals().unwrap(),
                     |vals, led| vals.contains(led)
                 );
-                let ev = InputEvent(libc::input_event {
+                let ev = InputEvent(input_event {
                     time: *time,
                     type_: EventType::SYNCHRONIZATION.0,
                     code: Synchronization::SYN_REPORT.0,
@@ -561,9 +562,9 @@ impl<'a> Drop for FetchEventsSynced<'a> {
 #[inline]
 fn sync_events(
     range: &mut std::ops::Range<usize>,
-    event_buf: &[libc::input_event],
+    event_buf: &[input_event],
     mut handle_event: impl FnMut(InputEvent),
-) -> (Result<libc::input_event, bool>, Option<usize>) {
+) -> (Result<input_event, bool>, Option<usize>) {
     let mut consumed_to = None;
     let res = 'outer: loop {
         if let Some(idx) = range.next() {
@@ -830,8 +831,8 @@ mod tests {
     use super::*;
 
     fn result_events_iter(
-        events: &[libc::input_event],
-    ) -> impl Iterator<Item = Result<libc::input_event, ()>> + '_ {
+        events: &[input_event],
+    ) -> impl Iterator<Item = Result<input_event, ()>> + '_ {
         let mut range = 0..0;
         std::iter::from_fn(move || {
             let (res, _) = sync_events(&mut range, events, |_| {});
@@ -843,7 +844,7 @@ mod tests {
         })
     }
 
-    fn events_iter(events: &[libc::input_event]) -> impl Iterator<Item = libc::input_event> + '_ {
+    fn events_iter(events: &[input_event]) -> impl Iterator<Item = input_event> + '_ {
         result_events_iter(events).flatten()
     }
 
@@ -852,19 +853,19 @@ mod tests {
         tv_sec: 0,
         tv_usec: 0,
     };
-    const KEY4: libc::input_event = libc::input_event {
+    const KEY4: input_event = input_event {
         time,
         type_: EventType::KEY.0,
         code: Key::KEY_4.0,
         value: 1,
     };
-    const REPORT: libc::input_event = libc::input_event {
+    const REPORT: input_event = input_event {
         time,
         type_: EventType::SYNCHRONIZATION.0,
         code: Synchronization::SYN_REPORT.0,
         value: 0,
     };
-    const DROPPED: libc::input_event = libc::input_event {
+    const DROPPED: input_event = input_event {
         code: Synchronization::SYN_DROPPED.0,
         ..REPORT
     };

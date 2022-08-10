@@ -1,18 +1,19 @@
+use crate::compat::input_id;
 use std::fmt;
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct InputId(pub(crate) libc::input_id);
+pub struct InputId(pub(crate) input_id);
 
-impl From<libc::input_id> for InputId {
+impl From<input_id> for InputId {
     #[inline]
-    fn from(id: libc::input_id) -> Self {
+    fn from(id: input_id) -> Self {
         Self(id)
     }
 }
-impl AsRef<libc::input_id> for InputId {
+impl AsRef<input_id> for InputId {
     #[inline]
-    fn as_ref(&self) -> &libc::input_id {
+    fn as_ref(&self) -> &input_id {
         &self.0
     }
 }
@@ -33,7 +34,7 @@ impl InputId {
 
     /// Crate a new InputId, useful for customizing virtual input devices.
     pub fn new(bus_type: BusType, vendor: u16, product: u16, version: u16) -> Self {
-        Self::from(libc::input_id {
+        Self::from(input_id {
             bustype: bus_type.0,
             vendor,
             product,

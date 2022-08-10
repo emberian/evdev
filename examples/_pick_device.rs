@@ -1,9 +1,10 @@
+#![allow(dead_code)]
 //! An arg parser/prompt shared between the `evtest*` examples. Also demonstrates opening/finding
 //! connected devices.
 
-use std::io::prelude::*;
-
 pub fn pick_device() -> evdev::Device {
+    use std::io::prelude::*;
+
     let mut args = std::env::args_os();
     args.next();
     if let Some(dev_file) = args.next() {
@@ -24,5 +25,4 @@ pub fn pick_device() -> evdev::Device {
     }
 }
 
-#[allow(dead_code)]
 fn main() {}

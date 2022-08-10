@@ -2,6 +2,7 @@
 //!
 //! This is quite useful when testing/debugging devices, or synchronization.
 
+use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPUT_MAX_NAME_SIZE};
 use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
@@ -10,7 +11,6 @@ use crate::{
     sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType,
     SwitchType, UinputAbsSetup,
 };
-use libc::uinput_abs_setup;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
@@ -26,7 +26,7 @@ const DEV_PATH: &str = "/dev/input";
 pub struct VirtualDeviceBuilder<'a> {
     file: File,
     name: &'a [u8],
-    id: Option<libc::input_id>,
+    id: Option<input_id>,
     ff_effects_max: u32,
 }
 
@@ -162,9 +162,9 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn build(self) -> io::Result<VirtualDevice> {
         // Populate the uinput_setup struct
 
-        let mut usetup = libc::uinput_setup {
+        let mut usetup = uinput_setup {
             id: self.id.unwrap_or(DEFAULT_ID),
-            name: [0; libc::UINPUT_MAX_NAME_SIZE],
+            name: [0; UINPUT_MAX_NAME_SIZE],
             ff_effects_max: self.ff_effects_max,
         };
 
@@ -173,14 +173,14 @@ impl<'a> VirtualDeviceBuilder<'a> {
         // Panic if we're doing something really stupid
         // + 1 for the null terminator; usetup.name was zero-initialized so there will be null
         // bytes after the part we copy into
-        assert!(name_bytes.len() + 1 < libc::UINPUT_MAX_NAME_SIZE);
+        assert!(name_bytes.len() + 1 < UINPUT_MAX_NAME_SIZE);
         usetup.name[..name_bytes.len()].copy_from_slice(name_bytes);
 
         VirtualDevice::new(self.file, &usetup)
     }
 }
 
-const DEFAULT_ID: libc::input_id = libc::input_id {
+const DEFAULT_ID: input_id = input_id {
     bustype: BusType::BUS_USB.0,
     vendor: 0x1234,  /* sample vendor */
     product: 0x5678, /* sample product */
@@ -189,12 +189,12 @@ const DEFAULT_ID: libc::input_id = libc::input_id {
 
 pub struct VirtualDevice {
     file: File,
-    pub(crate) event_buf: Vec<libc::input_event>,
+    pub(crate) event_buf: Vec<input_event>,
 }
 
 impl VirtualDevice {
     /// Create a new virtual device.
-    fn new(file: File, usetup: &libc::uinput_setup) -> io::Result<Self> {
+    fn new(file: File, usetup: &uinput_setup) -> io::Result<Self> {
         unsafe { sys::ui_dev_setup(file.as_raw_fd(), usetup)? };
         unsafe { sys::ui_dev_create(file.as_raw_fd())? };
 
@@ -318,7 +318,7 @@ impl VirtualDevice {
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, spare_capacity.as_mut_ptr() as _, spare_capacity_size) };
         let bytes_read = nix::errno::Errno::result(res)?;
-        let num_read = bytes_read as usize / std::mem::size_of::<libc::input_event>();
+        let num_read = bytes_read as usize / std::mem::size_of::<input_event>();
         unsafe {
             let len = self.event_buf.len();
             self.event_buf.set_len(len + num_read);

@@ -1,3 +1,4 @@
+use crate::compat::input_absinfo;
 use crate::{constants::*, raw_stream::RawDevice};
 use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, Key};
 use std::time::SystemTime;
@@ -9,7 +10,7 @@ pub struct DeviceState {
     pub(crate) timestamp: SystemTime,
     /// Set = key pressed
     pub(crate) key_vals: Option<AttributeSet<Key>>,
-    pub(crate) abs_vals: Option<Box<[libc::input_absinfo; AbsoluteAxisType::COUNT]>>,
+    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
     pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
     /// Set = LED lit
@@ -86,7 +87,7 @@ impl DeviceState {
     /// Returns the set of absolute axis measurements when the snapshot was taken.
     ///
     /// Returns `None` if not supported by this device.
-    pub fn abs_vals(&self) -> Option<&[libc::input_absinfo]> {
+    pub fn abs_vals(&self) -> Option<&[input_absinfo]> {
         self.abs_vals.as_deref().map(|v| &v[..])
     }
 

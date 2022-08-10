@@ -5,6 +5,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{io, mem};
 
+use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
 use crate::constants::*;
 use crate::ff::*;
 use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
@@ -33,11 +34,16 @@ fn bytes_into_string_lossy(v: Vec<u8>) -> String {
     String::from_utf8(v).unwrap_or_else(|v| String::from_utf8_lossy(v.as_bytes()).into_owned())
 }
 
-#[rustfmt::skip]
-const ABSINFO_ZERO: libc::input_absinfo = libc::input_absinfo {
-    value: 0, minimum: 0, maximum: 0, fuzz: 0, flat: 0, resolution: 0,
+const ABSINFO_ZERO: input_absinfo = input_absinfo {
+    value: 0,
+    minimum: 0,
+    maximum: 0,
+    fuzz: 0,
+    flat: 0,
+    resolution: 0,
 };
-pub(crate) const ABS_VALS_INIT: [libc::input_absinfo; AbsoluteAxisType::COUNT] =
+
+pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisType::COUNT] =
     [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
@@ -104,7 +110,7 @@ pub struct RawDevice {
     name: Option<String>,
     phys: Option<String>,
     uniq: Option<String>,
-    id: libc::input_id,
+    id: input_id,
     props: AttributeSet<PropType>,
     driver_version: (u8, u8, u8),
     supported_keys: Option<AttributeSet<Key>>,
@@ -118,7 +124,7 @@ pub struct RawDevice {
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
     supported_snd: Option<AttributeSet<SoundType>>,
-    pub(crate) event_buf: Vec<libc::input_event>,
+    pub(crate) event_buf: Vec<input_event>,
     grabbed: bool,
 }
 
@@ -462,7 +468,7 @@ impl RawDevice {
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
         let res = unsafe { libc::read(fd, spare_capacity.as_mut_ptr() as _, spare_capacity_size) };
         let bytes_read = nix::errno::Errno::result(res)?;
-        let num_read = bytes_read as usize / mem::size_of::<libc::input_event>();
+        let num_read = bytes_read as usize / mem::size_of::<input_event>();
         unsafe {
             let len = self.event_buf.len();
             self.event_buf.set_len(len + num_read);
@@ -490,8 +496,8 @@ impl RawDevice {
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
     #[inline]
-    pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
-        let mut abs_vals: [libc::input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
+        let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
     }
@@ -527,7 +533,7 @@ impl RawDevice {
     #[inline]
     pub fn update_abs_state(
         &self,
-        abs_vals: &mut [libc::input_absinfo; AbsoluteAxisType::COUNT],
+        abs_vals: &mut [input_absinfo; AbsoluteAxisType::COUNT],
     ) -> io::Result<()> {
         if let Some(supported_abs) = self.supported_absolute_axes() {
             for AbsoluteAxisType(idx) in supported_abs.iter() {
@@ -579,7 +585,7 @@ impl RawDevice {
 
     /// Retrieve the scancode for a keycode, if any
     pub fn get_scancode_by_keycode(&self, keycode: u32) -> io::Result<Vec<u8>> {
-        let mut keymap = libc::input_keymap_entry {
+        let mut keymap = input_keymap_entry {
             flags: 0,
             len: 0,
             index: 0,
@@ -592,7 +598,7 @@ impl RawDevice {
 
     /// Retrieve the keycode and scancode by index, starting at 0
     pub fn get_scancode_by_index(&self, index: u16) -> io::Result<(u32, Vec<u8>)> {
-        let mut keymap = libc::input_keymap_entry {
+        let mut keymap = input_keymap_entry {
             flags: INPUT_KEYMAP_BY_INDEX,
             len: 0,
             index,
@@ -616,7 +622,7 @@ impl RawDevice {
     ) -> io::Result<u32> {
         let len = scancode.len();
 
-        let mut keymap = libc::input_keymap_entry {
+        let mut keymap = input_keymap_entry {
             flags: INPUT_KEYMAP_BY_INDEX,
             len: len as u8,
             index,
@@ -635,7 +641,7 @@ impl RawDevice {
     pub fn update_scancode(&self, keycode: u32, scancode: &[u8]) -> io::Result<u32> {
         let len = scancode.len();
 
-        let mut keymap = libc::input_keymap_entry {
+        let mut keymap = input_keymap_entry {
             flags: 0,
             len: len as u8,
             index: 0,
