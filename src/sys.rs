@@ -1,5 +1,5 @@
 use libc::c_int;
-use libc::{input_absinfo, input_id, input_keymap_entry, uinput_setup, uinput_abs_setup};
+use libc::{input_absinfo, input_id, input_keymap_entry, uinput_abs_setup, uinput_setup};
 // use libc::{
 //     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
 //     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
@@ -91,10 +91,7 @@ ioctl_write_buf!(ui_set_phys, UINPUT_IOCTL_BASE, 108, u8);
 ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
 ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
 
-pub unsafe fn ui_get_sysname(
-    fd: ::libc::c_int,
-    bytes: &mut [u8],
-) -> ::nix::Result<c_int> {
+pub unsafe fn ui_get_sysname(fd: ::libc::c_int, bytes: &mut [u8]) -> ::nix::Result<c_int> {
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,
         request_code_read!(UINPUT_IOCTL_BASE, 300, bytes.len()),

@@ -1,6 +1,6 @@
 use crate::constants::*;
-use crate::ff::*;
 use crate::device_state::DeviceState;
+use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
 use std::os::unix::io::{AsRawFd, RawFd};
