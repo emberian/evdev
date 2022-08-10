@@ -88,7 +88,7 @@ impl FFEffect {
 
 impl Drop for FFEffect {
     fn drop(&mut self) {
-        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as u64) };
+        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as _) };
     }
 }
 
@@ -697,10 +697,7 @@ impl RawDevice {
         let file = self.file.try_clone()?;
         let id = effect.id as u16;
 
-        Ok(FFEffect {
-            file,
-            id,
-        })
+        Ok(FFEffect { file, id })
     }
 
     /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
