@@ -353,7 +353,7 @@ impl Iterator for DevNodesBlocking {
     type Item = io::Result<PathBuf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(entry) = self.dir.next() {
+        for entry in self.dir.by_ref() {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(e) => return Some(Err(e)),

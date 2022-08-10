@@ -26,13 +26,13 @@ impl From<libc::ff_envelope> for FFEnvelope {
     }
 }
 
-impl Into<libc::ff_envelope> for FFEnvelope {
-    fn into(self) -> libc::ff_envelope {
+impl From<FFEnvelope> for libc::ff_envelope {
+    fn from(other: FFEnvelope) -> Self {
         libc::ff_envelope {
-            attack_length: self.attack_length,
-            attack_level: self.attack_level,
-            fade_length: self.fade_length,
-            fade_level: self.fade_level,
+            attack_length: other.attack_length,
+            attack_level: other.attack_level,
+            fade_length: other.fade_length,
+            fade_level: other.fade_level,
         }
     }
 }
@@ -52,14 +52,14 @@ pub enum FFWaveform {
     SawDown,
 }
 
-impl Into<FFEffectType> for FFWaveform {
-    fn into(self) -> FFEffectType {
-        match self {
-            Self::Square => FFEffectType::FF_SQUARE,
-            Self::Triangle => FFEffectType::FF_TRIANGLE,
-            Self::Sine => FFEffectType::FF_SINE,
-            Self::SawUp => FFEffectType::FF_SAW_UP,
-            Self::SawDown => FFEffectType::FF_SAW_DOWN,
+impl From<FFWaveform> for FFEffectType {
+    fn from(other: FFWaveform) -> Self {
+        match other {
+            FFWaveform::Square => FFEffectType::FF_SQUARE,
+            FFWaveform::Triangle => FFEffectType::FF_TRIANGLE,
+            FFWaveform::Sine => FFEffectType::FF_SINE,
+            FFWaveform::SawUp => FFEffectType::FF_SAW_UP,
+            FFWaveform::SawDown => FFEffectType::FF_SAW_DOWN,
         }
     }
 }
@@ -95,15 +95,15 @@ impl From<libc::ff_condition_effect> for FFCondition {
     }
 }
 
-impl Into<libc::ff_condition_effect> for FFCondition {
-    fn into(self) -> libc::ff_condition_effect {
+impl From<FFCondition> for libc::ff_condition_effect {
+    fn from(other: FFCondition) -> Self {
         libc::ff_condition_effect {
-            right_saturation: self.right_saturation,
-            left_saturation: self.left_saturation,
-            right_coeff: self.right_coefficient,
-            left_coeff: self.left_coefficient,
-            deadband: self.deadband,
-            center: self.center,
+            right_saturation: other.right_saturation,
+            left_saturation: other.left_saturation,
+            right_coeff: other.right_coefficient,
+            left_coeff: other.left_coefficient,
+            deadband: other.deadband,
+            center: other.center,
         }
     }
 }
@@ -156,17 +156,17 @@ pub enum FFEffectKind {
     },
 }
 
-impl Into<FFEffectType> for FFEffectKind {
-    fn into(self) -> FFEffectType {
-        match self {
-            Self::Damper => FFEffectType::FF_DAMPER,
-            Self::Inertia => FFEffectType::FF_INERTIA,
-            Self::Constant { .. } => FFEffectType::FF_CONSTANT,
-            Self::Ramp { .. } => FFEffectType::FF_RAMP,
-            Self::Periodic { .. } => FFEffectType::FF_PERIODIC,
-            Self::Spring { .. } => FFEffectType::FF_SPRING,
-            Self::Friction { .. } => FFEffectType::FF_FRICTION,
-            Self::Rumble { .. } => FFEffectType::FF_RUMBLE,
+impl From<FFEffectKind> for FFEffectType {
+    fn from(other: FFEffectKind) -> Self {
+        match other {
+            FFEffectKind::Damper => FFEffectType::FF_DAMPER,
+            FFEffectKind::Inertia => FFEffectType::FF_INERTIA,
+            FFEffectKind::Constant { .. } => FFEffectType::FF_CONSTANT,
+            FFEffectKind::Ramp { .. } => FFEffectType::FF_RAMP,
+            FFEffectKind::Periodic { .. } => FFEffectType::FF_PERIODIC,
+            FFEffectKind::Spring { .. } => FFEffectType::FF_SPRING,
+            FFEffectKind::Friction { .. } => FFEffectType::FF_FRICTION,
+            FFEffectKind::Rumble { .. } => FFEffectType::FF_RUMBLE,
         }
     }
 }
@@ -189,11 +189,11 @@ impl From<libc::ff_trigger> for FFTrigger {
     }
 }
 
-impl Into<libc::ff_trigger> for FFTrigger {
-    fn into(self) -> libc::ff_trigger {
+impl From<FFTrigger> for libc::ff_trigger {
+    fn from(other: FFTrigger) -> Self {
         libc::ff_trigger {
-            button: self.button,
-            interval: self.interval,
+            button: other.button,
+            interval: other.interval,
         }
     }
 }
@@ -216,11 +216,11 @@ impl From<libc::ff_replay> for FFReplay {
     }
 }
 
-impl Into<libc::ff_replay> for FFReplay {
-    fn into(self) -> libc::ff_replay {
+impl From<FFReplay> for libc::ff_replay {
+    fn from(other: FFReplay) -> Self {
         libc::ff_replay {
-            length: self.length,
-            delay: self.delay,
+            length: other.length,
+            delay: other.delay,
         }
     }
 }
@@ -312,17 +312,17 @@ impl From<sys::ff_effect> for FFEffectData {
     }
 }
 
-impl Into<sys::ff_effect> for FFEffectData {
-    fn into(self) -> sys::ff_effect {
+impl From<FFEffectData> for sys::ff_effect {
+    fn from(other: FFEffectData) -> Self {
         let mut effect: sys::ff_effect = unsafe { std::mem::zeroed() };
 
-        let type_: FFEffectType = self.kind.into();
+        let type_: FFEffectType = other.kind.into();
         effect.type_ = type_.0;
-        effect.direction = self.direction;
-        effect.trigger = self.trigger.into();
-        effect.replay = self.replay.into();
+        effect.direction = other.direction;
+        effect.trigger = other.trigger.into();
+        effect.replay = other.replay.into();
 
-        match self.kind {
+        match other.kind {
             FFEffectKind::Constant { level, envelope } => {
                 effect.u.constant.level = level;
                 effect.u.constant.envelope = envelope.into();

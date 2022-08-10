@@ -47,7 +47,7 @@ fn main() -> Result<(), Error> {
                 UInputEventType::UI_FF_UPLOAD => {
                     let mut event = device.process_ff_upload(event)?;
 
-                    let id = ids.iter().next().map(|id| *id);
+                    let id = ids.iter().next().copied();
 
                     match id {
                         Some(id) => {
