@@ -323,10 +323,7 @@ impl Into<sys::ff_effect> for FFEffectData {
         effect.replay = self.replay.into();
 
         match self.kind {
-            FFEffectKind::Constant {
-                level,
-                envelope,
-            } => {
+            FFEffectKind::Constant { level, envelope } => {
                 effect.u.constant.level = level;
                 effect.u.constant.envelope = envelope.into();
             }
@@ -355,8 +352,7 @@ impl Into<sys::ff_effect> for FFEffectData {
                 effect.u.periodic.phase = phase;
                 effect.u.periodic.envelope = envelope.into();
             }
-            FFEffectKind::Spring { condition } |
-            FFEffectKind::Friction { condition } => {
+            FFEffectKind::Spring { condition } | FFEffectKind::Friction { condition } => {
                 effect.u.condition = [condition[0].into(), condition[1].into()];
             }
             FFEffectKind::Rumble {

@@ -1,7 +1,9 @@
 // Create a virtual joystick, just while this is running.
 // Generally this requires root.
 
-use evdev::{uinput::VirtualDeviceBuilder, EventType, InputEvent, UinputAbsSetup, AbsInfo, AbsoluteAxisType};
+use evdev::{
+    uinput::VirtualDeviceBuilder, AbsInfo, AbsoluteAxisType, EventType, InputEvent, UinputAbsSetup,
+};
 use std::thread::sleep;
 use std::time::Duration;
 

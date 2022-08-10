@@ -186,7 +186,14 @@ impl AbsInfo {
     }
 
     /// Creates a new AbsInfo, particurarily useful for uinput
-    pub fn new(value: i32, minimum: i32, maximum: i32, fuzz: i32, flat: i32, resolution: i32) -> Self {
+    pub fn new(
+        value: i32,
+        minimum: i32,
+        maximum: i32,
+        fuzz: i32,
+        flat: i32,
+        resolution: i32,
+    ) -> Self {
         AbsInfo(libc::input_absinfo {
             value,
             minimum,

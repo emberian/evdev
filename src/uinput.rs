@@ -3,16 +3,19 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::constants::{EventType, UInputEventType};
-use crate::inputid::{BusType, InputId};
 use crate::ff::FFEffectData;
+use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
-use crate::{sys, AttributeSetRef, Error, InputEvent, InputEventKind, FFEffectType, Key, RelativeAxisType, SwitchType, UinputAbsSetup};
+use crate::{
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType,
+    SwitchType, UinputAbsSetup,
+};
 use libc::uinput_abs_setup;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
-use std::path::PathBuf;
 use std::os::unix::prelude::RawFd;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 const UINPUT_PATH: &str = "/dev/uinput";
@@ -32,10 +35,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         let mut options = OpenOptions::new();
 
         // Open in read-write mode.
-        let file = options
-            .read(true)
-            .write(true)
-            .open(UINPUT_PATH)?;
+        let file = options.read(true).write(true).open(UINPUT_PATH)?;
 
         Ok(VirtualDeviceBuilder {
             file,
@@ -88,10 +88,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
                 self.file.as_raw_fd(),
                 axis.code() as nix::sys::ioctl::ioctl_param_type,
             )?;
-            sys::ui_abs_setup(
-                self.file.as_raw_fd(),
-                &axis.0 as *const uinput_abs_setup,
-            )?;
+            sys::ui_abs_setup(self.file.as_raw_fd(), &axis.0 as *const uinput_abs_setup)?;
         }
 
         Ok(self)
@@ -237,9 +234,7 @@ impl VirtualDevice {
         let path = self.get_syspath()?;
         let dir = std::fs::read_dir(path)?;
 
-        Ok(DevNodesBlocking {
-            dir,
-        })
+        Ok(DevNodesBlocking { dir })
     }
 
     /// Get the syspaths of the corresponding device nodes in /dev/input.
@@ -248,9 +243,7 @@ impl VirtualDevice {
         let path = self.get_syspath()?;
         let dir = tokio_1::fs::read_dir(path).await?;
 
-        Ok(DevNodes {
-            dir,
-        })
+        Ok(DevNodes { dir })
     }
 
     /// Post a batch of events to the virtual device.
@@ -285,10 +278,7 @@ impl VirtualDevice {
 
         let file = self.file.try_clone()?;
 
-        Ok(FFUploadEvent {
-            file,
-            request,
-        })
+        Ok(FFUploadEvent { file, request })
     }
 
     /// Processes the given [`UInputEvent`] if it is a force feedback erase event, in which case
@@ -310,10 +300,7 @@ impl VirtualDevice {
 
         let file = self.file.try_clone()?;
 
-        Ok(FFEraseEvent {
-            file,
-            request,
-        })
+        Ok(FFEraseEvent { file, request })
     }
 
     /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
@@ -403,7 +390,10 @@ impl DevNodes {
     /// Returns the next entry in the set of device nodes.
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
         loop {
-            let path = self.dir.next_entry().await?
+            let path = self
+                .dir
+                .next_entry()
+                .await?
                 // Map the directory name to its file name.
                 .map(|entry| entry.file_name().to_string_lossy().to_owned().to_string())
                 // Ignore file names that do not start with "event".
