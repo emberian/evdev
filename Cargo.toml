@@ -15,6 +15,7 @@ tokio = ["tokio_1", "futures-core"]
 [dependencies]
 libc = "0.2.121"
 bitvec = "1.0.0"
+cfg-if = "1.0"
 nix = "0.23"
 thiserror = "1"
 paste = { version = "1.0", optional = true }

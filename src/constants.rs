@@ -1,8 +1,12 @@
+use crate::compat::{
+    ABS_CNT, EV_CNT, FF_CNT, INPUT_PROP_CNT, LED_CNT, MSC_CNT, REL_CNT, SND_CNT, SW_CNT,
+};
+
 /// Event types supported by the device.
 ///
 /// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
 ///
-/// This is implemented as a newtype around the u16 "type" field of `libc::input_event`.
+/// This is implemented as a newtype around the u16 "type" field of `input_event`.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct EventType(pub u16);
 
@@ -47,7 +51,7 @@ evdev_enum!(
 );
 
 impl EventType {
-    pub(crate) const COUNT: usize = libc::EV_CNT;
+    pub(crate) const COUNT: usize = EV_CNT;
 }
 
 /// A "synchronization" message type published by the kernel into the events stream.
@@ -91,7 +95,7 @@ evdev_enum!(
 );
 
 impl PropType {
-    pub(crate) const COUNT: usize = libc::INPUT_PROP_CNT;
+    pub(crate) const COUNT: usize = INPUT_PROP_CNT;
 }
 
 /// A type of relative axis measurement, typically produced by mice.
@@ -117,7 +121,7 @@ evdev_enum!(
 );
 
 impl RelativeAxisType {
-    pub(crate) const COUNT: usize = libc::REL_CNT;
+    pub(crate) const COUNT: usize = REL_CNT;
 }
 
 /// A type of absolute axis measurement, typically used for touch events and joysticks.
@@ -186,7 +190,7 @@ evdev_enum!(
 );
 
 impl AbsoluteAxisType {
-    pub(crate) const COUNT: usize = libc::ABS_CNT;
+    pub(crate) const COUNT: usize = ABS_CNT;
 }
 
 /// An event type corresponding to a physical or virtual switch.
@@ -233,7 +237,7 @@ evdev_enum!(
 );
 
 impl SwitchType {
-    pub(crate) const COUNT: usize = libc::SW_CNT;
+    pub(crate) const COUNT: usize = SW_CNT;
 }
 
 /// LEDs specified by USB HID.
@@ -261,7 +265,7 @@ evdev_enum!(
 );
 
 impl LedType {
-    pub(crate) const COUNT: usize = libc::LED_CNT;
+    pub(crate) const COUNT: usize = LED_CNT;
 }
 
 /// Various miscellaneous event types.
@@ -286,7 +290,7 @@ evdev_enum!(
 );
 
 impl MiscType {
-    pub(crate) const COUNT: usize = libc::MSC_CNT;
+    pub(crate) const COUNT: usize = MSC_CNT;
 }
 
 /// Force feedback effect types
@@ -331,7 +335,7 @@ evdev_enum!(
 );
 
 impl FFEffectType {
-    pub(crate) const COUNT: usize = libc::FF_CNT;
+    pub(crate) const COUNT: usize = FF_CNT;
 }
 
 /// Force feedback effect status
@@ -373,7 +377,7 @@ evdev_enum!(
 );
 
 impl SoundType {
-    pub(crate) const COUNT: usize = libc::SND_CNT;
+    pub(crate) const COUNT: usize = SND_CNT;
 }
 
 /// A uinput event published by the kernel into the events stream for uinput devices.

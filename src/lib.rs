@@ -91,6 +91,7 @@
 #[macro_use]
 mod attribute_set;
 
+mod compat;
 mod constants;
 mod device_state;
 mod error;
@@ -105,11 +106,11 @@ pub mod uinput;
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};
 
+use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-// pub use crate::constants::FFEffect::*;
 pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
@@ -143,7 +144,7 @@ pub enum InputEventKind {
     Other,
 }
 
-/// A wrapped `libc::input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
+/// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
 /// axes
 ///
 /// `input_absinfo` is a struct containing six fields:
@@ -156,7 +157,7 @@ pub enum InputEventKind {
 ///
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub struct AbsInfo(libc::input_absinfo);
+pub struct AbsInfo(input_absinfo);
 
 impl AbsInfo {
     #[inline]
@@ -193,7 +194,7 @@ impl AbsInfo {
         flat: i32,
         resolution: i32,
     ) -> Self {
-        AbsInfo(libc::input_absinfo {
+        AbsInfo(input_absinfo {
             value,
             minimum,
             maximum,
@@ -204,14 +205,14 @@ impl AbsInfo {
     }
 }
 
-/// A wrapped `libc::uinput_abs_setup`, used to set up analogue axes with uinput
+/// A wrapped `uinput_abs_setup`, used to set up analogue axes with uinput
 ///
 /// `uinput_abs_setup` is a struct containing two fields:
 /// - `code: u16`
 /// - `absinfo: input_absinfo`
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub struct UinputAbsSetup(libc::uinput_abs_setup);
+pub struct UinputAbsSetup(uinput_abs_setup);
 
 impl UinputAbsSetup {
     #[inline]
@@ -224,14 +225,14 @@ impl UinputAbsSetup {
     }
     /// Creates new UinputAbsSetup
     pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
-        UinputAbsSetup(libc::uinput_abs_setup {
+        UinputAbsSetup(uinput_abs_setup {
             code: code.0,
             absinfo: absinfo.0,
         })
     }
 }
 
-/// A wrapped `libc::input_event` returned by the input device via the kernel.
+/// A wrapped `input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
 /// - `time: timeval`
@@ -242,7 +243,7 @@ impl UinputAbsSetup {
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub struct InputEvent(libc::input_event);
+pub struct InputEvent(input_event);
 
 impl InputEvent {
     /// Returns the timestamp associated with the event.
@@ -298,7 +299,7 @@ impl InputEvent {
 
     /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
     pub fn new(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(libc::input_event {
+        InputEvent(input_event {
             time: libc::timeval {
                 tv_sec: 0,
                 tv_usec: 0,
@@ -316,7 +317,7 @@ impl InputEvent {
     /// the kernel will update `input_event.time` when it emits the events to any programs reading
     /// the event "file".
     pub fn new_now(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(libc::input_event {
+        InputEvent(input_event {
             time: systime_to_timeval(&SystemTime::now()),
             type_: type_.0,
             code,
@@ -325,14 +326,14 @@ impl InputEvent {
     }
 }
 
-impl From<libc::input_event> for InputEvent {
-    fn from(raw: libc::input_event) -> Self {
+impl From<input_event> for InputEvent {
+    fn from(raw: input_event) -> Self {
         Self(raw)
     }
 }
 
-impl AsRef<libc::input_event> for InputEvent {
-    fn as_ref(&self) -> &libc::input_event {
+impl AsRef<input_event> for InputEvent {
+    fn as_ref(&self) -> &input_event {
         &self.0
     }
 }

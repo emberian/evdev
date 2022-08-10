@@ -1,4 +1,5 @@
 use crate::attribute_set::EvdevEnum;
+use crate::compat::{ff_condition_effect, ff_envelope, ff_replay, ff_trigger};
 use crate::constants::FFEffectType;
 use crate::sys;
 
@@ -15,8 +16,8 @@ pub struct FFEnvelope {
     pub fade_level: u16,
 }
 
-impl From<libc::ff_envelope> for FFEnvelope {
-    fn from(value: libc::ff_envelope) -> Self {
+impl From<ff_envelope> for FFEnvelope {
+    fn from(value: ff_envelope) -> Self {
         Self {
             attack_length: value.attack_length,
             attack_level: value.attack_level,
@@ -26,9 +27,9 @@ impl From<libc::ff_envelope> for FFEnvelope {
     }
 }
 
-impl From<FFEnvelope> for libc::ff_envelope {
+impl From<FFEnvelope> for ff_envelope {
     fn from(other: FFEnvelope) -> Self {
-        libc::ff_envelope {
+        ff_envelope {
             attack_length: other.attack_length,
             attack_level: other.attack_level,
             fade_length: other.fade_length,
@@ -82,8 +83,8 @@ pub struct FFCondition {
     pub center: i16,
 }
 
-impl From<libc::ff_condition_effect> for FFCondition {
-    fn from(value: libc::ff_condition_effect) -> Self {
+impl From<ff_condition_effect> for FFCondition {
+    fn from(value: ff_condition_effect) -> Self {
         Self {
             right_saturation: value.right_saturation,
             left_saturation: value.left_saturation,
@@ -95,9 +96,9 @@ impl From<libc::ff_condition_effect> for FFCondition {
     }
 }
 
-impl From<FFCondition> for libc::ff_condition_effect {
+impl From<FFCondition> for ff_condition_effect {
     fn from(other: FFCondition) -> Self {
-        libc::ff_condition_effect {
+        ff_condition_effect {
             right_saturation: other.right_saturation,
             left_saturation: other.left_saturation,
             right_coeff: other.right_coefficient,
@@ -180,8 +181,8 @@ pub struct FFTrigger {
     pub interval: u16,
 }
 
-impl From<libc::ff_trigger> for FFTrigger {
-    fn from(value: libc::ff_trigger) -> Self {
+impl From<ff_trigger> for FFTrigger {
+    fn from(value: ff_trigger) -> Self {
         Self {
             button: value.button,
             interval: value.interval,
@@ -189,9 +190,9 @@ impl From<libc::ff_trigger> for FFTrigger {
     }
 }
 
-impl From<FFTrigger> for libc::ff_trigger {
+impl From<FFTrigger> for ff_trigger {
     fn from(other: FFTrigger) -> Self {
-        libc::ff_trigger {
+        ff_trigger {
             button: other.button,
             interval: other.interval,
         }
@@ -207,8 +208,8 @@ pub struct FFReplay {
     pub delay: u16,
 }
 
-impl From<libc::ff_replay> for FFReplay {
-    fn from(value: libc::ff_replay) -> Self {
+impl From<ff_replay> for FFReplay {
+    fn from(value: ff_replay) -> Self {
         Self {
             length: value.length,
             delay: value.delay,
@@ -216,9 +217,9 @@ impl From<libc::ff_replay> for FFReplay {
     }
 }
 
-impl From<FFReplay> for libc::ff_replay {
+impl From<FFReplay> for ff_replay {
     fn from(other: FFReplay) -> Self {
-        libc::ff_replay {
+        ff_replay {
             length: other.length,
             delay: other.delay,
         }
