@@ -390,7 +390,7 @@ fn systime_to_timeval(time: &SystemTime) -> libc::timeval {
 }
 
 fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
-    let dur = Duration::new(tv.tv_sec.abs() as u64, tv.tv_usec as u32 * 1000);
+    let dur = Duration::new(tv.tv_sec.unsigned_abs(), tv.tv_usec as u32 * 1000);
     if tv.tv_sec >= 0 {
         SystemTime::UNIX_EPOCH + dur
     } else {
