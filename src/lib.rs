@@ -108,7 +108,6 @@ use serde_1::{Deserialize, Serialize};
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt;
-use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
@@ -368,11 +367,9 @@ pub struct EnumerateDevices {
     inner: raw_stream::EnumerateDevices,
 }
 impl Iterator for EnumerateDevices {
-    type Item = (PathBuf, Device);
-    fn next(&mut self) -> Option<(PathBuf, Device)> {
-        self.inner
-            .next()
-            .map(|(pb, dev)| (pb, Device::from_raw_device(dev)))
+    type Item = Device;
+    fn next(&mut self) -> Option<Device> {
+        self.inner.next().map(Device::from_raw_device)
     }
 }
 
