@@ -389,26 +389,23 @@ pub struct DevNodes {
 impl DevNodes {
     /// Returns the next entry in the set of device nodes.
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
-        loop {
-            let path = self
-                .dir
-                .next_entry()
-                .await?
-                // Map the directory name to its file name.
-                .map(|entry| entry.file_name().to_string_lossy().to_owned().to_string())
-                // Ignore file names that do not start with "event".
-                .filter(|name| name.starts_with("event"))
-                // Construct the path of the form `/dev/input/eventX`.
-                .map(|name| {
-                    let mut path = PathBuf::from(DEV_PATH);
-                    path.push(name);
-                    path
-                });
+        while let Some(entry) = self.dir.next_entry().await? {
+            // Map the directory name to its file name.
+            let name = entry.file_name().to_string_lossy().to_owned().to_string();
 
-            if let Some(value) = path {
-                return Ok(Some(value));
+            // Ignore file names that do not start with event.
+            if !name.starts_with("event") {
+                continue;
             }
+
+            // Construct the path of the form '/dev/input/eventX'.
+            let mut path: PathBuf = PathBuf::from(DEV_PATH);
+            path.push(name);
+
+            return Ok(Some(path));
         }
+
+        Ok(None)
     }
 }
 
