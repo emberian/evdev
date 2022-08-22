@@ -252,6 +252,11 @@ impl Device {
         self.raw.supported_ff()
     }
 
+    /// Returns the maximum number of force feedback effects that can be played simultaneously.
+    pub fn max_ff_effects(&self) -> usize {
+        self.raw.max_ff_effects()
+    }
+
     /// Returns the set of supported simple sounds supported by a device.
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
