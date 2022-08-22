@@ -1,7 +1,16 @@
 # Changelog
 
 ## evdev next
-[c0bd8dd...HEAD](https://github.com/emberian/evdev/compare/c0bd8dd...HEAD)
+[86dfe33...HEAD](https://github.com/emberian/evdev/compare/86dfe33...HEAD)
+
+### Added
+
+### Changed
+
+### Fixed
+
+## evdev 0.12.0 (2022-08-17)
+[c0bd8dd...86dfe33](https://github.com/emberian/evdev/compare/c0bd8dd...86dfe33)
 
 ### Added
 
@@ -15,6 +24,8 @@
 ### Fixed
 
 - Make sure that the `DevNodesBlocking` iterator is not blocking indefinitely when all entries in the directory have been exhausted.
+- Fix incorrect cast in `eviocrmff` to support 32-bit platforms [#82](https://github.com/emberian/evdev/pull/82).
+- FreeBSD support [#88](https://github.com/emberian/evdev/pull/88).
 
 ## evdev 0.11.6 (2022-08-03)
 [372d000...c0bd8dd](https://github.com/emberian/evdev/compare/372d000...c0bd8dd)
