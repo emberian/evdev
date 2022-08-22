@@ -15,6 +15,11 @@ fn main() -> std::io::Result<()> {
         .build()
         .unwrap();
 
+    for path in device.enumerate_dev_nodes_blocking()? {
+        let path = path?;
+        println!("Available as {}", path.display());
+    }
+
     let type_ = EventType::KEY;
     // Note this will ACTUALLY PRESS the button on your computer.
     // Hopefully you don't have BTN_DPAD_UP bound to anything important.
