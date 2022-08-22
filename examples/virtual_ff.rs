@@ -13,6 +13,11 @@ fn main() -> Result<(), Error> {
         .with_ff_effects_max(16)
         .build()?;
 
+    for path in device.enumerate_dev_nodes_blocking()? {
+        let path = path?;
+        println!("Available as {}", path.display());
+    }
+
     let mut ids: BTreeSet<u16> = (0..16).into_iter().collect();
 
     println!("Waiting for Ctrl-C...");

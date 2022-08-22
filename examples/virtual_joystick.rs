@@ -17,6 +17,11 @@ fn main() -> std::io::Result<()> {
         .build()
         .unwrap();
 
+    for path in device.enumerate_dev_nodes_blocking()? {
+        let path = path?;
+        println!("Available as {}", path.display());
+    }
+
     let type_ = EventType::ABSOLUTE;
     // Hopefully you don't have ABS_X bound to anything important.
     let code = AbsoluteAxisType::ABS_X.0;
