@@ -121,6 +121,7 @@ pub struct RawDevice {
     supported_misc: Option<AttributeSet<MiscType>>,
     supported_ff: Option<AttributeSet<FFEffectType>>,
     auto_repeat: Option<AutoRepeat>,
+    max_ff_effects: usize,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
     supported_snd: Option<AttributeSet<SoundType>>,
@@ -244,6 +245,14 @@ impl RawDevice {
             None
         };
 
+        let max_ff_effects = if ty.contains(EventType::FORCEFEEDBACK) {
+            let mut max_ff_effects = 0;
+            unsafe { sys::eviocgeffects(file.as_raw_fd(), &mut max_ff_effects)? };
+            usize::try_from(max_ff_effects).unwrap_or(0)
+        } else {
+            0
+        };
+
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
             unsafe { sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
@@ -288,6 +297,7 @@ impl RawDevice {
             supported_ff,
             supported_snd,
             auto_repeat,
+            max_ff_effects,
             event_buf: Vec::new(),
             grabbed: false,
         })
@@ -443,6 +453,11 @@ impl RawDevice {
     /// Returns the set of supported force feedback effects supported by a device.
     pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
         self.supported_ff.as_deref()
+    }
+
+    /// Returns the maximum number of force feedback effects that can be played simultaneously.
+    pub fn max_ff_effects(&self) -> usize {
+        self.max_ff_effects
     }
 
     /// Returns the set of supported simple sounds supported by a device.
