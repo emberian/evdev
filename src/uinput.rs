@@ -544,6 +544,7 @@ mod tokio_stream {
 
     use tokio_1 as tokio;
 
+    use crate::raw_stream::poll_fn;
     use futures_core::{ready, Stream};
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -616,18 +617,6 @@ mod tokio_stream {
         type Item = io::Result<UInputEvent>;
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
-        }
-    }
-
-    // version of futures_util::future::poll_fn
-    pub(crate) fn poll_fn<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin>(f: F) -> PollFn<F> {
-        PollFn(f)
-    }
-    pub(crate) struct PollFn<F>(F);
-    impl<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin> std::future::Future for PollFn<F> {
-        type Output = T;
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
-            (self.get_mut().0)(cx)
         }
     }
 }
