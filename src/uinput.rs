@@ -20,7 +20,6 @@ use std::time::SystemTime;
 
 const UINPUT_PATH: &str = "/dev/uinput";
 const SYSFS_PATH: &str = "/sys/devices/virtual/input";
-const DEV_PATH: &str = "/dev/input";
 
 #[derive(Debug)]
 pub struct VirtualDeviceBuilder<'a> {
@@ -353,25 +352,19 @@ impl Iterator for DevNodesBlocking {
     type Item = io::Result<PathBuf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for entry in self.dir.by_ref() {
+        while let Some(entry) = self.dir.next() {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(e) => return Some(Err(e)),
             };
 
-            // Map the directory name to its file name.
-            let name = entry.file_name().to_string_lossy().to_owned().to_string();
-
             // Ignore file names that do not start with event.
-            if !name.starts_with("event") {
+            if entry.file_name().to_string_lossy().starts_with("event") {
                 continue;
             }
 
             // Construct the path of the form '/dev/input/eventX'.
-            let mut path: PathBuf = PathBuf::from(DEV_PATH);
-            path.push(name);
-
-            return Some(Ok(path));
+            return Some(Ok(entry.path()));
         }
 
         None
@@ -390,19 +383,12 @@ impl DevNodes {
     /// Returns the next entry in the set of device nodes.
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
         while let Some(entry) = self.dir.next_entry().await? {
-            // Map the directory name to its file name.
-            let name = entry.file_name().to_string_lossy().to_owned().to_string();
-
             // Ignore file names that do not start with event.
-            if !name.starts_with("event") {
+            if !entry.file_name().to_string_lossy().starts_with("event") {
                 continue;
             }
 
-            // Construct the path of the form '/dev/input/eventX'.
-            let mut path: PathBuf = PathBuf::from(DEV_PATH);
-            path.push(name);
-
-            return Ok(Some(path));
+            return entry.path();
         }
 
         Ok(None)
