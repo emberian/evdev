@@ -359,11 +359,10 @@ impl Iterator for DevNodesBlocking {
             };
 
             // Ignore file names that do not start with event.
-            if entry.file_name().to_string_lossy().starts_with("event") {
+            if !entry.file_name().to_string_lossy().starts_with("event") {
                 continue;
             }
 
-            // Construct the path of the form '/dev/input/eventX'.
             return Some(Ok(entry.path()));
         }
 
