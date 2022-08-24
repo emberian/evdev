@@ -26,3 +26,43 @@ jobs:
       run: cargo test --verbose
     - name: Doc
       run: cargo doc
+
+  cross-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+        - arch: 'aarch64'
+          rust: 'aarch64-unknown-linux-gnu'
+          os: 'aarch64-linux-gnu'
+        - arch: 'arm'
+          rust: 'armv7-unknown-linux-gnueabihf'
+          os: 'arm-linux-gnueabihf'
+        - arch: 'i386'
+          rust: 'i686-unknown-linux-gnu'
+          os: 'i686-linux-gnu'
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+        target: ${{ matrix.target.rust }}
+    - name: Install QEMU and toolchain
+      run: |
+        sudo apt update
+        sudo apt -y install qemu-user qemu-user-static gcc-${{ matrix.target.os }} binutils-${{ matrix.target.os }} binutils-${{ matrix.target.os }}-dbg
+    - name: Append .cargo config
+      run: |
+        echo "[target.${{ matrix.target.rust }}]" >> ~/.cargo/config
+        echo "runner = \"qemu-${{ matrix.target.arch }} -L /usr/${{ matrix.target.os }}/\"" >> ~/.cargo/config
+        echo "linker = \"${{ matrix.target.os }}-gcc\"" >> ~/.cargo/config
+    - name: Build
+      run: cargo build --target ${{ matrix.target.rust }}
+    - name: Run tests
+      run: cargo test --target ${{ matrix.target.rust }}
+    - name: Doc
+      run: cargo doc --target ${{ matrix.target.rust }}
