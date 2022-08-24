@@ -1,7 +1,7 @@
 `evdev`
 =======
 
-[![Travis](https://img.shields.io/travis/cmr/evdev.svg?style=flat-square)](https://travis-ci.org/cmr/evdev)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/cmr/evdev/Rust)](https://github.com/cmr/evdev/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/evdev.svg?style=flat-square)](https://crates.io/crates/evdev)
 
 [Documentation](https://docs.rs/evdev)
