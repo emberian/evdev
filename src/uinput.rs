@@ -378,8 +378,9 @@ impl Iterator for DevNodesBlocking {
     }
 }
 
-/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
-/// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
+/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes_blocking] function and
+/// will yield the syspaths corresponding to the virtual device. These are of the form
+/// `/dev/input123`.
 #[cfg(feature = "tokio")]
 pub struct DevNodes {
     dir: tokio_1::fs::ReadDir,
