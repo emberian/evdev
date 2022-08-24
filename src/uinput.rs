@@ -388,7 +388,7 @@ impl DevNodes {
                 continue;
             }
 
-            return entry.path();
+            return Ok(Some(entry.path()));
         }
 
         Ok(None)
