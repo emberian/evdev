@@ -31,3 +31,7 @@ itertools = "0.10"
 [[example]]
 name = "evtest_tokio"
 required-features = ["tokio"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
