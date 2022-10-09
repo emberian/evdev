@@ -86,6 +86,14 @@
 
 // should really be cfg(target_os = "linux") and maybe also android?
 #![cfg(unix)]
+// Flag items' docs' with their required feature flags, but only on docsrs so
+// that local docs can still be built on stable toolchains.
+// As of the time of writing, the stabilization plan is such that:
+// - Once stabilized, this attribute should be replaced with #![doc(auto_cfg)]
+// - Then in edition 2024, doc(auto_cfg) will become the default and the
+//   attribute can be removed entirely
+// (see https://github.com/rust-lang/rust/pull/100883#issuecomment-1264470491)
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 // has to be first for its macro
 #[macro_use]
