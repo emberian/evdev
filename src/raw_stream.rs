@@ -814,7 +814,7 @@ mod tokio_stream {
     ///
     /// This can be used by calling [`stream.next_event().await?`](Self::next_event), or if you
     /// need to pass it as a stream somewhere, the [`futures::Stream`](Stream) implementation.
-    /// There's also a lower-level [`poll_event`] function if you need to fetch an event from
+    /// There's also a lower-level [`Self::poll_event`] function if you need to fetch an event from
     /// inside a `Future::poll` impl.
     pub struct EventStream {
         device: AsyncFd<RawDevice>,
