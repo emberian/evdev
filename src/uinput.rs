@@ -7,10 +7,7 @@ use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
-use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType,
-    SwitchType, UinputAbsSetup,
-};
+use crate::{sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType, SwitchType, UinputAbsSetup, PropType};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
@@ -104,6 +101,19 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in axes.iter() {
             unsafe {
                 sys::ui_set_relbit(
+                    self.file.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    pub fn with_properties(self, switches: &AttributeSetRef<PropType>) -> io::Result<Self> {
+        for bit in switches.iter() {
+            unsafe {
+                sys::ui_set_propbit(
                     self.file.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
