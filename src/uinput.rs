@@ -7,7 +7,10 @@ use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
-use crate::{sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType, SwitchType, UinputAbsSetup, PropType};
+use crate::{
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, PropType,
+    RelativeAxisType, SwitchType, UinputAbsSetup,
+};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
