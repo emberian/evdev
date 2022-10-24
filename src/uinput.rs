@@ -8,8 +8,7 @@ use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, PropType,
-    RelativeAxisType, SwitchType, UinputAbsSetup,
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, PropType, MiscType, RelativeAxisType, SwitchType, UinputAbsSetup,
 };
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -169,6 +168,26 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_ff_effects_max(mut self, ff_effects_max: u32) -> Self {
         self.ff_effects_max = ff_effects_max;
         self
+    }
+
+    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.file.as_raw_fd(),
+                crate::EventType::MISC.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in misc_set.iter() {
+            unsafe {
+                sys::ui_set_mscbit(
+                    self.file.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
     }
 
     pub fn build(self) -> io::Result<VirtualDevice> {
