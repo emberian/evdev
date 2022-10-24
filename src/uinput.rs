@@ -7,7 +7,10 @@ use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
-use crate::{sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, RelativeAxisType, SwitchType, UinputAbsSetup, MiscType};
+use crate::{
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, MiscType,
+    RelativeAxisType, SwitchType, UinputAbsSetup,
+};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
@@ -155,7 +158,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self>{
+    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.file.as_raw_fd(),
