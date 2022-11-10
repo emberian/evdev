@@ -5,9 +5,20 @@
 
 ### Added
 
+- Add `Device::max_ff_effects()` to return the maximum number of force feedback effects that can be played simultaneously.
+- Add support for `EV_MSC` (miscellaneous events) to `VirtualDeviceBuilder`.
+- Add support for device properties to `VirtualDeviceBuilder`.
+
 ### Changed
 
+- Examples now show the device path of the virtual device.
+
 ### Fixed
+
+- Avoid infinite loop in `DevNodes::next_entry()`.
+- Fix issue on 32-bit platforms where `tv_sec` (`time_t`) is 32-bit.
+- Fix documentation links.
+- Document all the features (on docs.rs).
 
 ## evdev 0.12.0 (2022-08-17)
 [c0bd8dd...86dfe33](https://github.com/emberian/evdev/compare/c0bd8dd...86dfe33)
