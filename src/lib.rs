@@ -110,7 +110,9 @@ mod scancodes;
 mod sync_stream;
 mod sys;
 pub mod uinput;
+mod event_variants;
 
+use event_variants::{KeyEvent, RelAxisEvent, AbsAxisEvent, MiscEvent, LedEvent, SwitchEvent, SoundEvent, ForceFeedbackEvent, ForceFeedbackStatusEvent, OtherEvent, UInputEvent, RepeatEvent, PowerEvent};
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};
 
@@ -119,6 +121,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
+pub use event_variants::{SynchronizationEvent};
 pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
@@ -250,28 +253,24 @@ impl UinputAbsSetup {
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct InputEvent(input_event);
+pub enum InputEvent{
+    Synchronization(SynchronizationEvent),
+    Key(KeyEvent),
+    RelAxis(RelAxisEvent),
+    AbsAxis(AbsAxisEvent),
+    Misc(MiscEvent),
+    Switch(SwitchEvent),
+    Led(LedEvent),
+    Sound(SoundEvent),
+    Repeat(RepeatEvent),
+    ForceFeedback(ForceFeedbackEvent),
+    Power(PowerEvent),
+    ForceFeedbackStatus(ForceFeedbackStatusEvent),
+    UInput(UInputEvent),
+    Other(OtherEvent),
+}
 
 impl InputEvent {
-    /// Returns the timestamp associated with the event.
-    #[inline]
-    pub fn timestamp(&self) -> SystemTime {
-        timeval_to_systime(&self.0.time)
-    }
-
-    /// Returns the type of event this describes, e.g. Key, Switch, etc.
-    #[inline]
-    pub fn event_type(&self) -> EventType {
-        EventType(self.0.type_)
-    }
-
-    /// Returns the raw "code" field directly from input_event.
-    #[inline]
-    pub fn code(&self) -> u16 {
-        self.0.code
-    }
-
     /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
     /// the type of this event.
     ///
