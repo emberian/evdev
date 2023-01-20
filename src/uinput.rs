@@ -3,20 +3,20 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPUT_MAX_NAME_SIZE};
-use crate::constants::{EventType, UInputEventType};
+use crate::constants::{EventType, UInputType};
+use crate::event_variants::UInputEvent;
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, MiscType, PropType,
-    RelativeAxisType, SwitchType, UinputAbsSetup,
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, KeyType, MiscType, PropType,
+    RelAxisType, SwitchType, UinputAbsSetup, EvdevEvent,
 };
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::path::PathBuf;
-use std::time::SystemTime;
 
 const UINPUT_PATH: &str = "/dev/uinput";
 const SYSFS_PATH: &str = "/sys/devices/virtual/input";
@@ -56,7 +56,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_keys(self, keys: &AttributeSetRef<Key>) -> io::Result<Self> {
+    pub fn with_keys(self, keys: &AttributeSetRef<KeyType>) -> io::Result<Self> {
         // Run ioctls for setting capability bits
         unsafe {
             sys::ui_set_evbit(
@@ -93,7 +93,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisType>) -> io::Result<Self> {
+    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelAxisType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.file.as_raw_fd(),
@@ -287,7 +287,7 @@ impl VirtualDevice {
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
     pub fn emit(&mut self, messages: &[InputEvent]) -> io::Result<()> {
         self.write_raw(messages)?;
-        let syn = InputEvent::new(EventType::SYNCHRONIZATION, 0, 0);
+        let syn = InputEvent::new(EventType::SYNCHRONIZATION.0, 0, 0);
         self.write_raw(&[syn])
     }
 
@@ -298,7 +298,7 @@ impl VirtualDevice {
     /// The returned event allows the user to allocate and set the effect ID as well as access the
     /// effect data.
     pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
-        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_UPLOAD.0) {
+        if event.kind() != UInputType::UI_FF_UPLOAD {
             return Err(Error::InvalidEvent);
         }
 
@@ -320,7 +320,7 @@ impl VirtualDevice {
     /// The returned event allows the user to access the effect ID, such that it can free any
     /// memory used for the given effect ID.
     pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
-        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_ERASE.0) {
+        if event.kind() != UInputType::UI_FF_ERASE {
             return Err(Error::InvalidEvent);
         }
 
@@ -365,7 +365,9 @@ impl VirtualDevice {
     /// this in a tight loop within a thread.
     pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = UInputEvent> + '_> {
         self.fill_events()?;
-        Ok(self.event_buf.drain(..).map(InputEvent).map(UInputEvent))
+        //TODO:
+        // are we sure this is always a UInputEvent? otherwise this wil panic
+        Ok(self.event_buf.drain(..).map(UInputEvent::from))
     }
 
     #[cfg(feature = "tokio")]
@@ -431,49 +433,6 @@ impl DevNodes {
 impl AsRawFd for VirtualDevice {
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
-    }
-}
-
-/// An event from a virtual uinput device.
-#[derive(Debug)]
-pub struct UInputEvent(InputEvent);
-
-impl UInputEvent {
-    /// Returns the timestamp associated with the event.
-    #[inline]
-    pub fn timestamp(&self) -> SystemTime {
-        self.0.timestamp()
-    }
-
-    /// Returns the type of event this describes, e.g. Key, Switch, etc.
-    #[inline]
-    pub fn event_type(&self) -> EventType {
-        self.0.event_type()
-    }
-
-    /// Returns the raw "code" field directly from input_event.
-    #[inline]
-    pub fn code(&self) -> u16 {
-        self.0.code()
-    }
-
-    /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
-    /// the type of this event.
-    ///
-    /// This is useful if you want to match events by specific key codes or axes. Note that this
-    /// does not capture the event value, just the type and code.
-    #[inline]
-    pub fn kind(&self) -> InputEventKind {
-        self.0.kind()
-    }
-
-    /// Returns the raw "value" field directly from input_event.
-    ///
-    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
-    /// For axes, the values depend on the hardware and driver implementation.
-    #[inline]
-    pub fn value(&self) -> i32 {
-        self.0.value()
     }
 }
 
