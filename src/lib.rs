@@ -149,9 +149,9 @@ pub enum InputEventKind {
     Led(LedType),
     Sound(SoundType),
     Repeat(RepeatType),
-    ForceFeedback(ForceFeedbackType),
+    ForceFeedback(FFType),
     Power(PowerType),
-    ForceFeedbackStatus(ForceFeedbackStatusType),
+    ForceFeedbackStatus(FFStatusType),
     UInput(UInputType),
     Other(OtherType),
 }
@@ -243,7 +243,6 @@ impl UinputAbsSetup {
         })
     }
 }
-
 
 pub trait EvdevEvent {
     /// Returns the timestamp associated with the event.

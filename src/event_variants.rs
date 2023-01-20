@@ -4,7 +4,10 @@ use std::fmt;
 use crate::{EventType, EvdevEvent, timeval_to_systime, systime_to_timeval};
 use crate::compat::input_event;
 use crate::scancodes::KeyType;
-use crate::constants::{SynchronizationType, RelAxisType, AbsAxisType, MiscType, SwitchType, LedType, SoundType, RepeatType, ForceFeedbackType, PowerType, ForceFeedbackStatusType, UInputType, OtherType};
+use crate::constants::{
+    SynchronizationType, RelAxisType, AbsAxisType, MiscType, SwitchType, 
+    LedType, SoundType, RepeatType, PowerType, FFStatusType, UInputType, 
+    OtherType, FFType};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -154,9 +157,9 @@ input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
 input_event_newtype!(LedEvent, EventType::LED, LedType);
 input_event_newtype!(SoundEvent, EventType::SOUND, SoundType);
 input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType);
-input_event_newtype!(ForceFeedbackEvent, EventType::FORCEFEEDBACK, ForceFeedbackType);
+input_event_newtype!(ForceFeedbackEvent, EventType::FORCEFEEDBACK, FFType);
 input_event_newtype!(PowerEvent, EventType::POWER, PowerType);
-input_event_newtype!(ForceFeedbackStatusEvent, EventType::FORCEFEEDBACKSTATUS, ForceFeedbackStatusType);
+input_event_newtype!(ForceFeedbackStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType);
 input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
 input_event_newtype!(OtherEvent);
 

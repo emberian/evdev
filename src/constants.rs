@@ -39,8 +39,8 @@ evdev_enum!(
     /// There are no events of this type, to my knowledge, but represents metadata about key
     /// repeat configuration.
     REPEAT = 0x14,
-    /// I believe there are no events of this type, but rather this is used to represent that
-    /// the device can create haptic effects.
+    /// Looking at the source of [`fftest`](https://github.com/flosse/linuxconsole/blob/master/utils/fftest.c)
+    /// This seems to be sent to the device with a previusly obtained effect id as a code in order to toggle the effect.
     FORCEFEEDBACK = 0x15,
     /// I think this is unused?
     POWER = 0x16,
@@ -340,10 +340,10 @@ impl FFEffectType {
 
 /// Force feedback effect status
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct FFStatus(pub u16);
+pub struct FFStatusType(pub u16);
 
 evdev_enum!(
-    FFStatus,
+    FFStatusType,
     Array,
     /// The force feedback event is currently stopped.
     FF_STATUS_STOPPED = 0x00,
@@ -351,7 +351,7 @@ evdev_enum!(
     FF_STATUS_PLAYING = 0x01,
 );
 
-impl FFStatus {
+impl FFStatusType {
     pub(crate) const COUNT: usize = 2;
 }
 
@@ -396,13 +396,10 @@ evdev_enum!(
 // some more structs without any constats. They are only there to 
 // porvide a consitatnt type system and simple code generation.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct ForceFeedbackType(pub u16);
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct ForceFeedbackStatusType(pub u16);
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PowerType(pub u16);
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct OtherType(pub u16, pub u16);
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct FFType(pub u16);
