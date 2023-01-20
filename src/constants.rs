@@ -360,9 +360,9 @@ pub struct RepeatType(pub u16);
 
 evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
-impl RepeatType {
-    pub(crate) const COUNT: usize = libc::REP_CNT;
-}
+// impl RepeatType {
+//     pub(crate) const COUNT: usize = libc::REP_CNT;
+// }
 
 /// A type associated with simple sounds, such as beeps or tones.
 #[derive(Copy, Clone, PartialEq, Eq)]

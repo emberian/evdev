@@ -9,7 +9,7 @@ use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, KeyType, MiscType, PropType,
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, KeyType, MiscType, PropType,
     RelAxisType, SwitchType, UinputAbsSetup, EvdevEvent,
 };
 use std::fs::{File, OpenOptions};
