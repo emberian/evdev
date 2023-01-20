@@ -56,10 +56,10 @@ impl EventType {
 
 /// A "synchronization" message type published by the kernel into the events stream.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Synchronization(pub u16);
+pub struct SynchronizationType(pub u16);
 
 evdev_enum!(
-    Synchronization,
+    SynchronizationType,
     /// Used to mark the end of a single atomic "reading" from the device.
     SYN_REPORT = 0,
     /// Appears to be unused.
@@ -355,14 +355,14 @@ impl FFStatus {
     pub(crate) const COUNT: usize = 2;
 }
 
-// #[derive(Copy, Clone, PartialEq, Eq)]
-// pub struct RepeatType(pub u16);
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct RepeatType(pub u16);
 
-// evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
+evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
-// impl RepeatType {
-//     pub(crate) const COUNT: usize = libc::REP_CNT;
-// }
+impl RepeatType {
+    pub(crate) const COUNT: usize = libc::REP_CNT;
+}
 
 /// A type associated with simple sounds, such as beeps or tones.
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -382,12 +382,27 @@ impl SoundType {
 
 /// A uinput event published by the kernel into the events stream for uinput devices.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct UInputEventType(pub u16);
+pub struct UInputType(pub u16);
 
 evdev_enum!(
-    UInputEventType,
+    UInputType,
     /// The virtual uinput device is uploading a force feedback effect.
     UI_FF_UPLOAD = 1,
     /// The virtual uinput device is erasing a force feedback event.
     UI_FF_ERASE = 2,
 );
+
+
+// some more structs without any constats. They are only there to 
+// porvide a consitatnt type system and simple code generation.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct ForceFeedbackType(pub u16);
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct ForceFeedbackStatusType(pub u16);
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct PowerType(pub u16);
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct OtherType(pub u16, pub u16);

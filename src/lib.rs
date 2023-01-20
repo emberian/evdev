@@ -141,18 +141,20 @@ const EVENT_BATCH_SIZE: usize = 32;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
-    Synchronization(Synchronization),
-    Key(Key),
+    Synchronization(SynchronizationType),
+    Key(KeyType),
     RelAxis(RelativeAxisType),
     AbsAxis(AbsoluteAxisType),
     Misc(MiscType),
     Switch(SwitchType),
     Led(LedType),
     Sound(SoundType),
-    ForceFeedback(u16),
-    ForceFeedbackStatus(u16),
-    UInput(u16),
-    Other,
+    Repeat(RepeatType),
+    ForceFeedback(ForceFeedbackType),
+    Power(PowerType),
+    ForceFeedbackStatus(ForceFeedbackStatusType),
+    UInput(UInputType),
+    Other(OtherType),
 }
 
 /// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute

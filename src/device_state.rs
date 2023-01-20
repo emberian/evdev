@@ -1,6 +1,6 @@
 use crate::compat::input_absinfo;
 use crate::{constants::*, raw_stream::RawDevice};
-use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, Key};
+use crate::{AttributeSet, AttributeSetRef, InputEvent, InputEventKind, KeyType, EvdevEvent};
 use std::time::SystemTime;
 
 /// A **cached** representation of device state at a certain time.
@@ -9,7 +9,7 @@ pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub(crate) timestamp: SystemTime,
     /// Set = key pressed
-    pub(crate) key_vals: Option<AttributeSet<Key>>,
+    pub(crate) key_vals: Option<AttributeSet<KeyType>>,
     pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
     pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
@@ -80,7 +80,7 @@ impl DeviceState {
     /// Returns the set of keys pressed when the snapshot was taken.
     ///
     /// Returns `None` if keys are not supported by this device.
-    pub fn key_vals(&self) -> Option<&AttributeSetRef<Key>> {
+    pub fn key_vals(&self) -> Option<&AttributeSetRef<KeyType>> {
         self.key_vals.as_deref()
     }
 
