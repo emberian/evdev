@@ -363,11 +363,9 @@ impl VirtualDevice {
     ///
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
-    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = UInputEvent> + '_> {
+    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
-        //TODO:
-        // are we sure this is always a UInputEvent? otherwise this wil panic
-        Ok(self.event_buf.drain(..).map(UInputEvent::from))
+        Ok(self.event_buf.drain(..).map(InputEvent::from))
     }
 
     #[cfg(feature = "tokio")]
