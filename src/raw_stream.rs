@@ -8,7 +8,7 @@ use std::{io, mem};
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
 use crate::constants::*;
 use crate::ff::*;
-use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
+use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, KeyType};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -43,8 +43,8 @@ const ABSINFO_ZERO: input_absinfo = input_absinfo {
     resolution: 0,
 };
 
-pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisType::COUNT] =
-    [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
+pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsAxisType::COUNT] =
+    [ABSINFO_ZERO; AbsAxisType::COUNT];
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
@@ -65,7 +65,7 @@ impl FFEffect {
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
-        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, count)];
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK.0, self.id, count)];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 
@@ -74,7 +74,7 @@ impl FFEffect {
 
     /// Stops playback of the force feedback effect.
     pub fn stop(&mut self) -> io::Result<()> {
-        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, 0)];
+        let events = [InputEvent::new(EventType::FORCEFEEDBACK.0, self.id, 0)];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 
@@ -113,9 +113,9 @@ pub struct RawDevice {
     id: input_id,
     props: AttributeSet<PropType>,
     driver_version: (u8, u8, u8),
-    supported_keys: Option<AttributeSet<Key>>,
-    supported_relative: Option<AttributeSet<RelativeAxisType>>,
-    supported_absolute: Option<AttributeSet<AbsoluteAxisType>>,
+    supported_keys: Option<AttributeSet<KeyType>>,
+    supported_relative: Option<AttributeSet<RelAxisType>>,
+    supported_absolute: Option<AttributeSet<AbsAxisType>>,
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
@@ -190,7 +190,7 @@ impl RawDevice {
         }; // FIXME: handle old kernel
 
         let supported_keys = if ty.contains(EventType::KEY) {
-            let mut keys = AttributeSet::<Key>::new();
+            let mut keys = AttributeSet::<KeyType>::new();
             unsafe { sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice())? };
             Some(keys)
         } else {
@@ -198,7 +198,7 @@ impl RawDevice {
         };
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
-            let mut rel = AttributeSet::<RelativeAxisType>::new();
+            let mut rel = AttributeSet::<RelAxisType>::new();
             unsafe { sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
@@ -206,7 +206,7 @@ impl RawDevice {
         };
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
-            let mut abs = AttributeSet::<AbsoluteAxisType>::new();
+            let mut abs = AttributeSet::<AbsAxisType>::new();
             unsafe { sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
@@ -363,7 +363,7 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_keys(&self) -> Option<&AttributeSetRef<Key>> {
+    pub fn supported_keys(&self) -> Option<&AttributeSetRef<KeyType>> {
         self.supported_keys.as_deref()
     }
 
@@ -385,7 +385,7 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelAxisType>> {
         self.supported_relative.as_deref()
     }
 
@@ -407,7 +407,7 @@ impl RawDevice {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsAxisType>> {
         self.supported_absolute.as_deref()
     }
 
@@ -498,12 +498,12 @@ impl RawDevice {
     /// this in a tight loop within a thread.
     pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
-        Ok(self.event_buf.drain(..).map(InputEvent))
+        Ok(self.event_buf.drain(..).map(InputEvent::from))
     }
 
     /// Retrieve the current keypress state directly via kernel syscall.
     #[inline]
-    pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<KeyType>> {
         let mut key_vals = AttributeSet::new();
         self.update_key_state(&mut key_vals)?;
         Ok(key_vals)
@@ -511,8 +511,8 @@ impl RawDevice {
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
     #[inline]
-    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
-        let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsAxisType::COUNT]> {
+        let mut abs_vals: [input_absinfo; AbsAxisType::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
     }
@@ -537,7 +537,7 @@ impl RawDevice {
     /// If you don't already have a buffer, you probably want
     /// [`get_key_state`](Self::get_key_state) instead.
     #[inline]
-    pub fn update_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
+    pub fn update_key_state(&self, key_vals: &mut AttributeSet<KeyType>) -> io::Result<()> {
         unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice())? };
         Ok(())
     }
@@ -548,10 +548,10 @@ impl RawDevice {
     #[inline]
     pub fn update_abs_state(
         &self,
-        abs_vals: &mut [input_absinfo; AbsoluteAxisType::COUNT],
+        abs_vals: &mut [input_absinfo; AbsAxisType::COUNT],
     ) -> io::Result<()> {
         if let Some(supported_abs) = self.supported_absolute_axes() {
-            for AbsoluteAxisType(idx) in supported_abs.iter() {
+            for AbsAxisType(idx) in supported_abs.iter() {
                 // ignore multitouch, we'll handle that later.
                 //
                 // handling later removed. not sure what the intention of "handling that later" was
@@ -725,7 +725,7 @@ impl RawDevice {
     /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
     pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
         let events = [InputEvent::new(
-            EventType::FORCEFEEDBACK,
+            EventType::FORCEFEEDBACK.0,
             FFEffectType::FF_GAIN.0,
             value.into(),
         )];
@@ -738,7 +738,7 @@ impl RawDevice {
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
         let events = [InputEvent::new(
-            EventType::FORCEFEEDBACK,
+            EventType::FORCEFEEDBACK.0,
             FFEffectType::FF_AUTOCENTER.0,
             value.into(),
         )];
