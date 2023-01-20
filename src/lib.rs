@@ -112,12 +112,6 @@ mod sys;
 pub mod uinput;
 mod event_variants;
 
-use event_variants::{
-    KeyEvent, RelAxisEvent, AbsAxisEvent, 
-    MiscEvent, LedEvent, SwitchEvent, SoundEvent, 
-    ForceFeedbackEvent, ForceFeedbackStatusEvent, 
-    OtherEvent, UInputEvent, RepeatEvent, PowerEvent
-};
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};
 
@@ -126,7 +120,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-pub use event_variants::{SynchronizationEvent};
+pub use event_variants::*;
 pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
