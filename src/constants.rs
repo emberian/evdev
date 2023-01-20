@@ -100,10 +100,10 @@ impl PropType {
 
 /// A type of relative axis measurement, typically produced by mice.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct RelativeAxisType(pub u16);
+pub struct RelAxisType(pub u16);
 
 evdev_enum!(
-    RelativeAxisType,
+    RelAxisType,
     Array,
     REL_X = 0x00,
     REL_Y = 0x01,
@@ -120,16 +120,16 @@ evdev_enum!(
     REL_HWHEEL_HI_RES = 0x0c,
 );
 
-impl RelativeAxisType {
+impl RelAxisType {
     pub(crate) const COUNT: usize = REL_CNT;
 }
 
 /// A type of absolute axis measurement, typically used for touch events and joysticks.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct AbsoluteAxisType(pub u16);
+pub struct AbsAxisType(pub u16);
 
 evdev_enum!(
-    AbsoluteAxisType,
+    AbsAxisType,
     Array,
     ABS_X = 0x00,
     ABS_Y = 0x01,
@@ -189,7 +189,7 @@ evdev_enum!(
     ABS_MT_TOOL_Y = 0x3d,
 );
 
-impl AbsoluteAxisType {
+impl AbsAxisType {
     pub(crate) const COUNT: usize = ABS_CNT;
 }
 

@@ -1,7 +1,10 @@
-use std::time::{SystemTime, Duration};
+use std::time::SystemTime;
+use std::fmt;
 
+use crate::{EventType, EvdevEvent, timeval_to_systime, systime_to_timeval};
 use crate::compat::input_event;
-use crate::constants::EventType;
+use crate::scancodes::KeyType;
+use crate::constants::{SynchronizationType, RelAxisType, AbsAxisType, MiscType, SwitchType, LedType, SoundType, RepeatType, ForceFeedbackType, PowerType, ForceFeedbackStatusType, UInputType, OtherType};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -67,32 +70,18 @@ pub struct UInputEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// No clue, but technically possible.
-pub struct OtherEvent(input_event);
+pub struct OtherEvent(pub(crate) input_event);
 
-pub trait UnixEvent {
-    /// Returns the timestamp associated with the event.
-    fn timestamp(&self) -> SystemTime;
-    /// Returns the type of event this describes, e.g. Key, Switch, etc.
-    fn event_type(&self) -> EventType;
-    /// Returns the raw "code" field directly from input_event.
-    fn code(&self) -> u16;
-    /// Returns the raw "value" field directly from input_event.
-    ///
-    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
-    /// For axes, the values depend on the hardware and driver implementation.
-    fn value(&self) -> i32;
-}
-
-macro_rules! unix_event_trait {
+macro_rules! input_event_newtype {
     ($name:ty) => {
-        impl UnixEvent for $name {
+        impl EvdevEvent for $name {
             #[inline]
             fn timestamp(&self) -> SystemTime{
                 timeval_to_systime(&self.0.time)
             }
             #[inline]
-            fn event_type(&self) -> EventType {
-                EventType(self.0.type_)
+            fn event_type(&self) -> u16 {
+                self.0.type_
             }
             #[inline]
             fn code(&self) -> u16 {
@@ -103,24 +92,85 @@ macro_rules! unix_event_trait {
                 self.0.value
             }
         }
+        impl AsRef<input_event> for $name {
+            fn as_ref(&self) -> &input_event {
+                &self.0
+            }
+        }
+    };
+    ($name:ty, $evdev_type:path, $kind:path) => {
+        impl $name {
+            pub fn new(code: u16, value: i32) -> Self{
+                let raw = input_event {
+                    time: libc::timeval {
+                        tv_sec: 0,
+                        tv_usec: 0,
+                    },
+                    type_: $evdev_type.0,
+                    code,
+                    value,
+                };
+                Self::from(raw)
+            }
+            pub fn new_now(code: u16, value: i32) -> Self{
+                let raw = input_event {
+                    time: systime_to_timeval(&SystemTime::now()),
+                    type_: $evdev_type.0,
+                    code,
+                    value,
+                };
+                Self::from(raw)
+            }
+
+            // must be kept internal
+            pub(crate) fn from(raw: input_event) -> Self{
+                match EventType(raw.type_) {
+                    $evdev_type => Self(raw),
+                    _ => panic!(), // this would be an iternal library error
+                }
+            }
+
+            pub fn kind(&self) -> $kind{
+                $kind(self.code())
+            }
+        }
+        impl fmt::Debug for $name  {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let mut debug = f.debug_struct(stringify!($name));
+                debug.field("time", &self.timestamp());
+                debug.field("kind", &self.kind());
+                debug.field("value", &self.value()).finish()
+            }
+        }
+        input_event_newtype!($name);
     };
 }
-unix_event_trait!(SynchronizationEvent);
-unix_event_trait!(KeyEvent);
-unix_event_trait!(RelAxisEvent);
-unix_event_trait!(AbsAxisEvent);
-unix_event_trait!(MiscEvent);
-unix_event_trait!(SwitchEvent);
-unix_event_trait!(LedEvent);
-unix_event_trait!(SoundEvent);
-unix_event_trait!(UInputEvent);
-unix_event_trait!(OtherEvent);
+input_event_newtype!(SynchronizationEvent, EventType::SYNCHRONIZATION, SynchronizationType);
+input_event_newtype!(KeyEvent, EventType::KEY, KeyType);
+input_event_newtype!(RelAxisEvent, EventType::RELATIVE, RelAxisType);
+input_event_newtype!(AbsAxisEvent, EventType::ABSOLUTE, AbsAxisType);
+input_event_newtype!(MiscEvent, EventType::MISC, MiscType);
+input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
+input_event_newtype!(LedEvent, EventType::LED, LedType);
+input_event_newtype!(SoundEvent, EventType::SOUND, SoundType);
+input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType);
+input_event_newtype!(ForceFeedbackEvent, EventType::FORCEFEEDBACK, ForceFeedbackType);
+input_event_newtype!(PowerEvent, EventType::POWER, PowerType);
+input_event_newtype!(ForceFeedbackStatusEvent, EventType::FORCEFEEDBACKSTATUS, ForceFeedbackStatusType);
+input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
+input_event_newtype!(OtherEvent);
 
-fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
-    let dur = Duration::new(tv.tv_sec as u64, tv.tv_usec as u32 * 1000);
-    if tv.tv_sec >= 0 {
-        SystemTime::UNIX_EPOCH + dur
-    } else {
-        SystemTime::UNIX_EPOCH - dur
+impl OtherEvent{
+    pub fn kind(&self) -> OtherType {
+        OtherType(self.event_type(), self.code())
+    }
+}
+impl fmt::Debug for OtherEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut debug = f.debug_struct("OtherEvent");
+        debug.field("time", &self.timestamp());
+        debug.field("type", &self.event_type());
+        debug.field("code", &self.code());
+        debug.field("value", &self.value()).finish()
     }
 }

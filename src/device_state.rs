@@ -10,7 +10,7 @@ pub struct DeviceState {
     pub(crate) timestamp: SystemTime,
     /// Set = key pressed
     pub(crate) key_vals: Option<AttributeSet<KeyType>>,
-    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisType::COUNT]>>,
+    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
     pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
     /// Set = LED lit

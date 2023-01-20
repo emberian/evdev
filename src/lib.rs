@@ -112,7 +112,12 @@ mod sys;
 pub mod uinput;
 mod event_variants;
 
-use event_variants::{KeyEvent, RelAxisEvent, AbsAxisEvent, MiscEvent, LedEvent, SwitchEvent, SoundEvent, ForceFeedbackEvent, ForceFeedbackStatusEvent, OtherEvent, UInputEvent, RepeatEvent, PowerEvent};
+use event_variants::{
+    KeyEvent, RelAxisEvent, AbsAxisEvent, 
+    MiscEvent, LedEvent, SwitchEvent, SoundEvent, 
+    ForceFeedbackEvent, ForceFeedbackStatusEvent, 
+    OtherEvent, UInputEvent, RepeatEvent, PowerEvent
+};
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};
 
@@ -143,8 +148,8 @@ const EVENT_BATCH_SIZE: usize = 32;
 pub enum InputEventKind {
     Synchronization(SynchronizationType),
     Key(KeyType),
-    RelAxis(RelativeAxisType),
-    AbsAxis(AbsoluteAxisType),
+    RelAxis(RelAxisType),
+    AbsAxis(AbsAxisType),
     Misc(MiscType),
     Switch(SwitchType),
     Led(LedType),
@@ -237,13 +242,29 @@ impl UinputAbsSetup {
         AbsInfo(self.0.absinfo)
     }
     /// Creates new UinputAbsSetup
-    pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
+    pub fn new(code: AbsAxisType, absinfo: AbsInfo) -> Self {
         UinputAbsSetup(uinput_abs_setup {
             code: code.0,
             absinfo: absinfo.0,
         })
     }
 }
+
+
+pub trait EvdevEvent {
+    /// Returns the timestamp associated with the event.
+    fn timestamp(&self) -> SystemTime;
+    /// Returns the "type" field directly from input_event.
+    fn event_type(&self) -> u16;
+    /// Returns the raw "code" field directly from input_event.
+    fn code(&self) -> u16;
+    /// Returns the raw "value" field directly from input_event.
+    ///
+    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
+    /// For axes, the values depend on the hardware and driver implementation.
+    fn value(&self) -> i32;
+}
+
 
 /// A wrapped `input_event` returned by the input device via the kernel.
 ///
@@ -272,6 +293,27 @@ pub enum InputEvent{
     Other(OtherEvent),
 }
 
+macro_rules! call_at_each_variant {
+    ($self:ident, $method:ident $(, $args:expr)*) => {
+        match $self {
+            InputEvent::Synchronization(ev) => ev.$method($($args),*),
+            InputEvent::Key(ev) => ev.$method($($args),*),
+            InputEvent::RelAxis(ev) => ev.$method($($args),*),
+            InputEvent::AbsAxis(ev) => ev.$method($($args),*),
+            InputEvent::Misc(ev) => ev.$method($($args),*),
+            InputEvent::Switch(ev) => ev.$method($($args),*),
+            InputEvent::Led(ev) => ev.$method($($args),*),
+            InputEvent::Sound(ev) => ev.$method($($args),*),
+            InputEvent::Repeat(ev) => ev.$method($($args),*),
+            InputEvent::ForceFeedback(ev) => ev.$method($($args),*),
+            InputEvent::Power(ev) => ev.$method($($args),*),
+            InputEvent::ForceFeedbackStatus(ev) => ev.$method($($args),*),
+            InputEvent::UInput(ev) => ev.$method($($args),*),
+            InputEvent::Other(ev) => ev.$method($($args),*),
+        }
+    };
+}
+
 impl InputEvent {
     /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
     /// the type of this event.
@@ -280,43 +322,36 @@ impl InputEvent {
     /// does not capture the event value, just the type and code.
     #[inline]
     pub fn kind(&self) -> InputEventKind {
-        let code = self.code();
-        match self.event_type() {
-            EventType::SYNCHRONIZATION => InputEventKind::Synchronization(Synchronization(code)),
-            EventType::KEY => InputEventKind::Key(Key::new(code)),
-            EventType::RELATIVE => InputEventKind::RelAxis(RelativeAxisType(code)),
-            EventType::ABSOLUTE => InputEventKind::AbsAxis(AbsoluteAxisType(code)),
-            EventType::MISC => InputEventKind::Misc(MiscType(code)),
-            EventType::SWITCH => InputEventKind::Switch(SwitchType(code)),
-            EventType::LED => InputEventKind::Led(LedType(code)),
-            EventType::SOUND => InputEventKind::Sound(SoundType(code)),
-            EventType::FORCEFEEDBACK => InputEventKind::ForceFeedback(code),
-            EventType::FORCEFEEDBACKSTATUS => InputEventKind::ForceFeedbackStatus(code),
-            EventType::UINPUT => InputEventKind::UInput(code),
-            _ => InputEventKind::Other,
+        match self {
+            InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev.kind()),
+            InputEvent::Key(ev) => InputEventKind::Key(ev.kind()),
+            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev.kind()),
+            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev.kind()),
+            InputEvent::Misc(ev) => InputEventKind::Misc(ev.kind()),
+            InputEvent::Switch(ev) => InputEventKind::Switch(ev.kind()),
+            InputEvent::Led(ev) => InputEventKind::Led(ev.kind()),
+            InputEvent::Sound(ev) => InputEventKind::Sound(ev.kind()),
+            InputEvent::Repeat(ev) => InputEventKind::Repeat(ev.kind()),
+            InputEvent::ForceFeedback(ev) => InputEventKind::ForceFeedback(ev.kind()),
+            InputEvent::Power(ev) => InputEventKind::Power(ev.kind()),
+            InputEvent::ForceFeedbackStatus(ev) => InputEventKind::ForceFeedbackStatus(ev.kind()),
+            InputEvent::UInput(ev) => InputEventKind::UInput(ev.kind()),
+            InputEvent::Other(ev) => InputEventKind::Other(ev.kind()),
         }
     }
 
-    /// Returns the raw "value" field directly from input_event.
-    ///
-    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
-    /// For axes, the values depend on the hardware and driver implementation.
-    #[inline]
-    pub fn value(&self) -> i32 {
-        self.0.value
-    }
-
     /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
-    pub fn new(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(input_event {
+    pub fn new(type_: u16, code: u16, value: i32) -> Self {
+        let raw = input_event {
             time: libc::timeval {
                 tv_sec: 0,
                 tv_usec: 0,
             },
-            type_: type_.0,
+            type_: type_,
             code,
             value,
-        })
+        };
+        Self::from(raw)
     }
 
     /// Create a new InputEvent with the time field set to "now" on the system clock.
@@ -325,41 +360,60 @@ impl InputEvent {
     /// even though [`InputEvent::new`] creates an `input_event` with the time field as zero,
     /// the kernel will update `input_event.time` when it emits the events to any programs reading
     /// the event "file".
-    pub fn new_now(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(input_event {
+    pub fn new_now(type_: u16, code: u16, value: i32) -> Self {
+        let raw = input_event {
             time: systime_to_timeval(&SystemTime::now()),
-            type_: type_.0,
+            type_: type_,
             code,
             value,
-        })
+        };
+        Self::from(raw)
     }
 }
 
 impl From<input_event> for InputEvent {
     fn from(raw: input_event) -> Self {
-        Self(raw)
+        match EventType(raw.type_) {
+            EventType::SYNCHRONIZATION => InputEvent::Synchronization(SynchronizationEvent::from(raw)),
+            EventType::KEY => InputEvent::Key(KeyEvent::from(raw)),
+            EventType::RELATIVE => InputEvent::RelAxis(RelAxisEvent::from(raw)),
+            EventType::ABSOLUTE => InputEvent::AbsAxis(AbsAxisEvent::from(raw)),
+            EventType::MISC => InputEvent::Misc(MiscEvent::from(raw)),
+            EventType::SWITCH => InputEvent::Switch(SwitchEvent::from(raw)),
+            EventType::LED => InputEvent::Led(LedEvent::from(raw)),
+            EventType::SOUND => InputEvent::Sound(SoundEvent::from(raw)),
+            EventType::FORCEFEEDBACK => InputEvent::ForceFeedback(ForceFeedbackEvent::from(raw)),
+            EventType::FORCEFEEDBACKSTATUS => InputEvent::ForceFeedbackStatus(ForceFeedbackStatusEvent::from(raw)),
+            EventType::UINPUT => InputEvent::UInput(UInputEvent::from(raw)),
+            _ => InputEvent::Other(OtherEvent(raw)),
+        }
+    }
+}
+
+impl EvdevEvent for InputEvent {
+    fn code(&self) -> u16 {
+        call_at_each_variant!(self, code)
+    }
+    fn event_type(&self) -> u16 {
+        call_at_each_variant!(self, event_type)
+    }
+    fn timestamp(&self) -> SystemTime {
+        call_at_each_variant!(self, timestamp)
+    }
+    fn value(&self) -> i32 {
+        call_at_each_variant!(self, value)
     }
 }
 
 impl AsRef<input_event> for InputEvent {
     fn as_ref(&self) -> &input_event {
-        &self.0
+        call_at_each_variant!(self, as_ref)
     }
 }
 
 impl fmt::Debug for InputEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut debug = f.debug_struct("InputEvent");
-        debug.field("time", &self.timestamp());
-        let kind = self.kind();
-        if let InputEventKind::Other = kind {
-            debug
-                .field("type", &self.event_type())
-                .field("code", &self.code());
-        } else {
-            debug.field("kind", &kind);
-        }
-        debug.field("value", &self.value()).finish()
+        call_at_each_variant!(self, fmt, f)
     }
 }
 
