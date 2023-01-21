@@ -108,14 +108,14 @@ impl DeviceState {
     #[inline]
     pub(crate) fn process_event(&mut self, ev: InputEvent) {
         match ev.kind() {
-            InputEventKind::Key(ev,code) => {
+            InputEventKind::Key(code) => {
                 let keys = self
                     .key_vals
                     .as_deref_mut()
                     .expect("got a key event despite not supporting keys");
                 keys.set(code, ev.value() != 0);
             }
-            InputEventKind::AbsAxis(ev, axis) => {
+            InputEventKind::AbsAxis(axis) => {
                 let axes = self
                     .abs_vals
                     .as_deref_mut()

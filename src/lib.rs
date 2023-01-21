@@ -112,6 +112,9 @@ mod sys;
 pub mod uinput;
 mod event_variants;
 
+#[cfg(feature = "serde")]
+use serde_1::{Deserialize, Serialize};
+
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt;
 use std::path::PathBuf;
@@ -130,26 +133,52 @@ pub use sync_stream::*;
 
 const EVENT_BATCH_SIZE: usize = 32;
 
-/// A convenience mapping for matching a [`InputEvent`] while simultaniously checking the event `(type, code)`
+
+/// A convenience mapping from an event `(type, code)` to an enumeration.
+///
+/// Note that this does not capture the event or its value, just the type and code. 
+/// Use [`InputEventMatcher`] for that.
+#[derive(Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
+pub enum InputEventKind {
+    Synchronization(SynchronizationType),
+    Key(KeyType),
+    RelAxis(RelAxisType),
+    AbsAxis(AbsAxisType),
+    Misc(MiscType),
+    Switch(SwitchType),
+    Led(LedType),
+    Sound(SoundType),
+    Repeat(RepeatType),
+    ForceFeedback(FFType),
+    Power(PowerType),
+    ForceFeedbackStatus(FFStatusType),
+    UInput(UInputType),
+    Other(OtherType),
+}
+
+
+/// A convenience mapping for matching a [`InputEvent`] while simultaniously checking its kind `(type, code)` 
+/// and capturing the value
 /// 
 /// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code). 
-/// It is adviced to only use `InputEvent.kind()` to obtain this enum and not manually create it.
-#[derive(Debug, Copy, Clone)]
-pub enum InputEventKind {
-    Synchronization(SynchronizationEvent, SynchronizationType),
-    Key(KeyEvent, KeyType),
-    RelAxis(RelAxisEvent, RelAxisType),
-    AbsAxis(AbsAxisEvent, AbsAxisType),
-    Misc(MiscEvent, MiscType),
-    Switch(SwitchEvent, SwitchType),
-    Led(LedEvent, LedType),
-    Sound(SoundEvent, SoundType),
-    Repeat(RepeatEvent, RepeatType),
-    ForceFeedback(FFEvent, FFType),
-    Power(PowerEvent, PowerType),
-    ForceFeedbackStatus(FFStatusEvent, FFStatusType),
-    UInput(UInputEvent, UInputType),
-    Other(OtherEvent, OtherType),
+/// It is adviced to only use `InputEvent.matcher()` to obtain this enum and not manually create it.
+pub enum InputEventMatcher {
+    Synchronization(SynchronizationEvent, SynchronizationType, i32),
+    Key(KeyEvent, KeyType, i32),
+    RelAxis(RelAxisEvent, RelAxisType, i32),
+    AbsAxis(AbsAxisEvent, AbsAxisType, i32),
+    Misc(MiscEvent, MiscType, i32),
+    Switch(SwitchEvent, SwitchType, i32),
+    Led(LedEvent, LedType, i32),
+    Sound(SoundEvent, SoundType, i32),
+    Repeat(RepeatEvent, RepeatType, i32),
+    ForceFeedback(FFEvent, FFType, i32),
+    Power(PowerEvent, PowerType, i32),
+    ForceFeedbackStatus(FFStatusEvent, FFStatusType, i32),
+    UInput(UInputEvent, UInputType, i32),
+    Other(OtherEvent, OtherType, i32),
 }
 
 /// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
@@ -318,38 +347,71 @@ macro_rules! call_at_each_variant {
 }
 
 impl InputEvent {
-    /// A convenience function to return the `InputEvent` variant and `self.code()` wrapped in a 
+    /// A convenience function to return the `self.code()` wrapped in a 
     /// certain newtype corresponding to the `InputEvent` variant.
     ///
-    /// This is useful if you want to match events by specific key codes or axes.
+    /// This is useful if you want to match events by specific key codes or axes. 
+    /// Note that this does not capture the event value, just the type and code.
     /// 
     /// # Example
     /// ```
     /// use evdev::*;
     /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
     /// match event.kind() {
-    ///     InputEventKind::Key(ev, KeyType::KEY_A) => 
-    ///         println!("Matched KeyEvent: {:?} Which is guaranteed to have the code {:?}", ev, KeyType::KEY_A),
+    ///     InputEventKind::Key(KeyType::KEY_A) => 
+    ///         println!("Matched KeyEvent of type {:?}", KeyType::KEY_A),
     ///     _=> panic!(),
     /// }
     /// ```
     #[inline]
-    pub fn kind(self) -> InputEventKind {
+    pub fn kind(&self) -> InputEventKind {
         match self {
-            InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev, ev.kind()),
-            InputEvent::Key(ev) => InputEventKind::Key(ev, ev.kind()),
-            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev, ev.kind()),
-            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev, ev.kind()),
-            InputEvent::Misc(ev) => InputEventKind::Misc(ev, ev.kind()),
-            InputEvent::Switch(ev) => InputEventKind::Switch(ev, ev.kind()),
-            InputEvent::Led(ev) => InputEventKind::Led(ev, ev.kind()),
-            InputEvent::Sound(ev) => InputEventKind::Sound(ev, ev.kind()),
-            InputEvent::Repeat(ev) => InputEventKind::Repeat(ev, ev.kind()),
-            InputEvent::ForceFeedback(ev) => InputEventKind::ForceFeedback(ev, ev.kind()),
-            InputEvent::Power(ev) => InputEventKind::Power(ev, ev.kind()),
-            InputEvent::ForceFeedbackStatus(ev) => InputEventKind::ForceFeedbackStatus(ev, ev.kind()),
-            InputEvent::UInput(ev) => InputEventKind::UInput(ev, ev.kind()),
-            InputEvent::Other(ev) => InputEventKind::Other(ev, ev.kind()),
+            InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev.kind()),
+            InputEvent::Key(ev) => InputEventKind::Key(ev.kind()),
+            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev.kind()),
+            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev.kind()),
+            InputEvent::Misc(ev) => InputEventKind::Misc(ev.kind()),
+            InputEvent::Switch(ev) => InputEventKind::Switch(ev.kind()),
+            InputEvent::Led(ev) => InputEventKind::Led(ev.kind()),
+            InputEvent::Sound(ev) => InputEventKind::Sound(ev.kind()),
+            InputEvent::Repeat(ev) => InputEventKind::Repeat(ev.kind()),
+            InputEvent::ForceFeedback(ev) => InputEventKind::ForceFeedback(ev.kind()),
+            InputEvent::Power(ev) => InputEventKind::Power(ev.kind()),
+            InputEvent::ForceFeedbackStatus(ev) => InputEventKind::ForceFeedbackStatus(ev.kind()),
+            InputEvent::UInput(ev) => InputEventKind::UInput(ev.kind()),
+            InputEvent::Other(ev) => InputEventKind::Other(ev.kind()),
+        }
+    }
+
+    /// A convenience function to return the `InputEvent` its `kind()` and `value()` wrapped in a 
+    /// certain newtype corresponding to the `InputEvent` variant.
+    /// 
+    /// # Example
+    /// ```
+    /// use evdev::*;
+    /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
+    /// match event.matcher() {
+    ///     InputEventMatcher::Key(KeyEvent, KeyType::KEY_A, 1) => (),
+    ///     _=> panic!(),
+    /// }
+    /// ```
+    #[inline]
+    pub fn matcher(self) -> InputEventMatcher {
+        match self {
+            InputEvent::Synchronization(ev) => InputEventMatcher::Synchronization(ev, ev.kind(),ev.value()),
+            InputEvent::Key(ev) => InputEventMatcher::Key(ev, ev.kind(),ev.value()),
+            InputEvent::RelAxis(ev) => InputEventMatcher::RelAxis(ev, ev.kind(),ev.value()),
+            InputEvent::AbsAxis(ev) => InputEventMatcher::AbsAxis(ev, ev.kind(),ev.value()),
+            InputEvent::Misc(ev) => InputEventMatcher::Misc(ev, ev.kind(),ev.value()),
+            InputEvent::Switch(ev) => InputEventMatcher::Switch(ev, ev.kind(),ev.value()),
+            InputEvent::Led(ev) => InputEventMatcher::Led(ev, ev.kind(),ev.value()),
+            InputEvent::Sound(ev) => InputEventMatcher::Sound(ev, ev.kind(),ev.value()),
+            InputEvent::Repeat(ev) => InputEventMatcher::Repeat(ev, ev.kind(),ev.value()),
+            InputEvent::ForceFeedback(ev) => InputEventMatcher::ForceFeedback(ev, ev.kind(),ev.value()),
+            InputEvent::Power(ev) => InputEventMatcher::Power(ev, ev.kind(),ev.value()),
+            InputEvent::ForceFeedbackStatus(ev) => InputEventMatcher::ForceFeedbackStatus(ev, ev.kind(),ev.value()),
+            InputEvent::UInput(ev) => InputEventMatcher::UInput(ev, ev.kind(),ev.value()),
+            InputEvent::Other(ev) => InputEventMatcher::Other(ev, ev.kind(),ev.value()),
         }
     }
 

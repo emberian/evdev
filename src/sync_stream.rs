@@ -582,10 +582,10 @@ fn sync_events(
         for (i, ev) in event_buf.iter().enumerate().skip(block_start) {
             let ev = InputEvent::from(*ev);
             match ev.kind() {
-                InputEventKind::Synchronization(..,SynchronizationType::SYN_DROPPED) => {
+                InputEventKind::Synchronization(SynchronizationType::SYN_DROPPED) => {
                     block_dropped = true;
                 }
-                InputEventKind::Synchronization(..,SynchronizationType::SYN_REPORT) => {
+                InputEventKind::Synchronization(SynchronizationType::SYN_REPORT) => {
                     consumed_to = Some(i + 1);
                     if block_dropped {
                         *range = event_buf.len()..event_buf.len();
