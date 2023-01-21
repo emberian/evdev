@@ -1,4 +1,4 @@
-use evdev::{EventType, InputEvent, LedType};
+use evdev::{LedType, LedEvent};
 
 mod _pick_device;
 
@@ -9,18 +9,15 @@ fn main() {
     for i in 0..5 {
         let on = i % 2 != 0;
         d.send_events(&[
-            InputEvent::new(
-                EventType::LED,
+            LedEvent::new(
                 LedType::LED_CAPSL.0,
                 if on { i32::MAX } else { 0 },
             ),
-            InputEvent::new(
-                EventType::LED,
+            LedEvent::new(
                 LedType::LED_NUML.0,
                 if on { i32::MAX } else { 0 },
             ),
-            InputEvent::new(
-                EventType::LED,
+            LedEvent::new(
                 LedType::LED_SCROLLL.0,
                 if on { i32::MAX } else { 0 },
             ),
