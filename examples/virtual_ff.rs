@@ -2,7 +2,7 @@
 
 use evdev::{
     uinput::VirtualDeviceBuilder, UInputType,AttributeSet, Error, 
-    EvdevEnum, FFEffectType, FFStatusType, InputEvent, InputEventMatcher,
+    FFEffectType, FFStatusType, InputEvent, InputEventMatcher,
 };
 use std::collections::BTreeSet;
 
@@ -23,6 +23,9 @@ fn main() -> Result<(), Error> {
     println!("Waiting for Ctrl-C...");
     loop {
         let events: Vec<InputEvent> = device.fetch_events()?.collect();
+
+        const STOPPED: i32 = FFStatusType::FF_STATUS_STOPPED.0 as i32;
+        const PLAYING: i32 = FFStatusType::FF_STATUS_PLAYING.0 as i32;
 
         for event in events {
              match event.matcher() {
@@ -46,18 +49,11 @@ fn main() -> Result<(), Error> {
                     ids.insert(event.effect_id() as u16);
                     println!("erase effect ID = {}", event.effect_id());
                 },
-                InputEventMatcher::ForceFeedback(.., effect_id, value) => {
-                    let status = FFStatusType::from_index(value as usize);
-
-                    match status {
-                        FFStatusType::FF_STATUS_STOPPED => {
-                            println!("stopped effect ID = {}", effect_id.0);
-                        }
-                        FFStatusType::FF_STATUS_PLAYING => {
-                            println!("playing effect ID = {}", effect_id.0);
-                        }
-                        _ => (),
-                    }
+                InputEventMatcher::ForceFeedback(.., effect_id, STOPPED) => {
+                    println!("stopped effect ID = {}", effect_id.0);
+                },
+                InputEventMatcher::ForceFeedback(.., effect_id, PLAYING) => {
+                    println!("playing effect ID = {}", effect_id.0);
                 },
                 _ => {println!("event kind = {:?}", event.kind());},
             };
