@@ -133,27 +133,28 @@ pub use sync_stream::*;
 
 const EVENT_BATCH_SIZE: usize = 32;
 
-/// A convenience mapping from an event `(type, code)` to an enumeration.
-///
-/// Note that this does not capture an event's value, just the type and code.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// A convenience mapping for matching a [`InputEvent`] while simultaniously checking the event `(type, code)`
+/// 
+/// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code). 
+/// It is adviced to only use `InputEvent.kind()` to obtain this enum and not manually create it.
+#[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
-    Synchronization(SynchronizationType),
-    Key(KeyType),
-    RelAxis(RelAxisType),
-    AbsAxis(AbsAxisType),
-    Misc(MiscType),
-    Switch(SwitchType),
-    Led(LedType),
-    Sound(SoundType),
-    Repeat(RepeatType),
-    ForceFeedback(FFType),
-    Power(PowerType),
-    ForceFeedbackStatus(FFStatusType),
-    UInput(UInputType),
-    Other(OtherType),
+    Synchronization(SynchronizationEvent, SynchronizationType),
+    Key(KeyEvent, KeyType),
+    RelAxis(RelAxisEvent, RelAxisType),
+    AbsAxis(AbsAxisEvent, AbsAxisType),
+    Misc(MiscEvent, MiscType),
+    Switch(SwitchEvent, SwitchType),
+    Led(LedEvent, LedType),
+    Sound(SoundEvent, SoundType),
+    Repeat(RepeatEvent, RepeatType),
+    ForceFeedback(FFEvent, FFType),
+    Power(PowerEvent, PowerType),
+    ForceFeedbackStatus(FFStatusEvent, FFStatusType),
+    UInput(UInputEvent, UInputType),
+    Other(OtherEvent, OtherType),
 }
 
 /// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
@@ -270,19 +271,33 @@ pub trait EvdevEvent {
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone)]
 pub enum InputEvent{
+    /// [`SynchronizationEvent`]
     Synchronization(SynchronizationEvent),
+    /// [`KeyEvent`]
     Key(KeyEvent),
+    /// [`RelAxisEvent`]
     RelAxis(RelAxisEvent),
+    /// [`AbsAxisEvent`]
     AbsAxis(AbsAxisEvent),
+    /// [`MiscEvent`]
     Misc(MiscEvent),
+    /// [`SwitchEvent`]
     Switch(SwitchEvent),
+    /// [`LedEvent`]
     Led(LedEvent),
+    /// [`SoundEvent`]
     Sound(SoundEvent),
+    /// [`RepeatEvent`]
     Repeat(RepeatEvent),
-    ForceFeedback(ForceFeedbackEvent),
+    /// [`ForceFeedbackEvent`]
+    ForceFeedback(FFEvent),
+    /// [`PowerEvent`]
     Power(PowerEvent),
-    ForceFeedbackStatus(ForceFeedbackStatusEvent),
+    /// [`ForceFeedbackStatusEvent`]
+    ForceFeedbackStatus(FFStatusEvent),
+    /// [`UInputEvent`]
     UInput(UInputEvent),
+    /// [`OtherEvent`]
     Other(OtherEvent),
 }
 
@@ -308,28 +323,38 @@ macro_rules! call_at_each_variant {
 }
 
 impl InputEvent {
-    /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
-    /// the type of this event.
+    /// A convenience function to return the `InputEvent` variant and `self.code()` wrapped in a 
+    /// certain newtype corresponding to the `InputEvent` variant.
     ///
-    /// This is useful if you want to match events by specific key codes or axes. Note that this
-    /// does not capture the event value, just the type and code.
+    /// This is useful if you want to match events by specific key codes or axes.
+    /// 
+    /// # Example
+    /// ```
+    /// use evdev::*;
+    /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
+    /// match event.kind() {
+    ///     InputEventKind::Key(ev, KeyType::KEY_A) => 
+    ///         println!("Matched KeyEvent: {:?} Which is guaranteed to have the code {:?}", ev, KeyType::KEY_A),
+    ///     _=> panic!(),
+    /// }
+    /// ```
     #[inline]
-    pub fn kind(&self) -> InputEventKind {
+    pub fn kind(self) -> InputEventKind {
         match self {
-            InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev.kind()),
-            InputEvent::Key(ev) => InputEventKind::Key(ev.kind()),
-            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev.kind()),
-            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev.kind()),
-            InputEvent::Misc(ev) => InputEventKind::Misc(ev.kind()),
-            InputEvent::Switch(ev) => InputEventKind::Switch(ev.kind()),
-            InputEvent::Led(ev) => InputEventKind::Led(ev.kind()),
-            InputEvent::Sound(ev) => InputEventKind::Sound(ev.kind()),
-            InputEvent::Repeat(ev) => InputEventKind::Repeat(ev.kind()),
-            InputEvent::ForceFeedback(ev) => InputEventKind::ForceFeedback(ev.kind()),
-            InputEvent::Power(ev) => InputEventKind::Power(ev.kind()),
-            InputEvent::ForceFeedbackStatus(ev) => InputEventKind::ForceFeedbackStatus(ev.kind()),
-            InputEvent::UInput(ev) => InputEventKind::UInput(ev.kind()),
-            InputEvent::Other(ev) => InputEventKind::Other(ev.kind()),
+            InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev, ev.kind()),
+            InputEvent::Key(ev) => InputEventKind::Key(ev, ev.kind()),
+            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev, ev.kind()),
+            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev, ev.kind()),
+            InputEvent::Misc(ev) => InputEventKind::Misc(ev, ev.kind()),
+            InputEvent::Switch(ev) => InputEventKind::Switch(ev, ev.kind()),
+            InputEvent::Led(ev) => InputEventKind::Led(ev, ev.kind()),
+            InputEvent::Sound(ev) => InputEventKind::Sound(ev, ev.kind()),
+            InputEvent::Repeat(ev) => InputEventKind::Repeat(ev, ev.kind()),
+            InputEvent::ForceFeedback(ev) => InputEventKind::ForceFeedback(ev, ev.kind()),
+            InputEvent::Power(ev) => InputEventKind::Power(ev, ev.kind()),
+            InputEvent::ForceFeedbackStatus(ev) => InputEventKind::ForceFeedbackStatus(ev, ev.kind()),
+            InputEvent::UInput(ev) => InputEventKind::UInput(ev, ev.kind()),
+            InputEvent::Other(ev) => InputEventKind::Other(ev, ev.kind()),
         }
     }
 
@@ -375,13 +400,35 @@ impl From<input_event> for InputEvent {
             EventType::SWITCH => InputEvent::Switch(SwitchEvent::from(raw)),
             EventType::LED => InputEvent::Led(LedEvent::from(raw)),
             EventType::SOUND => InputEvent::Sound(SoundEvent::from(raw)),
-            EventType::FORCEFEEDBACK => InputEvent::ForceFeedback(ForceFeedbackEvent::from(raw)),
-            EventType::FORCEFEEDBACKSTATUS => InputEvent::ForceFeedbackStatus(ForceFeedbackStatusEvent::from(raw)),
+            EventType::FORCEFEEDBACK => InputEvent::ForceFeedback(FFEvent::from(raw)),
+            EventType::FORCEFEEDBACKSTATUS => InputEvent::ForceFeedbackStatus(FFStatusEvent::from(raw)),
             EventType::UINPUT => InputEvent::UInput(UInputEvent::from(raw)),
             _ => InputEvent::Other(OtherEvent(raw)),
         }
     }
 }
+
+macro_rules! impl_from_type {
+    ($type:ty, $variant:path) => {
+        impl From<$type> for InputEvent {
+            fn from(value: $type) -> Self {
+                $variant(value)
+            }
+        }
+    };
+}
+impl_from_type!(SynchronizationEvent, InputEvent::Synchronization);
+impl_from_type!(KeyEvent, InputEvent::Key);
+impl_from_type!(RelAxisEvent, InputEvent::RelAxis);
+impl_from_type!(AbsAxisEvent, InputEvent::AbsAxis);
+impl_from_type!(MiscEvent, InputEvent::Misc);
+impl_from_type!(SwitchEvent, InputEvent::Switch);
+impl_from_type!(LedEvent, InputEvent::Led);
+impl_from_type!(SoundEvent, InputEvent::Sound);
+impl_from_type!(FFEvent, InputEvent::ForceFeedback);
+impl_from_type!(FFStatusEvent, InputEvent::ForceFeedbackStatus);
+impl_from_type!(UInputEvent, InputEvent::UInput);
+impl_from_type!(OtherEvent, InputEvent::Other);
 
 impl EvdevEvent for InputEvent {
     fn code(&self) -> u16 {

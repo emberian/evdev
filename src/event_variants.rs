@@ -57,7 +57,7 @@ pub struct RepeatEvent(input_event);
 #[repr(transparent)]
 /// I believe there are no events of this type, but rather this is used to represent that
 /// the device can create haptic effects.
-pub struct ForceFeedbackEvent(input_event);
+pub struct FFEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// I think this is unused?
@@ -65,7 +65,7 @@ pub struct  PowerEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// A force feedback effect's state changed.
-pub struct ForceFeedbackStatusEvent(input_event);
+pub struct FFStatusEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// An event originating from uinput.
@@ -157,9 +157,9 @@ input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
 input_event_newtype!(LedEvent, EventType::LED, LedType);
 input_event_newtype!(SoundEvent, EventType::SOUND, SoundType);
 input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType);
-input_event_newtype!(ForceFeedbackEvent, EventType::FORCEFEEDBACK, FFType);
+input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFType);
 input_event_newtype!(PowerEvent, EventType::POWER, PowerType);
-input_event_newtype!(ForceFeedbackStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType);
+input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType);
 input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
 input_event_newtype!(OtherEvent);
 
