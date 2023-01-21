@@ -17,10 +17,11 @@
 //! devices and send events to the virtual devices.
 //! Virtual devices are created in `/sys/devices/virtual/input`.
 //!
-//! Devices emit events, represented by the [`InputEvent`] type. Each device supports a few different
+//! Devices emit events, represented by the [`EvdevEvent`] trait. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
-//! method. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code. This
-//! type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
+//! method. The [`InputEvent`] enum implements the `EvdevEvent` trait and has a variant for each 
+//! `EventType`. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code. 
+//! This type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
 //! subtypes of a type that a device supports can be retrieved through the `Device::supported_*()`
 //! methods, e.g. [`Device::supported_keys()`]:
 //!
@@ -47,7 +48,36 @@
 //! The evdev crate exposes functions to query the current state of a device from the kernel, as
 //! well as a function that can be called continuously to provide an iterator over update events
 //! as they arrive.
-//!
+//! 
+//! # Matching Events
+//! 
+//! When reading from an input Device it is often useful to check which type/subtype or value 
+//! the event has. This library provides the [`InputEventMatcher`] enum which can be used to
+//! match specific events. Calling [`InputEvent::matcher`] will return that enum. 
+//! 
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use evdev::*;
+//! let mut device = Device::open("/dev/input/event0")?;
+//! loop {
+//!     for event in device.fetch_events().unwrap(){
+//!         match event.matcher(){
+//!             InputEventMatcher::Key(ev, KeyType::KEY_A, 1) => {
+//!                 println!("Key 'a' was pressed, got event: {:?}", ev);
+//!             },
+//!             InputEventMatcher::Key(_, key_type, 0) => {
+//!                 println!("Key {:?} was released", key_type);
+//!             },
+//!             InputEventMatcher::AbsAxis(_, axis, value) => {
+//!                 println!("The Axis {:?} was moved to {}", axis, value);
+//!             },
+//!             _ => println!("got a different event!")
+//!         }
+//!     }
+//! }
+//! # unreachable!()
+//! # }
+//! ```
 //!
 //! # Synchronizing versus Raw modes
 //!
@@ -267,6 +297,8 @@ impl UinputAbsSetup {
     }
 }
 
+/// The common trait for all [`InputEvent`] variants and the `InputEvent` itself.
+/// Anything that implements this can be sent to a [`Device`] or [`uinput::VirtualDevice`]
 pub trait EvdevEvent: AsRef<input_event> {
     /// Returns the timestamp associated with the event.
     fn timestamp(&self) -> SystemTime;
