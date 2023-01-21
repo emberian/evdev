@@ -461,7 +461,7 @@ impl InputEvent {
                 tv_sec: 0,
                 tv_usec: 0,
             },
-            type_: type_,
+            type_,
             code,
             value,
         };
@@ -477,7 +477,7 @@ impl InputEvent {
     pub fn new_now(type_: u16, code: u16, value: i32) -> Self {
         let raw = input_event {
             time: systime_to_timeval(&SystemTime::now()),
-            type_: type_,
+            type_,
             code,
             value,
         };

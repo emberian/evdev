@@ -238,7 +238,7 @@ impl VirtualDevice {
 
     #[inline]
     fn write_raw<T: AsRef<input_event>>(&mut self, messages: &[T]) -> io::Result<()> {
-        let raw: &[input_event] = &*messages
+        let raw: &[input_event] = &messages
             .iter()
             .map(|e| *e.as_ref())
             .collect::<Vec<input_event>>();
