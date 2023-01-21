@@ -115,7 +115,7 @@ pub mod uinput;
 use serde_1::{Deserialize, Serialize};
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
-use std::fmt;
+use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
@@ -413,3 +413,11 @@ pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumParseError(());
+
+impl Display for EnumParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to parse Key from string")
+    }
+}
+
+impl std::error::Error for EnumParseError {}
