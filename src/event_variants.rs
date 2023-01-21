@@ -1,74 +1,67 @@
-use std::time::SystemTime;
 use std::fmt;
+use std::time::SystemTime;
 
-use crate::{EventType, EvdevEvent, timeval_to_systime, systime_to_timeval};
 use crate::compat::input_event;
-use crate::scancodes::KeyType;
 use crate::constants::{
-    SynchronizationType, RelAxisType, AbsAxisType, MiscType, SwitchType, 
-    LedType, SoundType, RepeatType, PowerType, FFStatusType, UInputType, 
-    OtherType, FFType};
+    AbsAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType, RelAxisType,
+    RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
+};
+use crate::scancodes::KeyType;
+use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
+
 /// A bookkeeping event. Usually not important to applications.
+/// [`EventType::SYNCHRONIZATION`]
 pub struct SynchronizationEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// A key changed state. A key, or button, is usually a momentary switch (in the circuit sense). It has two
-/// states: down, or up. There are events for when keys are pressed (become down) and
-/// released (become up). There are also "key repeats", where multiple events are sent
-/// while a key is down.
+/// [`EventType::KEY`]
 pub struct KeyEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// Movement on a relative axis. There is no absolute coordinate frame, just the fact that
-/// there was a change of a certain amount of units. Used for things like mouse movement or
-/// scroll wheels.
+/// [`EventType::RELATIVE`]
 pub struct RelAxisEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// Movement on an absolute axis. Used for things such as touch events and joysticks.
+/// [`EventType::ABSOLUTE`]
 pub struct AbsAxisEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// Miscellaneous events that don't fall into other categories. For example, Key presses may
-/// send `MSC_SCAN` events before each KEY event
+/// [`EventType::MISC`]
 pub struct MiscEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// Change in a switch value. Switches are boolean conditions and usually correspond to a
-/// toggle switch of some kind in hardware.
+/// [`EventType::SWITCH`]
 pub struct SwitchEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// An LED was toggled.
+/// [`EventType::LED`]
 pub struct LedEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// A sound was made.
+/// [`EventType::SOUND`]
 pub struct SoundEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// There are no events of this type, to my knowledge, but represents metadata about key
-/// repeat configuration.
+/// [`EventType::REPEAT`]
 pub struct RepeatEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// I believe there are no events of this type, but rather this is used to represent that
-/// the device can create haptic effects.
+/// [`EventType::FORCEFEEDBACK`]
 pub struct FFEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// I think this is unused?
-pub struct  PowerEvent(input_event);
+/// [`EventType::POWER`]
+pub struct PowerEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// A force feedback effect's state changed.
+/// [`EventType::FORCEFEEDBACKSTATUS`]
 pub struct FFStatusEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-/// An event originating from uinput.
+/// [`EventType::UINPUT`]
 pub struct UInputEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -79,7 +72,7 @@ macro_rules! input_event_newtype {
     ($name:ty) => {
         impl EvdevEvent for $name {
             #[inline]
-            fn timestamp(&self) -> SystemTime{
+            fn timestamp(&self) -> SystemTime {
                 timeval_to_systime(&self.0.time)
             }
             #[inline]
@@ -103,7 +96,7 @@ macro_rules! input_event_newtype {
     };
     ($name:ty, $evdev_type:path, $kind:path) => {
         impl $name {
-            pub fn new(code: u16, value: i32) -> Self{
+            pub fn new(code: u16, value: i32) -> Self {
                 let raw = input_event {
                     time: libc::timeval {
                         tv_sec: 0,
@@ -115,7 +108,7 @@ macro_rules! input_event_newtype {
                 };
                 Self::from(raw)
             }
-            pub fn new_now(code: u16, value: i32) -> Self{
+            pub fn new_now(code: u16, value: i32) -> Self {
                 let raw = input_event {
                     time: systime_to_timeval(&SystemTime::now()),
                     type_: $evdev_type.0,
@@ -126,18 +119,18 @@ macro_rules! input_event_newtype {
             }
 
             // must be kept internal
-            pub(crate) fn from(raw: input_event) -> Self{
+            pub(crate) fn from(raw: input_event) -> Self {
                 match EventType(raw.type_) {
                     $evdev_type => Self(raw),
                     _ => panic!(), // this would be an iternal library error
                 }
             }
 
-            pub fn kind(&self) -> $kind{
+            pub fn kind(&self) -> $kind {
                 $kind(self.code())
             }
         }
-        impl fmt::Debug for $name  {
+        impl fmt::Debug for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 let mut debug = f.debug_struct(stringify!($name));
                 debug.field("time", &self.timestamp());
@@ -163,7 +156,7 @@ input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType
 input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
 input_event_newtype!(OtherEvent);
 
-impl OtherEvent{
+impl OtherEvent {
     pub fn kind(&self) -> OtherType {
         OtherType(self.event_type(), self.code())
     }

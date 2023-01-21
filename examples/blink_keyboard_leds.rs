@@ -1,4 +1,4 @@
-use evdev::{LedType, LedEvent};
+use evdev::{LedEvent, LedType};
 
 mod _pick_device;
 

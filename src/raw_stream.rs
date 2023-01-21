@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
-use crate::{constants::*, FFEvent, EvdevEvent};
 use crate::ff::*;
+use crate::{constants::*, EvdevEvent, FFEvent};
 use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, KeyType};
 
 fn ioctl_get_cstring(
@@ -65,7 +65,7 @@ impl FFEffect {
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
-        let events = [FFEvent::new( self.id, count)];
+        let events = [FFEvent::new(self.id, count)];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 
@@ -724,10 +724,7 @@ impl RawDevice {
     /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
     /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
     pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
-        let events = [FFEvent::new(
-            FFEffectType::FF_GAIN.0,
-            value.into(),
-        )];
+        let events = [FFEvent::new(FFEffectType::FF_GAIN.0, value.into())];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 
@@ -736,10 +733,7 @@ impl RawDevice {
 
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
-        let events = [FFEvent::new(
-            FFEffectType::FF_AUTOCENTER.0,
-            value.into(),
-        )];
+        let events = [FFEvent::new(FFEffectType::FF_AUTOCENTER.0, value.into())];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 

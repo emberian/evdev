@@ -1,4 +1,6 @@
-use evdev::{FFEffectData, FFEffectKind, FFReplay, FFTrigger, InputEventMatcher, FFStatusType, FFType};
+use evdev::{
+    FFEffectData, FFEffectKind, FFReplay, FFStatusType, FFTrigger, FFType, InputEventMatcher,
+};
 
 mod _pick_device;
 
@@ -22,19 +24,19 @@ fn main() -> std::io::Result<()> {
 
     let mut effect = d.upload_ff_effect(effect_data)?;
 
-    std::thread::spawn(move ||{
-        loop{
+    std::thread::spawn(move || {
+        loop {
             // monitor the response from the device
             const STOPPED: i32 = FFStatusType::FF_STATUS_STOPPED.0 as i32;
             const STARTED: i32 = FFStatusType::FF_STATUS_PLAYING.0 as i32;
-            for ev in d.fetch_events().unwrap(){
+            for ev in d.fetch_events().unwrap() {
                 match ev.matcher() {
-                    InputEventMatcher::ForceFeedback(_,FFType(id), STARTED) => {
+                    InputEventMatcher::ForceFeedback(_, FFType(id), STARTED) => {
                         println!("Device Started effect id {}", id);
-                    },
-                    InputEventMatcher::ForceFeedback(_, FFType(id), STOPPED ) => {
+                    }
+                    InputEventMatcher::ForceFeedback(_, FFType(id), STOPPED) => {
                         println!("Device Stopped effect id {}", id);
-                    },
+                    }
                     _ => (),
                 }
             }

@@ -9,8 +9,8 @@ use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, KeyType, MiscType, PropType,
-    RelAxisType, SwitchType, UinputAbsSetup, EvdevEvent, SynchronizationEvent,
+    sys, AttributeSetRef, Error, EvdevEvent, FFEffectType, InputEvent, KeyType, MiscType, PropType,
+    RelAxisType, SwitchType, SynchronizationEvent, UinputAbsSetup,
 };
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -237,9 +237,11 @@ impl VirtualDevice {
     }
 
     #[inline]
-    fn write_raw<T: AsRef<input_event>>(&mut self, messages: &[T]) -> io::Result<()>
-    {
-        let raw: &[input_event] =&*messages.iter().map(|e| *e.as_ref()).collect::<Vec<input_event>>();
+    fn write_raw<T: AsRef<input_event>>(&mut self, messages: &[T]) -> io::Result<()> {
+        let raw: &[input_event] = &*messages
+            .iter()
+            .map(|e| *e.as_ref())
+            .collect::<Vec<input_event>>();
         let bytes = unsafe { crate::cast_to_bytes(raw) };
         self.file.write_all(bytes)
     }
@@ -377,7 +379,7 @@ impl VirtualDevice {
     }
 }
 
-/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
+/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes_blocking] function and will yield
 /// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
 pub struct DevNodesBlocking {
     dir: std::fs::ReadDir,

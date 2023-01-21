@@ -103,6 +103,7 @@ mod compat;
 mod constants;
 mod device_state;
 mod error;
+mod event_variants;
 mod ff;
 mod inputid;
 pub mod raw_stream;
@@ -110,7 +111,6 @@ mod scancodes;
 mod sync_stream;
 mod sys;
 pub mod uinput;
-mod event_variants;
 
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};
@@ -120,11 +120,11 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-pub use event_variants::*;
 pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
 pub use error::Error;
+pub use event_variants::*;
 pub use ff::*;
 pub use inputid::*;
 pub use raw_stream::{AutoRepeat, FFEffect};
@@ -133,10 +133,9 @@ pub use sync_stream::*;
 
 const EVENT_BATCH_SIZE: usize = 32;
 
-
 /// A convenience mapping from an event `(type, code)` to an enumeration.
 ///
-/// Note that this does not capture the event or its value, just the type and code. 
+/// Note that this does not capture the event or its value, just the type and code.
 /// Use [`InputEventMatcher`] for that.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -158,11 +157,10 @@ pub enum InputEventKind {
     Other(OtherType),
 }
 
-
-/// A convenience mapping for matching a [`InputEvent`] while simultaniously checking its kind `(type, code)` 
+/// A convenience mapping for matching a [`InputEvent`] while simultaniously checking its kind `(type, code)`
 /// and capturing the value
-/// 
-/// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code). 
+///
+/// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code).
 /// It is adviced to only use `InputEvent.matcher()` to obtain this enum and not manually create it.
 pub enum InputEventMatcher {
     Synchronization(SynchronizationEvent, SynchronizationType, i32),
@@ -283,7 +281,6 @@ pub trait EvdevEvent: AsRef<input_event> {
     fn value(&self) -> i32;
 }
 
-
 /// A wrapped `input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
@@ -294,7 +291,7 @@ pub trait EvdevEvent: AsRef<input_event> {
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone)]
-pub enum InputEvent{
+pub enum InputEvent {
     /// [`SynchronizationEvent`]
     Synchronization(SynchronizationEvent),
     /// [`KeyEvent`]
@@ -313,11 +310,11 @@ pub enum InputEvent{
     Sound(SoundEvent),
     /// [`RepeatEvent`]
     Repeat(RepeatEvent),
-    /// [`ForceFeedbackEvent`]
+    /// [`FFEvent`]
     ForceFeedback(FFEvent),
     /// [`PowerEvent`]
     Power(PowerEvent),
-    /// [`ForceFeedbackStatusEvent`]
+    /// [`FFStatusEvent`]
     ForceFeedbackStatus(FFStatusEvent),
     /// [`UInputEvent`]
     UInput(UInputEvent),
@@ -347,18 +344,18 @@ macro_rules! call_at_each_variant {
 }
 
 impl InputEvent {
-    /// A convenience function to return the `self.code()` wrapped in a 
+    /// A convenience function to return the `self.code()` wrapped in a
     /// certain newtype corresponding to the `InputEvent` variant.
     ///
-    /// This is useful if you want to match events by specific key codes or axes. 
+    /// This is useful if you want to match events by specific key codes or axes.
     /// Note that this does not capture the event value, just the type and code.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use evdev::*;
     /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
     /// match event.kind() {
-    ///     InputEventKind::Key(KeyType::KEY_A) => 
+    ///     InputEventKind::Key(KeyType::KEY_A) =>
     ///         println!("Matched KeyEvent of type {:?}", KeyType::KEY_A),
     ///     _=> panic!(),
     /// }
@@ -383,9 +380,9 @@ impl InputEvent {
         }
     }
 
-    /// A convenience function to return the `InputEvent` its `kind()` and `value()` wrapped in a 
+    /// A convenience function to return the `InputEvent` its `kind()` and `value()` wrapped in a
     /// certain newtype corresponding to the `InputEvent` variant.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use evdev::*;

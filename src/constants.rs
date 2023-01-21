@@ -392,8 +392,7 @@ evdev_enum!(
     UI_FF_ERASE = 2,
 );
 
-
-// some more structs without any constats. They are only there to 
+// some more structs without any constats. They are only there to
 // porvide a consitatnt type system and simple code generation.
 #[cfg(feature = "serde")]
 use serde_1::{Deserialize, Serialize};

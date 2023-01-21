@@ -1,9 +1,11 @@
 use crate::compat::{input_absinfo, input_event};
-use crate::{constants::*, EvdevEvent};
 use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
-use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, KeyType};
+use crate::{constants::*, EvdevEvent};
+use crate::{
+    AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, KeyType,
+};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;

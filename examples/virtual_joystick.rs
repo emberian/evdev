@@ -1,9 +1,7 @@
 // Create a virtual joystick, just while this is running.
 // Generally this requires root.
 
-use evdev::{
-    uinput::VirtualDeviceBuilder, AbsInfo, AbsAxisType, UinputAbsSetup, AbsAxisEvent,
-};
+use evdev::{uinput::VirtualDeviceBuilder, AbsAxisEvent, AbsAxisType, AbsInfo, UinputAbsSetup};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -27,7 +25,7 @@ fn main() -> std::io::Result<()> {
 
     println!("Waiting for Ctrl-C...");
     loop {
-        let down_event = AbsAxisEvent::new( code, 0);
+        let down_event = AbsAxisEvent::new(code, 0);
         device.emit(&[down_event]).unwrap();
         println!("Minned out.");
         sleep(Duration::from_secs(2));
