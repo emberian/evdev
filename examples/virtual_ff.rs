@@ -2,7 +2,7 @@
 
 use evdev::{
     uinput::VirtualDeviceBuilder, UInputType,AttributeSet, Error, 
-    EvdevEnum, FFEffectType, FFStatusType, InputEventKind, InputEvent, EvdevEvent,
+    EvdevEnum, FFEffectType, FFStatusType, InputEvent, InputEventMatcher,
 };
 use std::collections::BTreeSet;
 
@@ -25,8 +25,8 @@ fn main() -> Result<(), Error> {
         let events: Vec<InputEvent> = device.fetch_events()?.collect();
 
         for event in events {
-             match event.kind() {
-                InputEventKind::UInput(event,  UInputType::UI_FF_UPLOAD) => {
+             match event.matcher() {
+                InputEventMatcher::UInput(event,  UInputType::UI_FF_UPLOAD, ..) => {
                     let mut event = device.process_ff_upload(event)?;
                     let id = ids.iter().next().copied();
                     match id {
@@ -41,13 +41,13 @@ fn main() -> Result<(), Error> {
                     }
                     println!("upload effect {:?}", event.effect());
                 },
-                InputEventKind::UInput(event,UInputType::UI_FF_ERASE) => {
+                InputEventMatcher::UInput(event,UInputType::UI_FF_ERASE, ..) => {
                     let event = device.process_ff_erase(event)?;
                     ids.insert(event.effect_id() as u16);
                     println!("erase effect ID = {}", event.effect_id());
                 },
-                InputEventKind::ForceFeedback(event, effect_id) => {
-                    let status = FFStatusType::from_index(event.value() as usize);
+                InputEventMatcher::ForceFeedback(.., effect_id, value) => {
+                    let status = FFStatusType::from_index(value as usize);
 
                     match status {
                         FFStatusType::FF_STATUS_STOPPED => {
@@ -59,9 +59,7 @@ fn main() -> Result<(), Error> {
                         _ => (),
                     }
                 },
-                kind => {
-                    println!("event kind = {:?}", kind);
-                },
+                _ => {println!("event kind = {:?}", event.kind());},
             };
         }
     }
