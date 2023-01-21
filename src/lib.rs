@@ -112,9 +112,6 @@ mod sys;
 pub mod uinput;
 mod event_variants;
 
-#[cfg(feature = "serde")]
-use serde_1::{Deserialize, Serialize};
-
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt;
 use std::path::PathBuf;
@@ -138,8 +135,6 @@ const EVENT_BATCH_SIZE: usize = 32;
 /// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code). 
 /// It is adviced to only use `InputEvent.kind()` to obtain this enum and not manually create it.
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
     Synchronization(SynchronizationEvent, SynchronizationType),
     Key(KeyEvent, KeyType),

@@ -555,16 +555,16 @@ mod tokio_stream {
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
         /// any calls afterwards will likely error as well.
-        pub async fn next_event(&mut self) -> io::Result<UInputEvent> {
+        pub async fn next_event(&mut self) -> io::Result<InputEvent> {
             poll_fn(|cx| self.poll_event(cx)).await
         }
 
         /// A lower-level function for directly polling this stream.
-        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<UInputEvent>> {
+        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
             'outer: loop {
                 if let Some(&ev) = self.device.get_ref().event_buf.get(self.index) {
                     self.index += 1;
-                    return Poll::Ready(Ok(UInputEvent(InputEvent(ev))));
+                    return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
                 self.device.get_mut().event_buf.clear();
@@ -587,7 +587,7 @@ mod tokio_stream {
     }
 
     impl Stream for VirtualEventStream {
-        type Item = io::Result<UInputEvent>;
+        type Item = io::Result<InputEvent>;
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }

@@ -851,7 +851,7 @@ mod tokio_stream {
             'outer: loop {
                 if let Some(&ev) = self.device.get_ref().event_buf.get(self.index) {
                     self.index += 1;
-                    return Poll::Ready(Ok(InputEvent(ev)));
+                    return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
                 self.device.get_mut().event_buf.clear();

@@ -794,7 +794,7 @@ mod tokio_stream {
                     self.consumed_to = end
                 }
                 match res {
-                    Ok(ev) => return Poll::Ready(Ok(InputEvent(ev))),
+                    Ok(ev) => return Poll::Ready(Ok(InputEvent::from(ev))),
                     Err(requires_sync) => {
                         if requires_sync {
                             dev.block_dropped = true;
