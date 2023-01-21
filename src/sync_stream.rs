@@ -174,17 +174,17 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, RelAxisType};
+    /// use evdev::{Device, RelativeAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have a scroll wheel?
     /// let supported = device
     ///     .supported_relative_axes()
-    ///     .map_or(false, |axes| axes.contains(RelAxisType::REL_WHEEL));
+    ///     .map_or(false, |axes| axes.contains(RelativeAxisType::REL_WHEEL));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
         self.raw.supported_relative_axes()
     }
 
@@ -196,17 +196,17 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, AbsAxisType};
+    /// use evdev::{Device, AbsoluteAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have an absolute X axis?
     /// let supported = device
     ///     .supported_absolute_axes()
-    ///     .map_or(false, |axes| axes.contains(AbsAxisType::ABS_X));
+    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisType::ABS_X));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
         self.raw.supported_absolute_axes()
     }
 
@@ -273,7 +273,7 @@ impl Device {
     }
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
-    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsAxisType::COUNT]> {
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
         self.raw.get_abs_state()
     }
 
@@ -410,7 +410,7 @@ enum SyncState {
     },
     Absolutes {
         time: libc::timeval,
-        start: AbsAxisType,
+        start: AbsoluteAxisType,
     },
     Switches {
         time: libc::timeval,
@@ -469,14 +469,14 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                 );
                 *sync = SyncState::Absolutes {
                     time: *time,
-                    start: AbsAxisType(0),
+                    start: AbsoluteAxisType(0),
                 };
                 continue;
             }
             SyncState::Absolutes { time, start } => {
                 try_compensate!(
                     time,
-                    start: AbsAxisType,
+                    start: AbsoluteAxisType,
                     ABSOLUTE,
                     Absolutes,
                     supported_absolute_axes,

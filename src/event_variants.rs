@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crate::compat::input_event;
 use crate::constants::{
-    AbsAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType, RelAxisType,
+    AbsoluteAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
     RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
@@ -22,11 +22,11 @@ pub struct KeyEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// [`EventType::RELATIVE`]
-pub struct RelAxisEvent(input_event);
+pub struct RelativeAxisEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// [`EventType::ABSOLUTE`]
-pub struct AbsAxisEvent(input_event);
+pub struct AbsoluteAxisEvent(input_event);
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 /// [`EventType::MISC`]
@@ -143,8 +143,8 @@ macro_rules! input_event_newtype {
 }
 input_event_newtype!(SynchronizationEvent, EventType::SYNCHRONIZATION, SynchronizationType);
 input_event_newtype!(KeyEvent, EventType::KEY, KeyType);
-input_event_newtype!(RelAxisEvent, EventType::RELATIVE, RelAxisType);
-input_event_newtype!(AbsAxisEvent, EventType::ABSOLUTE, AbsAxisType);
+input_event_newtype!(RelativeAxisEvent, EventType::RELATIVE, RelativeAxisType);
+input_event_newtype!(AbsoluteAxisEvent, EventType::ABSOLUTE, AbsoluteAxisType);
 input_event_newtype!(MiscEvent, EventType::MISC, MiscType);
 input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
 input_event_newtype!(LedEvent, EventType::LED, LedType);

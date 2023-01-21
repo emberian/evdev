@@ -43,8 +43,8 @@ const ABSINFO_ZERO: input_absinfo = input_absinfo {
     resolution: 0,
 };
 
-pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsAxisType::COUNT] =
-    [ABSINFO_ZERO; AbsAxisType::COUNT];
+pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisType::COUNT] =
+    [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
@@ -114,8 +114,8 @@ pub struct RawDevice {
     props: AttributeSet<PropType>,
     driver_version: (u8, u8, u8),
     supported_keys: Option<AttributeSet<KeyType>>,
-    supported_relative: Option<AttributeSet<RelAxisType>>,
-    supported_absolute: Option<AttributeSet<AbsAxisType>>,
+    supported_relative: Option<AttributeSet<RelativeAxisType>>,
+    supported_absolute: Option<AttributeSet<AbsoluteAxisType>>,
     supported_switch: Option<AttributeSet<SwitchType>>,
     supported_led: Option<AttributeSet<LedType>>,
     supported_misc: Option<AttributeSet<MiscType>>,
@@ -198,7 +198,7 @@ impl RawDevice {
         };
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
-            let mut rel = AttributeSet::<RelAxisType>::new();
+            let mut rel = AttributeSet::<RelativeAxisType>::new();
             unsafe { sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
@@ -206,7 +206,7 @@ impl RawDevice {
         };
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
-            let mut abs = AttributeSet::<AbsAxisType>::new();
+            let mut abs = AttributeSet::<AbsoluteAxisType>::new();
             unsafe { sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
@@ -375,17 +375,17 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, RelAxisType};
+    /// use evdev::{Device, RelativeAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have a scroll wheel?
     /// let supported = device
     ///     .supported_relative_axes()
-    ///     .map_or(false, |axes| axes.contains(RelAxisType::REL_WHEEL));
+    ///     .map_or(false, |axes| axes.contains(RelativeAxisType::REL_WHEEL));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
         self.supported_relative.as_deref()
     }
 
@@ -397,17 +397,17 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, AbsAxisType};
+    /// use evdev::{Device, AbsoluteAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have an absolute X axis?
     /// let supported = device
     ///     .supported_absolute_axes()
-    ///     .map_or(false, |axes| axes.contains(AbsAxisType::ABS_X));
+    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisType::ABS_X));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
         self.supported_absolute.as_deref()
     }
 
@@ -511,8 +511,8 @@ impl RawDevice {
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
     #[inline]
-    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsAxisType::COUNT]> {
-        let mut abs_vals: [input_absinfo; AbsAxisType::COUNT] = ABS_VALS_INIT;
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
+        let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
     }
@@ -548,10 +548,10 @@ impl RawDevice {
     #[inline]
     pub fn update_abs_state(
         &self,
-        abs_vals: &mut [input_absinfo; AbsAxisType::COUNT],
+        abs_vals: &mut [input_absinfo; AbsoluteAxisType::COUNT],
     ) -> io::Result<()> {
         if let Some(supported_abs) = self.supported_absolute_axes() {
-            for AbsAxisType(idx) in supported_abs.iter() {
+            for AbsoluteAxisType(idx) in supported_abs.iter() {
                 // ignore multitouch, we'll handle that later.
                 //
                 // handling later removed. not sure what the intention of "handling that later" was

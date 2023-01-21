@@ -68,7 +68,7 @@
 //!             InputEventMatcher::Key(_, key_type, 0) => {
 //!                 println!("Key {:?} was released", key_type);
 //!             },
-//!             InputEventMatcher::AbsAxis(_, axis, value) => {
+//!             InputEventMatcher::AbsoluteAxis(_, axis, value) => {
 //!                 println!("The Axis {:?} was moved to {}", axis, value);
 //!             },
 //!             _ => println!("got a different event!")
@@ -173,8 +173,8 @@ const EVENT_BATCH_SIZE: usize = 32;
 pub enum InputEventKind {
     Synchronization(SynchronizationType),
     Key(KeyType),
-    RelAxis(RelAxisType),
-    AbsAxis(AbsAxisType),
+    RelativeAxis(RelativeAxisType),
+    AbsoluteAxis(AbsoluteAxisType),
     Misc(MiscType),
     Switch(SwitchType),
     Led(LedType),
@@ -195,8 +195,8 @@ pub enum InputEventKind {
 pub enum InputEventMatcher {
     Synchronization(SynchronizationEvent, SynchronizationType, i32),
     Key(KeyEvent, KeyType, i32),
-    RelAxis(RelAxisEvent, RelAxisType, i32),
-    AbsAxis(AbsAxisEvent, AbsAxisType, i32),
+    RelativeAxis(RelativeAxisEvent, RelativeAxisType, i32),
+    AbsoluteAxis(AbsoluteAxisEvent, AbsoluteAxisType, i32),
     Misc(MiscEvent, MiscType, i32),
     Switch(SwitchEvent, SwitchType, i32),
     Led(LedEvent, LedType, i32),
@@ -289,7 +289,7 @@ impl UinputAbsSetup {
         AbsInfo(self.0.absinfo)
     }
     /// Creates new UinputAbsSetup
-    pub fn new(code: AbsAxisType, absinfo: AbsInfo) -> Self {
+    pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
         UinputAbsSetup(uinput_abs_setup {
             code: code.0,
             absinfo: absinfo.0,
@@ -328,10 +328,10 @@ pub enum InputEvent {
     Synchronization(SynchronizationEvent),
     /// [`KeyEvent`]
     Key(KeyEvent),
-    /// [`RelAxisEvent`]
-    RelAxis(RelAxisEvent),
-    /// [`AbsAxisEvent`]
-    AbsAxis(AbsAxisEvent),
+    /// [`RelativeAxisEvent`]
+    RelativeAxis(RelativeAxisEvent),
+    /// [`AbsoluteAxisEvent`]
+    AbsoluteAxis(AbsoluteAxisEvent),
     /// [`MiscEvent`]
     Misc(MiscEvent),
     /// [`SwitchEvent`]
@@ -359,8 +359,8 @@ macro_rules! call_at_each_variant {
         match $self {
             InputEvent::Synchronization(ev) => ev.$method($($args),*),
             InputEvent::Key(ev) => ev.$method($($args),*),
-            InputEvent::RelAxis(ev) => ev.$method($($args),*),
-            InputEvent::AbsAxis(ev) => ev.$method($($args),*),
+            InputEvent::RelativeAxis(ev) => ev.$method($($args),*),
+            InputEvent::AbsoluteAxis(ev) => ev.$method($($args),*),
             InputEvent::Misc(ev) => ev.$method($($args),*),
             InputEvent::Switch(ev) => ev.$method($($args),*),
             InputEvent::Led(ev) => ev.$method($($args),*),
@@ -397,8 +397,8 @@ impl InputEvent {
         match self {
             InputEvent::Synchronization(ev) => InputEventKind::Synchronization(ev.kind()),
             InputEvent::Key(ev) => InputEventKind::Key(ev.kind()),
-            InputEvent::RelAxis(ev) => InputEventKind::RelAxis(ev.kind()),
-            InputEvent::AbsAxis(ev) => InputEventKind::AbsAxis(ev.kind()),
+            InputEvent::RelativeAxis(ev) => InputEventKind::RelativeAxis(ev.kind()),
+            InputEvent::AbsoluteAxis(ev) => InputEventKind::AbsoluteAxis(ev.kind()),
             InputEvent::Misc(ev) => InputEventKind::Misc(ev.kind()),
             InputEvent::Switch(ev) => InputEventKind::Switch(ev.kind()),
             InputEvent::Led(ev) => InputEventKind::Led(ev.kind()),
@@ -429,8 +429,8 @@ impl InputEvent {
         match self {
             InputEvent::Synchronization(ev) => InputEventMatcher::Synchronization(ev, ev.kind(),ev.value()),
             InputEvent::Key(ev) => InputEventMatcher::Key(ev, ev.kind(),ev.value()),
-            InputEvent::RelAxis(ev) => InputEventMatcher::RelAxis(ev, ev.kind(),ev.value()),
-            InputEvent::AbsAxis(ev) => InputEventMatcher::AbsAxis(ev, ev.kind(),ev.value()),
+            InputEvent::RelativeAxis(ev) => InputEventMatcher::RelativeAxis(ev, ev.kind(),ev.value()),
+            InputEvent::AbsoluteAxis(ev) => InputEventMatcher::AbsoluteAxis(ev, ev.kind(),ev.value()),
             InputEvent::Misc(ev) => InputEventMatcher::Misc(ev, ev.kind(),ev.value()),
             InputEvent::Switch(ev) => InputEventMatcher::Switch(ev, ev.kind(),ev.value()),
             InputEvent::Led(ev) => InputEventMatcher::Led(ev, ev.kind(),ev.value()),
@@ -480,8 +480,8 @@ impl From<input_event> for InputEvent {
         match EventType(raw.type_) {
             EventType::SYNCHRONIZATION => InputEvent::Synchronization(SynchronizationEvent::from(raw)),
             EventType::KEY => InputEvent::Key(KeyEvent::from(raw)),
-            EventType::RELATIVE => InputEvent::RelAxis(RelAxisEvent::from(raw)),
-            EventType::ABSOLUTE => InputEvent::AbsAxis(AbsAxisEvent::from(raw)),
+            EventType::RELATIVE => InputEvent::RelativeAxis(RelativeAxisEvent::from(raw)),
+            EventType::ABSOLUTE => InputEvent::AbsoluteAxis(AbsoluteAxisEvent::from(raw)),
             EventType::MISC => InputEvent::Misc(MiscEvent::from(raw)),
             EventType::SWITCH => InputEvent::Switch(SwitchEvent::from(raw)),
             EventType::LED => InputEvent::Led(LedEvent::from(raw)),
@@ -505,8 +505,8 @@ macro_rules! impl_from_type {
 }
 impl_from_type!(SynchronizationEvent, InputEvent::Synchronization);
 impl_from_type!(KeyEvent, InputEvent::Key);
-impl_from_type!(RelAxisEvent, InputEvent::RelAxis);
-impl_from_type!(AbsAxisEvent, InputEvent::AbsAxis);
+impl_from_type!(RelativeAxisEvent, InputEvent::RelativeAxis);
+impl_from_type!(AbsoluteAxisEvent, InputEvent::AbsoluteAxis);
 impl_from_type!(MiscEvent, InputEvent::Misc);
 impl_from_type!(SwitchEvent, InputEvent::Switch);
 impl_from_type!(LedEvent, InputEvent::Led);

@@ -10,7 +10,7 @@ pub struct DeviceState {
     pub(crate) timestamp: SystemTime,
     /// Set = key pressed
     pub(crate) key_vals: Option<AttributeSet<KeyType>>,
-    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsAxisType::COUNT]>>,
+    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisType::COUNT]>>,
     /// Set = switch enabled (closed)
     pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
     /// Set = LED lit
@@ -115,7 +115,7 @@ impl DeviceState {
                     .expect("got a key event despite not supporting keys");
                 keys.set(code, ev.value() != 0);
             }
-            InputEventKind::AbsAxis(axis) => {
+            InputEventKind::AbsoluteAxis(axis) => {
                 let axes = self
                     .abs_vals
                     .as_deref_mut()

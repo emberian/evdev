@@ -10,7 +10,7 @@ use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
     sys, AttributeSetRef, Error, EvdevEvent, FFEffectType, InputEvent, KeyType, MiscType, PropType,
-    RelAxisType, SwitchType, SynchronizationEvent, UinputAbsSetup,
+    RelativeAxisType, SwitchType, SynchronizationEvent, UinputAbsSetup,
 };
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -93,7 +93,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelAxisType>) -> io::Result<Self> {
+    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.file.as_raw_fd(),
