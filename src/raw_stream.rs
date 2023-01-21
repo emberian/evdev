@@ -704,7 +704,11 @@ impl RawDevice {
     /// [EventType::SOUND] (play a sound on the device)
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
     pub fn send_events<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
-        let bytes = unsafe { crate::cast_to_bytes(events) };
+        let raw: &[input_event] = &events
+            .iter()
+            .map(|e| *e.as_ref())
+            .collect::<Vec<input_event>>();
+        let bytes = unsafe { crate::cast_to_bytes(raw) };
         self.file.write_all(bytes)
     }
 
