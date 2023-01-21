@@ -3,14 +3,14 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPUT_MAX_NAME_SIZE};
-use crate::constants::{EventType, UInputType};
+use crate::constants::UInputType;
 use crate::event_variants::UInputEvent;
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
     sys, AttributeSetRef, Error, FFEffectType, InputEvent, KeyType, MiscType, PropType,
-    RelAxisType, SwitchType, UinputAbsSetup, EvdevEvent,
+    RelAxisType, SwitchType, UinputAbsSetup, EvdevEvent, SynchronizationEvent,
 };
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
@@ -237,8 +237,10 @@ impl VirtualDevice {
     }
 
     #[inline]
-    fn write_raw(&mut self, messages: &[InputEvent]) -> io::Result<()> {
-        let bytes = unsafe { crate::cast_to_bytes(messages) };
+    fn write_raw<T: AsRef<input_event>>(&mut self, messages: &[T]) -> io::Result<()>
+    {
+        let raw: &[input_event] =&*messages.iter().map(|e| *e.as_ref()).collect::<Vec<input_event>>();
+        let bytes = unsafe { crate::cast_to_bytes(raw) };
         self.file.write_all(bytes)
     }
 
@@ -285,9 +287,9 @@ impl VirtualDevice {
     /// of a mouse triggers a movement events for the X and Y axes separately in a batch of 2 events.
     ///
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
-    pub fn emit(&mut self, messages: &[InputEvent]) -> io::Result<()> {
-        self.write_raw(messages)?;
-        let syn = InputEvent::new(EventType::SYNCHRONIZATION.0, 0, 0);
+    pub fn emit<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
+        self.write_raw(events)?;
+        let syn = SynchronizationEvent::new(0, 0);
         self.write_raw(&[syn])
     }
 

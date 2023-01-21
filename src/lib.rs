@@ -269,7 +269,7 @@ impl UinputAbsSetup {
     }
 }
 
-pub trait EvdevEvent {
+pub trait EvdevEvent: AsRef<input_event> {
     /// Returns the timestamp associated with the event.
     fn timestamp(&self) -> SystemTime;
     /// Returns the "type" field directly from input_event.
