@@ -3,8 +3,8 @@ use std::time::SystemTime;
 
 use crate::compat::input_event;
 use crate::constants::{
-    AbsoluteAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
-    RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
+    AbsoluteAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType,
+    RelativeAxisType, RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
 use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType};
@@ -141,7 +141,11 @@ macro_rules! input_event_newtype {
         input_event_newtype!($name);
     };
 }
-input_event_newtype!(SynchronizationEvent, EventType::SYNCHRONIZATION, SynchronizationType);
+input_event_newtype!(
+    SynchronizationEvent,
+    EventType::SYNCHRONIZATION,
+    SynchronizationType
+);
 input_event_newtype!(KeyEvent, EventType::KEY, KeyType);
 input_event_newtype!(RelativeAxisEvent, EventType::RELATIVE, RelativeAxisType);
 input_event_newtype!(AbsoluteAxisEvent, EventType::ABSOLUTE, AbsoluteAxisType);

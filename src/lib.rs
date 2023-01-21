@@ -19,8 +19,8 @@
 //!
 //! Devices emit events, represented by the [`EvdevEvent`] trait. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
-//! method. The [`InputEvent`] enum implements the `EvdevEvent` trait and has a variant for each 
-//! `EventType`. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code. 
+//! method. The [`InputEvent`] enum implements the `EvdevEvent` trait and has a variant for each
+//! `EventType`. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code.
 //! This type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
 //! subtypes of a type that a device supports can be retrieved through the `Device::supported_*()`
 //! methods, e.g. [`Device::supported_keys()`]:
@@ -48,13 +48,13 @@
 //! The evdev crate exposes functions to query the current state of a device from the kernel, as
 //! well as a function that can be called continuously to provide an iterator over update events
 //! as they arrive.
-//! 
+//!
 //! # Matching Events
-//! 
-//! When reading from an input Device it is often useful to check which type/subtype or value 
+//!
+//! When reading from an input Device it is often useful to check which type/subtype or value
 //! the event has. This library provides the [`InputEventMatcher`] enum which can be used to
-//! match specific events. Calling [`InputEvent::matcher`] will return that enum. 
-//! 
+//! match specific events. Calling [`InputEvent::matcher`] will return that enum.
+//!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use evdev::*;
@@ -427,20 +427,30 @@ impl InputEvent {
     #[inline]
     pub fn matcher(self) -> InputEventMatcher {
         match self {
-            InputEvent::Synchronization(ev) => InputEventMatcher::Synchronization(ev, ev.kind(),ev.value()),
-            InputEvent::Key(ev) => InputEventMatcher::Key(ev, ev.kind(),ev.value()),
-            InputEvent::RelativeAxis(ev) => InputEventMatcher::RelativeAxis(ev, ev.kind(),ev.value()),
-            InputEvent::AbsoluteAxis(ev) => InputEventMatcher::AbsoluteAxis(ev, ev.kind(),ev.value()),
-            InputEvent::Misc(ev) => InputEventMatcher::Misc(ev, ev.kind(),ev.value()),
-            InputEvent::Switch(ev) => InputEventMatcher::Switch(ev, ev.kind(),ev.value()),
-            InputEvent::Led(ev) => InputEventMatcher::Led(ev, ev.kind(),ev.value()),
-            InputEvent::Sound(ev) => InputEventMatcher::Sound(ev, ev.kind(),ev.value()),
-            InputEvent::Repeat(ev) => InputEventMatcher::Repeat(ev, ev.kind(),ev.value()),
-            InputEvent::ForceFeedback(ev) => InputEventMatcher::ForceFeedback(ev, ev.kind(),ev.value()),
-            InputEvent::Power(ev) => InputEventMatcher::Power(ev, ev.kind(),ev.value()),
-            InputEvent::ForceFeedbackStatus(ev) => InputEventMatcher::ForceFeedbackStatus(ev, ev.kind(),ev.value()),
-            InputEvent::UInput(ev) => InputEventMatcher::UInput(ev, ev.kind(),ev.value()),
-            InputEvent::Other(ev) => InputEventMatcher::Other(ev, ev.kind(),ev.value()),
+            InputEvent::Synchronization(ev) => {
+                InputEventMatcher::Synchronization(ev, ev.kind(), ev.value())
+            }
+            InputEvent::Key(ev) => InputEventMatcher::Key(ev, ev.kind(), ev.value()),
+            InputEvent::RelativeAxis(ev) => {
+                InputEventMatcher::RelativeAxis(ev, ev.kind(), ev.value())
+            }
+            InputEvent::AbsoluteAxis(ev) => {
+                InputEventMatcher::AbsoluteAxis(ev, ev.kind(), ev.value())
+            }
+            InputEvent::Misc(ev) => InputEventMatcher::Misc(ev, ev.kind(), ev.value()),
+            InputEvent::Switch(ev) => InputEventMatcher::Switch(ev, ev.kind(), ev.value()),
+            InputEvent::Led(ev) => InputEventMatcher::Led(ev, ev.kind(), ev.value()),
+            InputEvent::Sound(ev) => InputEventMatcher::Sound(ev, ev.kind(), ev.value()),
+            InputEvent::Repeat(ev) => InputEventMatcher::Repeat(ev, ev.kind(), ev.value()),
+            InputEvent::ForceFeedback(ev) => {
+                InputEventMatcher::ForceFeedback(ev, ev.kind(), ev.value())
+            }
+            InputEvent::Power(ev) => InputEventMatcher::Power(ev, ev.kind(), ev.value()),
+            InputEvent::ForceFeedbackStatus(ev) => {
+                InputEventMatcher::ForceFeedbackStatus(ev, ev.kind(), ev.value())
+            }
+            InputEvent::UInput(ev) => InputEventMatcher::UInput(ev, ev.kind(), ev.value()),
+            InputEvent::Other(ev) => InputEventMatcher::Other(ev, ev.kind(), ev.value()),
         }
     }
 
@@ -478,7 +488,9 @@ impl InputEvent {
 impl From<input_event> for InputEvent {
     fn from(raw: input_event) -> Self {
         match EventType(raw.type_) {
-            EventType::SYNCHRONIZATION => InputEvent::Synchronization(SynchronizationEvent::from(raw)),
+            EventType::SYNCHRONIZATION => {
+                InputEvent::Synchronization(SynchronizationEvent::from(raw))
+            }
             EventType::KEY => InputEvent::Key(KeyEvent::from(raw)),
             EventType::RELATIVE => InputEvent::RelativeAxis(RelativeAxisEvent::from(raw)),
             EventType::ABSOLUTE => InputEvent::AbsoluteAxis(AbsoluteAxisEvent::from(raw)),
@@ -487,7 +499,9 @@ impl From<input_event> for InputEvent {
             EventType::LED => InputEvent::Led(LedEvent::from(raw)),
             EventType::SOUND => InputEvent::Sound(SoundEvent::from(raw)),
             EventType::FORCEFEEDBACK => InputEvent::ForceFeedback(FFEvent::from(raw)),
-            EventType::FORCEFEEDBACKSTATUS => InputEvent::ForceFeedbackStatus(FFStatusEvent::from(raw)),
+            EventType::FORCEFEEDBACKSTATUS => {
+                InputEvent::ForceFeedbackStatus(FFStatusEvent::from(raw))
+            }
             EventType::UINPUT => InputEvent::UInput(UInputEvent::from(raw)),
             _ => InputEvent::Other(OtherEvent(raw)),
         }
