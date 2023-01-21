@@ -122,7 +122,7 @@ macro_rules! input_event_newtype {
             pub(crate) fn from(raw: input_event) -> Self {
                 match EventType(raw.type_) {
                     $evdev_type => Self(raw),
-                    _ => panic!(), // this would be an iternal library error
+                    _ => unreachable!(),
                 }
             }
 
