@@ -172,13 +172,13 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, RelativeAxisType};
+    /// use evdev::{Device, RelAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have a scroll wheel?
     /// let supported = device
     ///     .supported_relative_axes()
-    ///     .map_or(false, |axes| axes.contains(RelativeAxisType::REL_WHEEL));
+    ///     .map_or(false, |axes| axes.contains(RelAxisType::REL_WHEEL));
     /// # Ok(())
     /// # }
     /// ```
@@ -194,13 +194,13 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, AbsoluteAxisType};
+    /// use evdev::{Device, AbsAxisType};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have an absolute X axis?
     /// let supported = device
     ///     .supported_absolute_axes()
-    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisType::ABS_X));
+    ///     .map_or(false, |axes| axes.contains(AbsAxisType::ABS_X));
     /// # Ok(())
     /// # }
     /// ```

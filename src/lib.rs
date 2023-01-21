@@ -26,10 +26,10 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use evdev::{Device, Key};
+//! use evdev::{Device, KeyType};
 //! let device = Device::open("/dev/input/event0")?;
 //! // check if the device has an ENTER key
-//! if device.supported_keys().map_or(false, |keys| keys.contains(Key::KEY_ENTER)) {
+//! if device.supported_keys().map_or(false, |keys| keys.contains(KeyType::KEY_ENTER)) {
 //!     println!("are you prepared to ENTER the world of evdev?");
 //! } else {
 //!     println!(":(");
