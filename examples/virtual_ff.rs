@@ -32,10 +32,10 @@ fn main() -> Result<(), Error> {
 
                     match value {
                         FFStatus::FF_STATUS_STOPPED => {
-                            println!("stopped effect ID = {}", effect_id);
+                            println!("stopped effect ID = {effect_id}");
                         }
                         FFStatus::FF_STATUS_PLAYING => {
-                            println!("playing effect ID = {}", effect_id);
+                            println!("playing effect ID = {effect_id}");
                         }
                         _ => (),
                     }
@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
                     continue;
                 }
                 kind => {
-                    println!("event kind = {:?}", kind);
+                    println!("event kind = {kind:?}");
                     continue;
                 }
             };

@@ -622,12 +622,12 @@ impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}:", self.name().unwrap_or("Unnamed device"))?;
         let (maj, min, pat) = self.driver_version();
-        writeln!(f, "  Driver version: {}.{}.{}", maj, min, pat)?;
+        writeln!(f, "  Driver version: {maj}.{min}.{pat}")?;
         if let Some(ref phys) = self.physical_path() {
-            writeln!(f, "  Physical address: {:?}", phys)?;
+            writeln!(f, "  Physical address: {phys:?}")?;
         }
         if let Some(ref uniq) = self.unique_name() {
-            writeln!(f, "  Unique name: {:?}", uniq)?;
+            writeln!(f, "  Unique name: {uniq:?}")?;
         }
 
         let id = self.input_id();
@@ -659,7 +659,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_relative) = self.supported_relative_axes() {
-            writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
+            writeln!(f, "  Relative Axes: {supported_relative:?}")?;
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -676,7 +676,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_misc) = self.misc_properties() {
-            writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
+            writeln!(f, "  Miscellaneous capabilities: {supported_misc:?}")?;
         }
 
         if let (Some(supported_switch), Some(switch_vals)) =
