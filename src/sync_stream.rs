@@ -4,7 +4,8 @@ use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{constants::*, AbsInfo};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
-use std::collections::HashMap;
+
+
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
@@ -277,14 +278,17 @@ impl Device {
     }
 
     /// Get the AbsInfo for each supported AbsoluteAxis
-    pub fn get_absinfo(&self) -> io::Result<HashMap<AbsoluteAxisType, AbsInfo>> {
+    pub fn get_absinfo(&self) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)>> {
         let raw_absinfo = self.get_abs_state()?;
-        Ok(self
+        let supported_axis: Vec<_> = self
             .supported_absolute_axes()
             .unwrap_or(&AttributeSet::new())
             .iter()
-            .map(|axis| (axis, AbsInfo(raw_absinfo[axis.0 as usize])))
-            .collect())
+            .collect();
+
+        Ok(supported_axis
+            .into_iter()
+            .map(move |axes| (axes, AbsInfo(raw_absinfo[axes.0 as usize]))))
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
