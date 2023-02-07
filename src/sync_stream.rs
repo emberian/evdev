@@ -5,7 +5,6 @@ use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{constants::*, AbsInfo};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
 
-
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
