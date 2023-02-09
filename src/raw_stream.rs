@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
-use crate::constants::*;
 use crate::ff::*;
+use crate::{constants::*, AbsInfo};
 use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
 
 fn ioctl_get_cstring(
@@ -515,6 +515,18 @@ impl RawDevice {
         let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
+    }
+
+    /// Get the AbsInfo for each supported AbsoluteAxis
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        let raw_absinfo = self.get_abs_state()?;
+        Ok(self
+            .supported_absolute_axes()
+            .into_iter()
+            .flat_map(AttributeSetRef::iter)
+            .map(move |axes| (axes, AbsInfo(raw_absinfo[axes.0 as usize]))))
     }
 
     /// Retrieve the current switch state directly via kernel syscall.

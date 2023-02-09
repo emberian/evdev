@@ -277,13 +277,10 @@ impl Device {
     }
 
     /// Get the AbsInfo for each supported AbsoluteAxis
-    pub fn get_absinfo(&self) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
-        let raw_absinfo = self.get_abs_state()?;
-        Ok(self
-            .supported_absolute_axes()
-            .into_iter()
-            .flat_map(AttributeSetRef::iter)
-            .map(move |axes| (axes, AbsInfo(raw_absinfo[axes.0 as usize]))))
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        self.raw.get_absinfo()
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
