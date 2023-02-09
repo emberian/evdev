@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::os::unix::io::AsRawFd;
 
     let mut d = _pick_device::pick_device();
-    println!("{}", d);
+    println!("{d}");
 
     let raw_fd = d.as_raw_fd();
     // Set nonblocking
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match d.fetch_events() {
             Ok(iterator) => {
                 for ev in iterator {
-                    println!("{:?}", ev);
+                    println!("{ev:?}");
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 epoll::epoll_wait(epoll_fd.as_raw_fd(), &mut events, -1)?;
             }
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("{e}");
                 break;
             }
         }

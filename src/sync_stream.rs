@@ -1,9 +1,10 @@
 use crate::compat::{input_absinfo, input_event};
-use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
+use crate::{constants::*, AbsInfo};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
+
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
@@ -273,6 +274,13 @@ impl Device {
     /// Retrieve the current absolute axis state directly via kernel syscall.
     pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
         self.raw.get_abs_state()
+    }
+
+    /// Get the AbsInfo for each supported AbsoluteAxis
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        self.raw.get_absinfo()
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
@@ -607,12 +615,12 @@ impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}:", self.name().unwrap_or("Unnamed device"))?;
         let (maj, min, pat) = self.driver_version();
-        writeln!(f, "  Driver version: {}.{}.{}", maj, min, pat)?;
+        writeln!(f, "  Driver version: {maj}.{min}.{pat}")?;
         if let Some(ref phys) = self.physical_path() {
-            writeln!(f, "  Physical address: {:?}", phys)?;
+            writeln!(f, "  Physical address: {phys:?}")?;
         }
         if let Some(ref uniq) = self.unique_name() {
-            writeln!(f, "  Unique name: {:?}", uniq)?;
+            writeln!(f, "  Unique name: {uniq:?}")?;
         }
 
         let id = self.input_id();
@@ -644,7 +652,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_relative) = self.supported_relative_axes() {
-            writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
+            writeln!(f, "  Relative Axes: {supported_relative:?}")?;
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -661,7 +669,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_misc) = self.misc_properties() {
-            writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
+            writeln!(f, "  Miscellaneous capabilities: {supported_misc:?}")?;
         }
 
         if let (Some(supported_switch), Some(switch_vals)) =
