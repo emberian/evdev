@@ -277,16 +277,12 @@ impl Device {
     }
 
     /// Get the AbsInfo for each supported AbsoluteAxis
-    pub fn get_absinfo(&self) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)>> {
+    pub fn get_absinfo(&self) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
         let raw_absinfo = self.get_abs_state()?;
-        let supported_axis: Vec<_> = self
+        Ok(self
             .supported_absolute_axes()
-            .unwrap_or(&AttributeSet::new())
-            .iter()
-            .collect();
-
-        Ok(supported_axis
             .into_iter()
+            .flat_map(AttributeSetRef::iter)
             .map(move |axes| (axes, AbsInfo(raw_absinfo[axes.0 as usize]))))
     }
 
