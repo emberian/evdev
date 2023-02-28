@@ -112,7 +112,7 @@ mod sys;
 pub mod uinput;
 
 #[cfg(feature = "serde")]
-use serde_1::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt::{self, Display};
@@ -136,7 +136,6 @@ const EVENT_BATCH_SIZE: usize = 32;
 /// Note that this does not capture an event's value, just the type and code.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
     Synchronization(Synchronization),
     Key(Key),
