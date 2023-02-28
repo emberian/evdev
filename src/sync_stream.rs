@@ -5,7 +5,7 @@ use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{constants::*, AbsInfo};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
 
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
 use std::{fmt, io};
@@ -387,6 +387,12 @@ impl Device {
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
         self.raw.set_ff_autocenter(value)
+    }
+}
+
+impl AsFd for Device {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.raw.as_fd()
     }
 }
 

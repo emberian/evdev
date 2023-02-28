@@ -6,8 +6,11 @@
 ### Added
 
 - `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+- `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
 
 ### Changed
+
+- The minimum supported rust version (MSRV) is now `1.63`, due to `AsFd` support.
 
 ### Fixed
 
