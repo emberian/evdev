@@ -64,6 +64,17 @@ impl<T: EvdevEnum + fmt::Debug> fmt::Debug for AttributeSetRef<T> {
     }
 }
 
+impl<T: EvdevEnum> Default for &AttributeSetRef<T> {
+    fn default() -> Self {
+        AttributeSetRef::new(BitSlice::empty())
+    }
+}
+impl<T: EvdevEnum> Default for &mut AttributeSetRef<T> {
+    fn default() -> Self {
+        AttributeSetRef::new_mut(BitSlice::empty_mut())
+    }
+}
+
 pub struct AttributeSet<T: ArrayedEvdevEnum> {
     container: T::Array,
 }
