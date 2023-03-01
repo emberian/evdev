@@ -1,7 +1,6 @@
-use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::fs::OpenOptions;
 use std::mem::MaybeUninit;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{io, mem};
 
@@ -52,7 +51,7 @@ const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 /// playback.
 #[derive(Debug)]
 pub struct FFEffect {
-    file: File,
+    fd: OwnedFd,
     id: u16,
 }
 
@@ -66,8 +65,7 @@ impl FFEffect {
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
         let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, count)];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -75,8 +73,7 @@ impl FFEffect {
     /// Stops playback of the force feedback effect.
     pub fn stop(&mut self) -> io::Result<()> {
         let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, 0)];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -86,7 +83,7 @@ impl FFEffect {
         let mut effect: sys::ff_effect = data.into();
         effect.id = self.id as i16;
 
-        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
 
         Ok(())
     }
@@ -94,7 +91,7 @@ impl FFEffect {
 
 impl Drop for FFEffect {
     fn drop(&mut self) {
-        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as _) };
+        let _ = unsafe { sys::eviocrmff(self.fd.as_raw_fd(), self.id as _) };
     }
 }
 
@@ -105,7 +102,7 @@ impl Drop for FFEffect {
 /// and reflects changes in its position via "relative axis" reports.
 #[derive(Debug)]
 pub struct RawDevice {
-    file: File,
+    fd: OwnedFd,
     ty: AttributeSet<EventType>,
     name: Option<String>,
     phys: Option<String>,
@@ -149,33 +146,31 @@ impl RawDevice {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
-        let file = options
+        let fd: OwnedFd = options
             .read(true)
             .write(true)
             .open(path)
-            .or_else(|_| options.write(false).open(path))?;
+            .or_else(|_| options.write(false).open(path))?
+            .into();
 
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
-            unsafe { sys::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_type(fd.as_raw_fd(), ty.as_mut_raw_slice())? };
             ty
         };
 
-        let name =
-            ioctl_get_cstring(sys::eviocgname, file.as_raw_fd()).map(bytes_into_string_lossy);
-        let phys =
-            ioctl_get_cstring(sys::eviocgphys, file.as_raw_fd()).map(bytes_into_string_lossy);
-        let uniq =
-            ioctl_get_cstring(sys::eviocguniq, file.as_raw_fd()).map(bytes_into_string_lossy);
+        let name = ioctl_get_cstring(sys::eviocgname, fd.as_raw_fd()).map(bytes_into_string_lossy);
+        let phys = ioctl_get_cstring(sys::eviocgphys, fd.as_raw_fd()).map(bytes_into_string_lossy);
+        let uniq = ioctl_get_cstring(sys::eviocguniq, fd.as_raw_fd()).map(bytes_into_string_lossy);
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
-            sys::eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
+            sys::eviocgid(fd.as_raw_fd(), id.as_mut_ptr())?;
             id.assume_init()
         };
         let mut driver_version: i32 = 0;
         unsafe {
-            sys::eviocgversion(file.as_raw_fd(), &mut driver_version)?;
+            sys::eviocgversion(fd.as_raw_fd(), &mut driver_version)?;
         }
         let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -185,13 +180,13 @@ impl RawDevice {
 
         let props = {
             let mut props = AttributeSet::<PropType>::new();
-            unsafe { sys::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
+            unsafe { sys::eviocgprop(fd.as_raw_fd(), props.as_mut_raw_slice())? };
             props
         }; // FIXME: handle old kernel
 
         let supported_keys = if ty.contains(EventType::KEY) {
             let mut keys = AttributeSet::<Key>::new();
-            unsafe { sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_key(fd.as_raw_fd(), keys.as_mut_raw_slice())? };
             Some(keys)
         } else {
             None
@@ -199,7 +194,7 @@ impl RawDevice {
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
             let mut rel = AttributeSet::<RelativeAxisType>::new();
-            unsafe { sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_relative(fd.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
             None
@@ -207,7 +202,7 @@ impl RawDevice {
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
             let mut abs = AttributeSet::<AbsoluteAxisType>::new();
-            unsafe { sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_absolute(fd.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
             None
@@ -215,7 +210,7 @@ impl RawDevice {
 
         let supported_switch = if ty.contains(EventType::SWITCH) {
             let mut switch = AttributeSet::<SwitchType>::new();
-            unsafe { sys::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_switch(fd.as_raw_fd(), switch.as_mut_raw_slice())? };
             Some(switch)
         } else {
             None
@@ -223,7 +218,7 @@ impl RawDevice {
 
         let supported_led = if ty.contains(EventType::LED) {
             let mut led = AttributeSet::<LedType>::new();
-            unsafe { sys::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_led(fd.as_raw_fd(), led.as_mut_raw_slice())? };
             Some(led)
         } else {
             None
@@ -231,7 +226,7 @@ impl RawDevice {
 
         let supported_misc = if ty.contains(EventType::MISC) {
             let mut misc = AttributeSet::<MiscType>::new();
-            unsafe { sys::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_misc(fd.as_raw_fd(), misc.as_mut_raw_slice())? };
             Some(misc)
         } else {
             None
@@ -239,7 +234,7 @@ impl RawDevice {
 
         let supported_ff = if ty.contains(EventType::FORCEFEEDBACK) {
             let mut ff = AttributeSet::<FFEffectType>::new();
-            unsafe { sys::eviocgbit_ff(file.as_raw_fd(), ff.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_ff(fd.as_raw_fd(), ff.as_mut_raw_slice())? };
             Some(ff)
         } else {
             None
@@ -247,7 +242,7 @@ impl RawDevice {
 
         let max_ff_effects = if ty.contains(EventType::FORCEFEEDBACK) {
             let mut max_ff_effects = 0;
-            unsafe { sys::eviocgeffects(file.as_raw_fd(), &mut max_ff_effects)? };
+            unsafe { sys::eviocgeffects(fd.as_raw_fd(), &mut max_ff_effects)? };
             usize::try_from(max_ff_effects).unwrap_or(0)
         } else {
             0
@@ -255,7 +250,7 @@ impl RawDevice {
 
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
-            unsafe { sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_sound(fd.as_raw_fd(), snd.as_mut_raw_slice())? };
             Some(snd)
         } else {
             None
@@ -269,7 +264,7 @@ impl RawDevice {
 
             unsafe {
                 sys::eviocgrep(
-                    file.as_raw_fd(),
+                    fd.as_raw_fd(),
                     &mut auto_repeat as *mut AutoRepeat as *mut [u32; 2],
                 )?;
             }
@@ -280,7 +275,7 @@ impl RawDevice {
         };
 
         Ok(RawDevice {
-            file,
+            fd,
             ty,
             name,
             phys,
@@ -716,8 +711,8 @@ impl RawDevice {
     /// [EventType::SOUND] (play a sound on the device)
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
     pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
-        let bytes = unsafe { crate::cast_to_bytes(events) };
-        self.file.write_all(bytes)
+        crate::write_events(self.fd.as_fd(), events)?;
+        Ok(())
     }
 
     /// Uploads a force feedback effect to the device.
@@ -725,12 +720,12 @@ impl RawDevice {
         let mut effect: sys::ff_effect = data.into();
         effect.id = -1;
 
-        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
 
-        let file = self.file.try_clone()?;
+        let fd = self.fd.try_clone()?;
         let id = effect.id as u16;
 
-        Ok(FFEffect { file, id })
+        Ok(FFEffect { fd, id })
     }
 
     /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
@@ -741,8 +736,7 @@ impl RawDevice {
             FFEffectType::FF_GAIN.0,
             value.into(),
         )];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -754,16 +748,21 @@ impl RawDevice {
             FFEffectType::FF_AUTOCENTER.0,
             value.into(),
         )];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
 }
 
+impl AsFd for RawDevice {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
+
 impl AsRawFd for RawDevice {
     fn as_raw_fd(&self) -> RawFd {
-        self.file.as_raw_fd()
+        self.fd.as_raw_fd()
     }
 }
 
