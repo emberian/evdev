@@ -5,6 +5,8 @@
 
 ### Added
 
+- `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+
 ### Changed
 
 ### Fixed
