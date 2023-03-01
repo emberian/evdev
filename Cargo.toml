@@ -7,6 +7,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/cmr/evdev"
 documentation = "https://docs.rs/evdev"
 edition = "2021"
+rust-version = "1.63"
 
 [features]
 serde = ["serde_1", "paste"]
