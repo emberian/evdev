@@ -1,5 +1,16 @@
 # Changelog
 
+## evdev next
+[8fc58e1...HEAD](https://github.com/emberian/evdev/compare/8fc58e1...HEAD)
+
+### Added
+
+- `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+
+### Changed
+
+### Fixed
+
 ## evdev 0.12.1 (2022-12-09)
 [86dfe33...HEAD](https://github.com/emberian/evdev/compare/86dfe33...HEAD)
 
