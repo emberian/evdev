@@ -272,7 +272,7 @@ impl VirtualDevice {
     #[cfg(feature = "tokio")]
     pub async fn enumerate_dev_nodes(&mut self) -> io::Result<DevNodes> {
         let path = self.get_syspath()?;
-        let dir = tokio_1::fs::read_dir(path).await?;
+        let dir = tokio::fs::read_dir(path).await?;
 
         Ok(DevNodes { dir })
     }
@@ -407,7 +407,7 @@ impl Iterator for DevNodesBlocking {
 /// `/dev/input123`.
 #[cfg(feature = "tokio")]
 pub struct DevNodes {
-    dir: tokio_1::fs::ReadDir,
+    dir: tokio::fs::ReadDir,
 }
 
 #[cfg(feature = "tokio")]
@@ -563,12 +563,8 @@ impl Drop for FFEraseEvent {
 mod tokio_stream {
     use super::*;
 
-    use tokio_1 as tokio;
-
-    use crate::raw_stream::poll_fn;
-    use futures_core::{ready, Stream};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::future::poll_fn;
+    use std::task::{ready, Context, Poll};
     use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
@@ -634,9 +630,13 @@ mod tokio_stream {
         }
     }
 
-    impl Stream for VirtualEventStream {
+    #[cfg(feature = "stream-trait")]
+    impl futures_core::Stream for VirtualEventStream {
         type Item = io::Result<UInputEvent>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }
     }

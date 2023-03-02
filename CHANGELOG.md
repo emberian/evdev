@@ -11,6 +11,8 @@
 ### Changed
 
 - The minimum supported rust version (MSRV) is now `1.63`, due to `AsFd` support.
+- In order for the `EventStream` types to implement Stream, the `stream-trait`
+  feature must now be specified.
 
 ### Fixed
 
