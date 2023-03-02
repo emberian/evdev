@@ -6,7 +6,6 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
-use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
     sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, MiscType, PropType,
     RelativeAxisType, SwitchType, UinputAbsSetup,
@@ -342,8 +341,7 @@ impl VirtualDevice {
         let fd = self.fd.as_raw_fd();
         self.event_buf.reserve(crate::EVENT_BATCH_SIZE);
 
-        // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(&mut self.event_buf);
+        let spare_capacity = self.event_buf.spare_capacity_mut();
         let spare_capacity_size = std::mem::size_of_val(spare_capacity);
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
