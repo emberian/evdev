@@ -471,8 +471,7 @@ impl RawDevice {
         let fd = self.as_raw_fd();
         self.event_buf.reserve(crate::EVENT_BATCH_SIZE);
 
-        // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(&mut self.event_buf);
+        let spare_capacity = self.event_buf.spare_capacity_mut();
         let spare_capacity_size = std::mem::size_of_val(spare_capacity);
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
@@ -763,18 +762,6 @@ impl AsFd for RawDevice {
 impl AsRawFd for RawDevice {
     fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
-    }
-}
-
-/// A copy of the unstable Vec::spare_capacity_mut
-#[inline]
-pub(crate) fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
-    let (len, cap) = (v.len(), v.capacity());
-    unsafe {
-        std::slice::from_raw_parts_mut(
-            v.as_mut_ptr().add(len) as *mut mem::MaybeUninit<T>,
-            cap - len,
-        )
     }
 }
 
