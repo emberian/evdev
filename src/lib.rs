@@ -129,6 +129,28 @@ pub use raw_stream::{AutoRepeat, FFEffect};
 pub use scancodes::*;
 pub use sync_stream::*;
 
+macro_rules! common_trait_impls {
+    ($raw:ty, $wrapper:ty) => {
+        impl From<$raw> for $wrapper {
+            fn from(raw: $raw) -> Self {
+                Self(raw)
+            }
+        }
+
+        impl From<$wrapper> for $raw {
+            fn from(wrapper: $wrapper) -> Self {
+                wrapper.0
+            }
+        }
+
+        impl AsRef<$raw> for $wrapper {
+            fn as_ref(&self) -> &$raw {
+                &self.0
+            }
+        }
+    };
+}
+
 const EVENT_BATCH_SIZE: usize = 32;
 
 /// A convenience mapping from an event `(type, code)` to an enumeration.
@@ -162,7 +184,7 @@ pub enum InputEventKind {
 /// - `flat: s32`
 /// - `resolution: s32`
 ///
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct AbsInfo(input_absinfo);
 
@@ -212,12 +234,14 @@ impl AbsInfo {
     }
 }
 
+common_trait_impls!(input_absinfo, AbsInfo);
+
 /// A wrapped `uinput_abs_setup`, used to set up analogue axes with uinput
 ///
 /// `uinput_abs_setup` is a struct containing two fields:
 /// - `code: u16`
 /// - `absinfo: input_absinfo`
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct UinputAbsSetup(uinput_abs_setup);
 
@@ -239,6 +263,8 @@ impl UinputAbsSetup {
     }
 }
 
+common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
+
 /// A wrapped `input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
@@ -248,7 +274,7 @@ impl UinputAbsSetup {
 /// - `value: s32`
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct InputEvent(input_event);
 
@@ -333,17 +359,7 @@ impl InputEvent {
     }
 }
 
-impl From<input_event> for InputEvent {
-    fn from(raw: input_event) -> Self {
-        Self(raw)
-    }
-}
-
-impl AsRef<input_event> for InputEvent {
-    fn as_ref(&self) -> &input_event {
-        &self.0
-    }
-}
+common_trait_impls!(input_event, InputEvent);
 
 impl fmt::Debug for InputEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -410,7 +426,7 @@ pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
     std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumParseError(());
 
 impl Display for EnumParseError {

@@ -15,7 +15,7 @@ tokio = ["dep:tokio"]
 stream-trait = ["tokio", "futures-core"]
 
 [dependencies]
-libc = "0.2.121"
+libc = { version = "0.2.121", features = ["extra_traits"]}
 bitvec = "1.0.0"
 cfg-if = "1.0"
 nix = "0.26"
