@@ -1,13 +1,50 @@
-use libc::c_int;
-use libc::{ff_effect, input_absinfo, input_id, input_keymap_entry, uinput_setup};
-// use libc::{
-//     ff_condition_effect, ff_constant_effect, ff_envelope, ff_periodic_effect, ff_ramp_effect,
-//     ff_replay, ff_rumble_effect, ff_trigger, input_event, input_keymap_entry,
-// };
-use nix::{
-    convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_write_buf, ioctl_write_int,
-    ioctl_write_ptr, request_code_read,
+use crate::compat::{
+    ff_condition_effect, ff_constant_effect, ff_periodic_effect, ff_ramp_effect, ff_replay,
+    ff_rumble_effect, ff_trigger, input_absinfo, input_id, input_keymap_entry, uinput_abs_setup,
+    uinput_setup,
 };
+use nix::{
+    convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_readwrite, ioctl_write_buf,
+    ioctl_write_int, ioctl_write_ptr, request_code_read,
+};
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union ff_effect_union {
+    pub constant: ff_constant_effect,
+    pub ramp: ff_ramp_effect,
+    pub periodic: ff_periodic_effect,
+    pub condition: [ff_condition_effect; 2],
+    pub rumble: ff_rumble_effect,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ff_effect {
+    pub type_: u16,
+    pub id: i16,
+    pub direction: u16,
+    pub trigger: ff_trigger,
+    pub replay: ff_replay,
+    pub u: ff_effect_union,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct uinput_ff_upload {
+    pub request_id: u32,
+    pub retval: i32,
+    pub effect: ff_effect,
+    pub old: ff_effect,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct uinput_ff_erase {
+    pub request_id: u32,
+    pub retval: i32,
+    pub effect_id: u32,
+}
 
 ioctl_read!(eviocgeffects, b'E', 0x84, ::libc::c_int);
 ioctl_read!(eviocgid, b'E', 0x02, /*struct*/ input_id);
@@ -17,7 +54,6 @@ ioctl_read!(eviocgversion, b'E', 0x01, ::libc::c_int);
 ioctl_write_int!(eviocrmff, b'E', 0x81);
 
 ioctl_read!(eviocgkeycode_v2, b'E', 0x04, input_keymap_entry);
-// TODO #define EVIOCSFF _IOC ( _IOC_WRITE , 'E' , 0x80 , sizeof ( struct ff_effect ) )
 ioctl_write_ptr!(eviocskeycode, b'E', 0x04, [::libc::c_uint; 2]);
 ioctl_write_ptr!(eviocskeycode_v2, b'E', 0x04, input_keymap_entry);
 ioctl_write_ptr!(eviocsrep, b'E', 0x03, [::libc::c_uint; 2]);
@@ -39,6 +75,7 @@ ioctl_write_int!(eviocsclockid, b'E', 0xa0);
 
 const UINPUT_IOCTL_BASE: u8 = b'U';
 ioctl_write_ptr!(ui_dev_setup, UINPUT_IOCTL_BASE, 3, uinput_setup);
+ioctl_write_ptr!(ui_abs_setup, UINPUT_IOCTL_BASE, 4, uinput_abs_setup);
 ioctl_none!(ui_dev_create, UINPUT_IOCTL_BASE, 1);
 
 ioctl_write_int!(ui_set_evbit, UINPUT_IOCTL_BASE, 100);
@@ -52,6 +89,13 @@ ioctl_write_int!(ui_set_ffbit, UINPUT_IOCTL_BASE, 107);
 ioctl_write_buf!(ui_set_phys, UINPUT_IOCTL_BASE, 108, u8);
 ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
 ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
+
+ioctl_read_buf!(ui_get_sysname, UINPUT_IOCTL_BASE, 300, u8);
+
+ioctl_readwrite!(ui_begin_ff_upload, UINPUT_IOCTL_BASE, 200, uinput_ff_upload);
+ioctl_write_ptr!(ui_end_ff_upload, UINPUT_IOCTL_BASE, 201, uinput_ff_upload);
+ioctl_readwrite!(ui_begin_ff_erase, UINPUT_IOCTL_BASE, 202, uinput_ff_erase);
+ioctl_write_ptr!(ui_end_ff_erase, UINPUT_IOCTL_BASE, 203, uinput_ff_erase);
 
 macro_rules! eviocgbit_ioctl {
     ($mac:ident!($name:ident, $ev:ident, $ty:ty)) => {
@@ -93,7 +137,7 @@ pub unsafe fn eviocgabs(
     fd: ::libc::c_int,
     abs: u32,
     buf: &mut input_absinfo,
-) -> ::nix::Result<c_int> {
+) -> ::nix::Result<::libc::c_int> {
     assert!(abs <= 0x3f);
     convert_ioctl_res!(::nix::libc::ioctl(
         fd,

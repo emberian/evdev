@@ -1,8 +1,11 @@
-use crate::constants::*;
+use crate::compat::{input_absinfo, input_event};
 use crate::device_state::DeviceState;
-use crate::raw_stream::RawDevice;
+use crate::ff::*;
+use crate::raw_stream::{FFEffect, RawDevice};
+use crate::{constants::*, AbsInfo};
 use crate::{AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, Key};
-use std::os::unix::io::{AsRawFd, RawFd};
+
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
 use std::{fmt, io};
@@ -245,6 +248,16 @@ impl Device {
         self.raw.misc_properties()
     }
 
+    /// Returns the set of supported force feedback effects supported by a device.
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+        self.raw.supported_ff()
+    }
+
+    /// Returns the maximum number of force feedback effects that can be played simultaneously.
+    pub fn max_ff_effects(&self) -> usize {
+        self.raw.max_ff_effects()
+    }
+
     /// Returns the set of supported simple sounds supported by a device.
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
@@ -259,8 +272,15 @@ impl Device {
     }
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
-    pub fn get_abs_state(&self) -> io::Result<[libc::input_absinfo; AbsoluteAxisType::COUNT]> {
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
         self.raw.get_abs_state()
+    }
+
+    /// Get the AbsInfo for each supported AbsoluteAxis
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        self.raw.get_absinfo()
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
@@ -352,6 +372,28 @@ impl Device {
     pub fn send_events(&mut self, events: &[InputEvent]) -> io::Result<()> {
         self.raw.send_events(events)
     }
+
+    /// Uploads a force feedback effect to the device.
+    pub fn upload_ff_effect(&mut self, data: FFEffectData) -> io::Result<FFEffect> {
+        self.raw.upload_ff_effect(data)
+    }
+
+    /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
+    /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
+    pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
+        self.raw.set_ff_gain(value)
+    }
+
+    /// Enables or disables autocenter for the force feedback device.
+    pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
+        self.raw.set_ff_autocenter(value)
+    }
+}
+
+impl AsFd for Device {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.raw.as_fd()
+    }
 }
 
 impl AsRawFd for Device {
@@ -411,7 +453,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     let value = get_value(vals, typ);
                     if prev != value {
                         $start.0 = typ.0 + 1;
-                        let ev = InputEvent(libc::input_event {
+                        let ev = InputEvent(input_event {
                             time: *$time,
                             type_: EventType::$evtype.0,
                             code: typ.0,
@@ -450,7 +492,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     ABSOLUTE,
                     Absolutes,
                     supported_absolute_axes,
-                    &[libc::input_absinfo],
+                    &[input_absinfo],
                     |st| st.abs_vals().unwrap(),
                     |vals, abs| vals[abs.0 as usize].value
                 );
@@ -488,7 +530,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                     |st| st.led_vals().unwrap(),
                     |vals, led| vals.contains(led)
                 );
-                let ev = InputEvent(libc::input_event {
+                let ev = InputEvent(input_event {
                     time: *time,
                     type_: EventType::SYNCHRONIZATION.0,
                     code: Synchronization::SYN_REPORT.0,
@@ -506,7 +548,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
     fn next(&mut self) -> Option<InputEvent> {
         // first: check if we need to emit compensatory events due to a SYN_DROPPED we found in the
         // last batch of blocks
-        if let Some(ev) = compensate_events(&mut self.sync, &mut self.dev) {
+        if let Some(ev) = compensate_events(&mut self.sync, self.dev) {
             self.dev.prev_state.process_event(ev);
             return Some(ev);
         }
@@ -539,9 +581,9 @@ impl<'a> Drop for FetchEventsSynced<'a> {
 #[inline]
 fn sync_events(
     range: &mut std::ops::Range<usize>,
-    event_buf: &[libc::input_event],
+    event_buf: &[input_event],
     mut handle_event: impl FnMut(InputEvent),
-) -> (Result<libc::input_event, bool>, Option<usize>) {
+) -> (Result<input_event, bool>, Option<usize>) {
     let mut consumed_to = None;
     let res = 'outer: loop {
         if let Some(idx) = range.next() {
@@ -579,12 +621,12 @@ impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}:", self.name().unwrap_or("Unnamed device"))?;
         let (maj, min, pat) = self.driver_version();
-        writeln!(f, "  Driver version: {}.{}.{}", maj, min, pat)?;
+        writeln!(f, "  Driver version: {maj}.{min}.{pat}")?;
         if let Some(ref phys) = self.physical_path() {
-            writeln!(f, "  Physical address: {:?}", phys)?;
+            writeln!(f, "  Physical address: {phys:?}")?;
         }
         if let Some(ref uniq) = self.unique_name() {
-            writeln!(f, "  Unique name: {:?}", uniq)?;
+            writeln!(f, "  Unique name: {uniq:?}")?;
         }
 
         let id = self.input_id();
@@ -616,7 +658,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_relative) = self.supported_relative_axes() {
-            writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
+            writeln!(f, "  Relative Axes: {supported_relative:?}")?;
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -633,7 +675,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_misc) = self.misc_properties() {
-            writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
+            writeln!(f, "  Miscellaneous capabilities: {supported_misc:?}")?;
         }
 
         if let (Some(supported_switch), Some(switch_vals)) =
@@ -699,19 +741,15 @@ impl fmt::Display for Device {
 mod tokio_stream {
     use super::*;
 
-    use tokio_1 as tokio;
-
-    use crate::raw_stream::poll_fn;
-    use futures_core::{ready, Stream};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::future::poll_fn;
+    use std::task::{ready, Context, Poll};
     use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
     ///
     /// This can be used by calling [`stream.next_event().await?`](Self::next_event), or if you
     /// need to pass it as a stream somewhere, the [`futures::Stream`](Stream) implementation.
-    /// There's also a lower-level [`poll_event`] function if you need to fetch an event from
+    /// There's also a lower-level [`Self::poll_event`] function if you need to fetch an event from
     /// inside a `Future::poll` impl.
     pub struct EventStream {
         device: AsyncFd<Device>,
@@ -737,6 +775,11 @@ mod tokio_stream {
         /// Returns a reference to the underlying device
         pub fn device(&self) -> &Device {
             self.device.get_ref()
+        }
+
+        /// Returns a mutable reference to the underlying device
+        pub fn device_mut(&mut self) -> &mut Device {
+            self.device.get_mut()
         }
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
@@ -788,9 +831,13 @@ mod tokio_stream {
         }
     }
 
-    impl Stream for EventStream {
+    #[cfg(feature = "stream-trait")]
+    impl futures_core::Stream for EventStream {
         type Item = io::Result<InputEvent>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }
     }
@@ -803,8 +850,8 @@ mod tests {
     use super::*;
 
     fn result_events_iter(
-        events: &[libc::input_event],
-    ) -> impl Iterator<Item = Result<libc::input_event, ()>> + '_ {
+        events: &[input_event],
+    ) -> impl Iterator<Item = Result<input_event, ()>> + '_ {
         let mut range = 0..0;
         std::iter::from_fn(move || {
             let (res, _) = sync_events(&mut range, events, |_| {});
@@ -816,7 +863,7 @@ mod tests {
         })
     }
 
-    fn events_iter(events: &[libc::input_event]) -> impl Iterator<Item = libc::input_event> + '_ {
+    fn events_iter(events: &[input_event]) -> impl Iterator<Item = input_event> + '_ {
         result_events_iter(events).flatten()
     }
 
@@ -825,19 +872,19 @@ mod tests {
         tv_sec: 0,
         tv_usec: 0,
     };
-    const KEY4: libc::input_event = libc::input_event {
+    const KEY4: input_event = input_event {
         time,
         type_: EventType::KEY.0,
         code: Key::KEY_4.0,
         value: 1,
     };
-    const REPORT: libc::input_event = libc::input_event {
+    const REPORT: input_event = input_event {
         time,
         type_: EventType::SYNCHRONIZATION.0,
         code: Synchronization::SYN_REPORT.0,
         value: 0,
     };
-    const DROPPED: libc::input_event = libc::input_event {
+    const DROPPED: input_event = input_event {
         code: Synchronization::SYN_DROPPED.0,
         ..REPORT
     };

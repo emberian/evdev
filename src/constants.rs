@@ -1,7 +1,13 @@
+use crate::compat::{
+    ABS_CNT, EV_CNT, FF_CNT, INPUT_PROP_CNT, LED_CNT, MSC_CNT, REL_CNT, SND_CNT, SW_CNT,
+};
+
 /// Event types supported by the device.
 ///
-/// This is implemented as a newtype around the u16 "type" field of `libc::input_event`.
-#[derive(Copy, Clone, PartialEq, Eq)]
+/// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
+///
+/// This is implemented as a newtype around the u16 "type" field of `input_event`.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct EventType(pub u16);
 
 evdev_enum!(
@@ -20,8 +26,8 @@ evdev_enum!(
     RELATIVE = 0x02,
     /// Movement on an absolute axis. Used for things such as touch events and joysticks.
     ABSOLUTE = 0x03,
-    /// Miscellaneous events that don't fall into other categories. I'm not quite sure when
-    /// these happen or what they correspond to.
+    /// Miscellaneous events that don't fall into other categories. For example, Key presses may
+    /// send `MSC_SCAN` events before each KEY event
     MISC = 0x04,
     /// Change in a switch value. Switches are boolean conditions and usually correspond to a
     /// toggle switch of some kind in hardware.
@@ -40,14 +46,16 @@ evdev_enum!(
     POWER = 0x16,
     /// A force feedback effect's state changed.
     FORCEFEEDBACKSTATUS = 0x17,
+    /// An event originating from uinput.
+    UINPUT = 0x0101,
 );
 
 impl EventType {
-    pub(crate) const COUNT: usize = libc::EV_CNT;
+    pub(crate) const COUNT: usize = EV_CNT;
 }
 
 /// A "synchronization" message type published by the kernel into the events stream.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Synchronization(pub u16);
 
 evdev_enum!(
@@ -63,7 +71,7 @@ evdev_enum!(
 );
 
 /// Device properties.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct PropType(pub u16);
 
 evdev_enum!(
@@ -80,18 +88,18 @@ evdev_enum!(
     SEMI_MT = 0x03,
     /// "softbuttons at top of pad", according to the header.
     TOPBUTTONPAD = 0x04,
-    /// Is a pointing stick ("nub" etc, https://xkcd.com/243/)
+    /// Is a pointing stick ("nub" etc, <https://xkcd.com/243/>)
     POINTING_STICK = 0x05,
     /// Has an accelerometer. Probably reports relative events in that case?
     ACCELEROMETER = 0x06,
 );
 
 impl PropType {
-    pub(crate) const COUNT: usize = libc::INPUT_PROP_CNT;
+    pub(crate) const COUNT: usize = INPUT_PROP_CNT;
 }
 
 /// A type of relative axis measurement, typically produced by mice.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct RelativeAxisType(pub u16);
 
 evdev_enum!(
@@ -113,11 +121,11 @@ evdev_enum!(
 );
 
 impl RelativeAxisType {
-    pub(crate) const COUNT: usize = libc::REL_CNT;
+    pub(crate) const COUNT: usize = REL_CNT;
 }
 
 /// A type of absolute axis measurement, typically used for touch events and joysticks.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct AbsoluteAxisType(pub u16);
 
 evdev_enum!(
@@ -182,11 +190,11 @@ evdev_enum!(
 );
 
 impl AbsoluteAxisType {
-    pub(crate) const COUNT: usize = libc::ABS_CNT;
+    pub(crate) const COUNT: usize = ABS_CNT;
 }
 
 /// An event type corresponding to a physical or virtual switch.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SwitchType(pub u16);
 
 evdev_enum!(
@@ -229,11 +237,11 @@ evdev_enum!(
 );
 
 impl SwitchType {
-    pub(crate) const COUNT: usize = libc::SW_CNT;
+    pub(crate) const COUNT: usize = SW_CNT;
 }
 
 /// LEDs specified by USB HID.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct LedType(pub u16);
 
 evdev_enum!(
@@ -257,11 +265,11 @@ evdev_enum!(
 );
 
 impl LedType {
-    pub(crate) const COUNT: usize = libc::LED_CNT;
+    pub(crate) const COUNT: usize = LED_CNT;
 }
 
 /// Various miscellaneous event types.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct MiscType(pub u16);
 
 evdev_enum!(
@@ -282,38 +290,70 @@ evdev_enum!(
 );
 
 impl MiscType {
-    pub(crate) const COUNT: usize = libc::MSC_CNT;
+    pub(crate) const COUNT: usize = MSC_CNT;
 }
 
-// pub enum FFStatusDataIndex {
-//     FF_STATUS_STOPPED = 0x00,
-//     FF_STATUS_PLAYING = 0x01,
-// }
+/// Force feedback effect types
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct FFEffectType(pub u16);
 
-// #[derive(Copy, Clone, Copy, Clone)]
-// pub enum FFEffect {
-//     FF_RUMBLE = 0x50,
-//     FF_PERIODIC = 0x51,
-//     FF_CONSTANT = 0x52,
-//     FF_SPRING = 0x53,
-//     FF_FRICTION = 0x54,
-//     FF_DAMPER = 0x55,
-//     FF_INERTIA = 0x56,
-//     FF_RAMP = 0x57,
-//     FF_SQUARE = 0x58,
-//     FF_TRIANGLE = 0x59,
-//     FF_SINE = 0x5a,
-//     FF_SAW_UP = 0x5b,
-//     FF_SAW_DOWN = 0x5c,
-//     FF_CUSTOM = 0x5d,
-//     FF_GAIN = 0x60,
-//     FF_AUTOCENTER = 0x61,
-// }
+evdev_enum!(
+    FFEffectType,
+    Array,
+    /// Rumble effects.
+    FF_RUMBLE = 0x50,
+    /// Can render periodic effects with any of the waveforms.
+    FF_PERIODIC = 0x51,
+    /// Can render constant force effects.
+    FF_CONSTANT = 0x52,
+    /// Can simulate the presence of a spring.
+    FF_SPRING = 0x53,
+    /// Can simulate friction.
+    FF_FRICTION = 0x54,
+    /// Can simulate damper effects.
+    FF_DAMPER = 0x55,
+    /// Can simulate inertia.
+    FF_INERTIA = 0x56,
+    /// Can render ramp effects.
+    FF_RAMP = 0x57,
+    /// Square waveform.
+    FF_SQUARE = 0x58,
+    /// Triangle waveform.
+    FF_TRIANGLE = 0x59,
+    /// Sine waveform.
+    FF_SINE = 0x5a,
+    /// Sawtooth up waveform.
+    FF_SAW_UP = 0x5b,
+    /// Sawtooth down waveform.
+    FF_SAW_DOWN = 0x5c,
+    /// Custom waveform.
+    FF_CUSTOM = 0x5d,
+    /// The gain is adjustable.
+    FF_GAIN = 0x60,
+    /// The autocenter is adjustable.
+    FF_AUTOCENTER = 0x61,
+);
 
-// impl FFEffect {
-//     // Needs to be a multiple of 8
-//     pub const COUNT: usize = libc::FF_CNT;
-// }
+impl FFEffectType {
+    pub(crate) const COUNT: usize = FF_CNT;
+}
+
+/// Force feedback effect status
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct FFStatus(pub u16);
+
+evdev_enum!(
+    FFStatus,
+    Array,
+    /// The force feedback event is currently stopped.
+    FF_STATUS_STOPPED = 0x00,
+    /// The force feedback event is currently playing.
+    FF_STATUS_PLAYING = 0x01,
+);
+
+impl FFStatus {
+    pub(crate) const COUNT: usize = 2;
+}
 
 // #[derive(Copy, Clone, PartialEq, Eq)]
 // pub struct RepeatType(pub u16);
@@ -325,7 +365,7 @@ impl MiscType {
 // }
 
 /// A type associated with simple sounds, such as beeps or tones.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundType(pub u16);
 
 evdev_enum!(
@@ -337,5 +377,17 @@ evdev_enum!(
 );
 
 impl SoundType {
-    pub(crate) const COUNT: usize = libc::SND_CNT;
+    pub(crate) const COUNT: usize = SND_CNT;
 }
+
+/// A uinput event published by the kernel into the events stream for uinput devices.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct UInputEventType(pub u16);
+
+evdev_enum!(
+    UInputEventType,
+    /// The virtual uinput device is uploading a force feedback effect.
+    UI_FF_UPLOAD = 1,
+    /// The virtual uinput device is erasing a force feedback event.
+    UI_FF_ERASE = 2,
+);

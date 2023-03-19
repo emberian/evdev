@@ -1,28 +1,38 @@
 [package]
 name = "evdev"
-version = "0.11.4"
+version = "0.12.1"
 authors = ["Corey Richardson <corey@octayn.net>"]
 description = "evdev interface for Linux"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/cmr/evdev"
 documentation = "https://docs.rs/evdev"
-edition = "2018"
+edition = "2021"
+rust-version = "1.63"
 
 [features]
-tokio = ["tokio_1", "futures-core"]
+serde = ["dep:serde"]
+tokio = ["dep:tokio"]
+stream-trait = ["tokio", "futures-core"]
 
 [dependencies]
-libc = "0.2.89"
+libc = { version = "0.2.121", features = ["extra_traits"]}
 bitvec = "1.0.0"
-nix = "0.23"
+cfg-if = "1.0"
+nix = "0.26"
+thiserror = "1"
 
-tokio_1 = { package = "tokio", version = "1.0", features = ["time", "net"], optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+tokio = { version = "1.17", features = ["fs","time", "net"], optional = true }
 futures-core = { version = "0.3", optional = true }
 
 [dev-dependencies]
-tokio_1 = { package = "tokio", version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.17", features = ["macros", "rt-multi-thread"] }
 itertools = "0.10"
 
 [[example]]
 name = "evtest_tokio"
 required-features = ["tokio"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -4,8 +4,18 @@
 //! consistent way. I'll try to explain the device model as completely as possible. The upstream
 //! kernel documentation is split across two files:
 //!
-//! - https://www.kernel.org/doc/Documentation/input/event-codes.txt
-//! - https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt
+//! - <https://www.kernel.org/doc/Documentation/input/event-codes.txt>
+//! - <https://www.kernel.org/doc/Documentation/input/multi-touch-protocol.txt>
+//!
+//! The `evdev` kernel system exposes input devices as character devices in `/dev/input`,
+//! typically `/dev/input/eventX` where `X` is an integer.
+//! Userspace applications can use `ioctl` system calls to interact with these devices.
+//! Libraries such as this one abstract away the low level calls to provide a high level
+//! interface.
+//!
+//! Applications can interact with `uinput` by writing to `/dev/uinput` to create virtual
+//! devices and send events to the virtual devices.
+//! Virtual devices are created in `/sys/devices/virtual/input`.
 //!
 //! Devices emit events, represented by the [`InputEvent`] type. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
@@ -28,9 +38,16 @@
 //! # }
 //! ```
 //!
+//! All events (even single events) are sent in batches followed by a synchronization event:
+//! `EV_SYN / SYN_REPORT / 0`.
+//! Events are grouped into batches based on if they are related and occur simultaneously,
+//! for example movement of a mouse triggers a movement event for the `X` and `Y` axes
+//! separately in a batch of 2 events.
+//!
 //! The evdev crate exposes functions to query the current state of a device from the kernel, as
 //! well as a function that can be called continuously to provide an iterator over update events
 //! as they arrive.
+//!
 //!
 //! # Synchronizing versus Raw modes
 //!
@@ -69,13 +86,24 @@
 
 // should really be cfg(target_os = "linux") and maybe also android?
 #![cfg(unix)]
+// Flag items' docs' with their required feature flags, but only on docsrs so
+// that local docs can still be built on stable toolchains.
+// As of the time of writing, the stabilization plan is such that:
+// - Once stabilized, this attribute should be replaced with #![doc(auto_cfg)]
+// - Then in edition 2024, doc(auto_cfg) will become the default and the
+//   attribute can be removed entirely
+// (see https://github.com/rust-lang/rust/pull/100883#issuecomment-1264470491)
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 // has to be first for its macro
 #[macro_use]
 mod attribute_set;
 
+mod compat;
 mod constants;
 mod device_state;
+mod error;
+mod ff;
 mod inputid;
 pub mod raw_stream;
 mod scancodes;
@@ -83,20 +111,45 @@ mod sync_stream;
 mod sys;
 pub mod uinput;
 
-#[cfg(feature = "tokio")]
-mod tokio_stream;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
-use std::fmt;
+use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
+use std::fmt::{self, Display};
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-// pub use crate::constants::FFEffect::*;
-pub use attribute_set::{AttributeSet, AttributeSetRef};
+pub use attribute_set::{AttributeSet, AttributeSetRef, EvdevEnum};
 pub use constants::*;
 pub use device_state::DeviceState;
+pub use error::Error;
+pub use ff::*;
 pub use inputid::*;
-pub use raw_stream::AutoRepeat;
+pub use raw_stream::{AutoRepeat, FFEffect};
 pub use scancodes::*;
 pub use sync_stream::*;
+
+macro_rules! common_trait_impls {
+    ($raw:ty, $wrapper:ty) => {
+        impl From<$raw> for $wrapper {
+            fn from(raw: $raw) -> Self {
+                Self(raw)
+            }
+        }
+
+        impl From<$wrapper> for $raw {
+            fn from(wrapper: $wrapper) -> Self {
+                wrapper.0
+            }
+        }
+
+        impl AsRef<$raw> for $wrapper {
+            fn as_ref(&self) -> &$raw {
+                &self.0
+            }
+        }
+    };
+}
 
 const EVENT_BATCH_SIZE: usize = 32;
 
@@ -104,6 +157,7 @@ const EVENT_BATCH_SIZE: usize = 32;
 ///
 /// Note that this does not capture an event's value, just the type and code.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum InputEventKind {
     Synchronization(Synchronization),
     Key(Key),
@@ -113,10 +167,105 @@ pub enum InputEventKind {
     Switch(SwitchType),
     Led(LedType),
     Sound(SoundType),
+    ForceFeedback(u16),
+    ForceFeedbackStatus(u16),
+    UInput(u16),
     Other,
 }
 
-/// A wrapped `libc::input_event` returned by the input device via the kernel.
+/// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
+/// axes
+///
+/// `input_absinfo` is a struct containing six fields:
+/// - `value: s32`
+/// - `minimum: s32`
+/// - `maximum: s32`
+/// - `fuzz: s32`
+/// - `flat: s32`
+/// - `resolution: s32`
+///
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+pub struct AbsInfo(input_absinfo);
+
+impl AbsInfo {
+    #[inline]
+    pub fn value(&self) -> i32 {
+        self.0.value
+    }
+    #[inline]
+    pub fn minimum(&self) -> i32 {
+        self.0.minimum
+    }
+    #[inline]
+    pub fn maximum(&self) -> i32 {
+        self.0.maximum
+    }
+    #[inline]
+    pub fn fuzz(&self) -> i32 {
+        self.0.fuzz
+    }
+    #[inline]
+    pub fn flat(&self) -> i32 {
+        self.0.flat
+    }
+    #[inline]
+    pub fn resolution(&self) -> i32 {
+        self.0.resolution
+    }
+
+    /// Creates a new AbsInfo, particurarily useful for uinput
+    pub fn new(
+        value: i32,
+        minimum: i32,
+        maximum: i32,
+        fuzz: i32,
+        flat: i32,
+        resolution: i32,
+    ) -> Self {
+        AbsInfo(input_absinfo {
+            value,
+            minimum,
+            maximum,
+            fuzz,
+            flat,
+            resolution,
+        })
+    }
+}
+
+common_trait_impls!(input_absinfo, AbsInfo);
+
+/// A wrapped `uinput_abs_setup`, used to set up analogue axes with uinput
+///
+/// `uinput_abs_setup` is a struct containing two fields:
+/// - `code: u16`
+/// - `absinfo: input_absinfo`
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+pub struct UinputAbsSetup(uinput_abs_setup);
+
+impl UinputAbsSetup {
+    #[inline]
+    pub fn code(&self) -> u16 {
+        self.0.code
+    }
+    #[inline]
+    pub fn absinfo(&self) -> AbsInfo {
+        AbsInfo(self.0.absinfo)
+    }
+    /// Creates new UinputAbsSetup
+    pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
+        UinputAbsSetup(uinput_abs_setup {
+            code: code.0,
+            absinfo: absinfo.0,
+        })
+    }
+}
+
+common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
+
+/// A wrapped `input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
 /// - `time: timeval`
@@ -125,9 +274,9 @@ pub enum InputEventKind {
 /// - `value: s32`
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
-pub struct InputEvent(libc::input_event);
+pub struct InputEvent(input_event);
 
 impl InputEvent {
     /// Returns the timestamp associated with the event.
@@ -165,6 +314,9 @@ impl InputEvent {
             EventType::SWITCH => InputEventKind::Switch(SwitchType(code)),
             EventType::LED => InputEventKind::Led(LedType(code)),
             EventType::SOUND => InputEventKind::Sound(SoundType(code)),
+            EventType::FORCEFEEDBACK => InputEventKind::ForceFeedback(code),
+            EventType::FORCEFEEDBACKSTATUS => InputEventKind::ForceFeedbackStatus(code),
+            EventType::UINPUT => InputEventKind::UInput(code),
             _ => InputEventKind::Other,
         }
     }
@@ -180,7 +332,7 @@ impl InputEvent {
 
     /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
     pub fn new(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(libc::input_event {
+        InputEvent(input_event {
             time: libc::timeval {
                 tv_sec: 0,
                 tv_usec: 0,
@@ -198,7 +350,7 @@ impl InputEvent {
     /// the kernel will update `input_event.time` when it emits the events to any programs reading
     /// the event "file".
     pub fn new_now(type_: EventType, code: u16, value: i32) -> Self {
-        InputEvent(libc::input_event {
+        InputEvent(input_event {
             time: systime_to_timeval(&SystemTime::now()),
             type_: type_.0,
             code,
@@ -207,17 +359,7 @@ impl InputEvent {
     }
 }
 
-impl From<libc::input_event> for InputEvent {
-    fn from(raw: libc::input_event) -> Self {
-        Self(raw)
-    }
-}
-
-impl AsRef<libc::input_event> for InputEvent {
-    fn as_ref(&self) -> &libc::input_event {
-        &self.0
-    }
-}
+common_trait_impls!(input_event, InputEvent);
 
 impl fmt::Debug for InputEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -249,9 +391,11 @@ pub struct EnumerateDevices {
     inner: raw_stream::EnumerateDevices,
 }
 impl Iterator for EnumerateDevices {
-    type Item = Device;
-    fn next(&mut self) -> Option<Device> {
-        self.inner.next().map(Device::from_raw_device)
+    type Item = (PathBuf, Device);
+    fn next(&mut self) -> Option<(PathBuf, Device)> {
+        self.inner
+            .next()
+            .map(|(pb, dev)| (pb, Device::from_raw_device(dev)))
     }
 }
 
@@ -269,7 +413,7 @@ fn systime_to_timeval(time: &SystemTime) -> libc::timeval {
 }
 
 fn timeval_to_systime(tv: &libc::timeval) -> SystemTime {
-    let dur = Duration::new(tv.tv_sec.abs() as u64, tv.tv_usec as u32 * 1000);
+    let dur = Duration::new(tv.tv_sec as u64, tv.tv_usec as u32 * 1000);
     if tv.tv_sec >= 0 {
         SystemTime::UNIX_EPOCH + dur
     } else {
@@ -282,5 +426,30 @@ pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
     std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumParseError(());
+
+impl Display for EnumParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to parse Key from string")
+    }
+}
+
+impl std::error::Error for EnumParseError {}
+
+fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result<()> {
+    use std::os::fd::AsRawFd;
+    loop {
+        match nix::unistd::write(fd.as_raw_fd(), data) {
+            Ok(0) => return Ok(()),
+            Ok(n) => data = &data[n..],
+            Err(e) if e == nix::Error::EINTR => {}
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn write_events(fd: std::os::fd::BorrowedFd<'_>, events: &[InputEvent]) -> nix::Result<()> {
+    let bytes = unsafe { cast_to_bytes(events) };
+    fd_write_all(fd, bytes)
+}

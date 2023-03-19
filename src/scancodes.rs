@@ -1,4 +1,8 @@
+use crate::compat::KEY_CNT;
+
 /// Scancodes for key presses.
+///
+/// Values correspond to [/usr/include/linux/input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h)
 ///
 /// Each associated constant for this struct represents a distinct key.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -16,7 +20,7 @@ impl Key {
         self.0
     }
 
-    pub(crate) const COUNT: usize = libc::KEY_CNT;
+    pub(crate) const COUNT: usize = KEY_CNT;
 }
 
 evdev_enum!(
