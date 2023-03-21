@@ -3,8 +3,8 @@ use std::time::SystemTime;
 
 use crate::compat::input_event;
 use crate::constants::{
-    AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType,
-    RelativeAxisType, RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
+    AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
+    RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
 use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType, FFEffectType};
@@ -96,7 +96,7 @@ macro_rules! input_event_newtype {
     };
     ($name:ty, $evdev_type:path, $kind:path) => {
         impl $name {
-            pub fn new($kind(code):  $kind, value: i32) -> Self {
+            pub fn new($kind(code): $kind, value: i32) -> Self {
                 let raw = input_event {
                     time: libc::timeval {
                         tv_sec: 0,

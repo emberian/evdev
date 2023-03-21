@@ -65,7 +65,7 @@ impl FFEffect {
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
-        let events = [FFEvent::new(FFEffectType(self.id) , count)];
+        let events = [FFEvent::new(FFEffectType(self.id), count)];
         let bytes = unsafe { crate::cast_to_bytes(&events) };
         self.file.write_all(bytes)?;
 
