@@ -324,33 +324,19 @@ pub trait EvdevEvent: AsRef<input_event> {
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone)]
 pub enum InputEvent {
-    /// [`SynchronizationEvent`]
     Synchronization(SynchronizationEvent),
-    /// [`KeyEvent`]
     Key(KeyEvent),
-    /// [`RelativeAxisEvent`]
     RelativeAxis(RelativeAxisEvent),
-    /// [`AbsoluteAxisEvent`]
     AbsoluteAxis(AbsoluteAxisEvent),
-    /// [`MiscEvent`]
     Misc(MiscEvent),
-    /// [`SwitchEvent`]
     Switch(SwitchEvent),
-    /// [`LedEvent`]
     Led(LedEvent),
-    /// [`SoundEvent`]
     Sound(SoundEvent),
-    /// [`RepeatEvent`]
     Repeat(RepeatEvent),
-    /// [`FFEvent`]
     ForceFeedback(FFEvent),
-    /// [`PowerEvent`]
     Power(PowerEvent),
-    /// [`FFStatusEvent`]
     ForceFeedbackStatus(FFStatusEvent),
-    /// [`UInputEvent`]
     UInput(UInputEvent),
-    /// [`OtherEvent`]
     Other(OtherEvent),
 }
 
