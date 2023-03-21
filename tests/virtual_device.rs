@@ -1,4 +1,5 @@
-//use evdev::{Device};
+#![cfg(feature = "tokio")]
+
 use std::error::Error;
 use std::thread::sleep;
 use std::time::Duration;
