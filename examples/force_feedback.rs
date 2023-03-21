@@ -1,5 +1,5 @@
 use evdev::{
-    FFEffectData, FFEffectKind, FFReplay, FFStatusType, FFTrigger, FFType, InputEventMatcher,
+    FFEffectData, FFEffectKind, FFReplay, FFStatusType, FFTrigger, InputEventMatcher, FFEffectType,
 };
 
 mod _pick_device;
@@ -31,10 +31,10 @@ fn main() -> std::io::Result<()> {
             const STARTED: i32 = FFStatusType::FF_STATUS_PLAYING.0 as i32;
             for ev in d.fetch_events().unwrap() {
                 match ev.matcher() {
-                    InputEventMatcher::ForceFeedback(_, FFType(id), STARTED) => {
+                    InputEventMatcher::ForceFeedback(_, FFEffectType(id), STARTED) => {
                         println!("Device Started effect id {}", id);
                     }
-                    InputEventMatcher::ForceFeedback(_, FFType(id), STOPPED) => {
+                    InputEventMatcher::ForceFeedback(_, FFEffectType(id), STOPPED) => {
                         println!("Device Stopped effect id {}", id);
                     }
                     _ => (),

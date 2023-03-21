@@ -27,12 +27,12 @@ fn main() -> std::io::Result<()> {
 
     println!("Waiting for Ctrl-C...");
     loop {
-        let down_event = AbsoluteAxisEvent::new(code, 0);
+        let down_event = AbsoluteAxisEvent::new(AbsoluteAxisType(code), 0);
         device.emit(&[down_event]).unwrap();
         println!("Minned out.");
         sleep(Duration::from_secs(2));
 
-        let up_event = AbsoluteAxisEvent::new(code, 512);
+        let up_event = AbsoluteAxisEvent::new(AbsoluteAxisType(code), 512);
         device.emit(&[up_event]).unwrap();
         println!("Maxed out.");
         sleep(Duration::from_secs(2));

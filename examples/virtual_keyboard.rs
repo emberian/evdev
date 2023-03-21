@@ -28,7 +28,7 @@ fn main() -> std::io::Result<()> {
     println!("Waiting for Ctrl-C...");
     loop {
         // this guarantees a key event
-        let down_event = KeyEvent::new(code, 1);
+        let down_event = KeyEvent::new(KeyType(code), 1);
         device.emit(&[down_event]).unwrap();
         println!("Pressed.");
         sleep(Duration::from_secs(2));
