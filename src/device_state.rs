@@ -1,6 +1,6 @@
 use crate::compat::input_absinfo;
 use crate::{constants::*, raw_stream::RawDevice};
-use crate::{AttributeSet, AttributeSetRef, EvdevEvent, InputEvent, InputEventKind, KeyType};
+use crate::{AttributeSet, AttributeSetRef, EventData, InputEvent, InputEventKind, KeyType};
 use std::time::SystemTime;
 
 /// A **cached** representation of device state at a certain time.

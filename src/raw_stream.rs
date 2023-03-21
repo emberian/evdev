@@ -7,7 +7,7 @@ use std::{io, mem};
 
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
 use crate::ff::*;
-use crate::{constants::*, EvdevEvent, FFEvent};
+use crate::{constants::*, EventData, FFEvent};
 use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, KeyType};
 
 fn ioctl_get_cstring(
@@ -703,7 +703,7 @@ impl RawDevice {
     /// [EventType::LED] (turn device LEDs on and off),
     /// [EventType::SOUND] (play a sound on the device)
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
-    pub fn send_events<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
+    pub fn send_events<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
         let raw: &[input_event] = &events
             .iter()
             .map(|e| *e.as_ref())

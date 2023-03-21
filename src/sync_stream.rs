@@ -2,7 +2,7 @@ use crate::compat::{input_absinfo, input_event};
 use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
-use crate::{constants::*, EvdevEvent};
+use crate::{constants::*, EventData};
 use crate::{
     AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, KeyType,
 };
@@ -363,7 +363,7 @@ impl Device {
     /// [EventType::LED] (turn device LEDs on and off),
     /// [EventType::SOUND] (play a sound on the device)
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
-    pub fn send_events<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
+    pub fn send_events<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
         self.raw.send_events(events)
     }
 

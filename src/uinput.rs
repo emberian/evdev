@@ -9,7 +9,7 @@ use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
-    sys, AttributeSetRef, Error, EvdevEvent, FFEffectType, InputEvent, KeyType, MiscType, PropType,
+    sys, AttributeSetRef, Error, EventData, FFEffectType, InputEvent, KeyType, MiscType, PropType,
     RelativeAxisType, SwitchType, SynchronizationEvent, UinputAbsSetup,
 };
 use std::fs::{File, OpenOptions};
@@ -289,7 +289,7 @@ impl VirtualDevice {
     /// of a mouse triggers a movement events for the X and Y axes separately in a batch of 2 events.
     ///
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
-    pub fn emit<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
+    pub fn emit<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
         self.write_raw(events)?;
         let syn = SynchronizationEvent::new(crate::SynchronizationType::SYN_REPORT, 0);
         self.write_raw(&[syn])

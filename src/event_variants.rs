@@ -7,7 +7,7 @@ use crate::constants::{
     RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
-use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType, FFEffectType};
+use crate::{systime_to_timeval, timeval_to_systime, EventData, EventType, FFEffectType};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -70,7 +70,7 @@ pub struct OtherEvent(pub(crate) input_event);
 
 macro_rules! input_event_newtype {
     ($name:ty) => {
-        impl EvdevEvent for $name {
+        impl EventData for $name {
             #[inline]
             fn timestamp(&self) -> SystemTime {
                 timeval_to_systime(&self.0.time)

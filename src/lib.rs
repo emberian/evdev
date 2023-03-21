@@ -299,7 +299,7 @@ impl UinputAbsSetup {
 
 /// The common trait for all [`InputEvent`] variants and the `InputEvent` itself.
 /// Anything that implements this can be sent to a [`Device`] or [`uinput::VirtualDevice`]
-pub trait EvdevEvent: AsRef<input_event> {
+pub trait EventData: AsRef<input_event> {
     /// Returns the timestamp associated with the event.
     fn timestamp(&self) -> SystemTime;
     /// Returns the "type" field directly from input_event.
@@ -516,7 +516,7 @@ impl_from_type!(FFStatusEvent, InputEvent::ForceFeedbackStatus);
 impl_from_type!(UInputEvent, InputEvent::UInput);
 impl_from_type!(OtherEvent, InputEvent::Other);
 
-impl EvdevEvent for InputEvent {
+impl EventData for InputEvent {
     fn code(&self) -> u16 {
         call_at_each_variant!(self, code)
     }
