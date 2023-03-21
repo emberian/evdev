@@ -17,9 +17,9 @@
 //! devices and send events to the virtual devices.
 //! Virtual devices are created in `/sys/devices/virtual/input`.
 //!
-//! Devices emit events, represented by the [`EvdevEvent`] trait. Each device supports a few different
+//! Devices emit events, represented by the [`EventData`] trait. Each device supports a few different
 //! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
-//! method. The [`InputEvent`] enum implements the `EvdevEvent` trait and has a variant for each
+//! method. The [`InputEvent`] enum implements the `EventData` trait and has a variant for each
 //! `EventType`. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code.
 //! This type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
 //! subtypes of a type that a device supports can be retrieved through the `Device::supported_*()`
