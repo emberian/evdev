@@ -96,7 +96,7 @@ macro_rules! input_event_newtype {
     };
     ($name:ty, $evdev_type:path, $kind:path) => {
         impl $name {
-            pub fn new(code: u16, value: i32) -> Self {
+            pub fn new($kind(code):  $kind, value: i32) -> Self {
                 let raw = input_event {
                     time: libc::timeval {
                         tv_sec: 0,
@@ -108,7 +108,7 @@ macro_rules! input_event_newtype {
                 };
                 Self::from(raw)
             }
-            pub fn new_now(code: u16, value: i32) -> Self {
+            pub fn new_now($kind(code): $kind, value: i32) -> Self {
                 let raw = input_event {
                     time: systime_to_timeval(&SystemTime::now()),
                     type_: $evdev_type.0,

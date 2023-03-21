@@ -291,7 +291,7 @@ impl VirtualDevice {
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
     pub fn emit<T: EvdevEvent>(&mut self, events: &[T]) -> io::Result<()> {
         self.write_raw(events)?;
-        let syn = SynchronizationEvent::new(0, 0);
+        let syn = SynchronizationEvent::new(crate::SynchronizationType::SYN_REPORT, 0);
         self.write_raw(&[syn])
     }
 
