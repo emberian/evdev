@@ -33,7 +33,7 @@ fn main() -> std::io::Result<()> {
         println!("Pressed.");
         sleep(Duration::from_secs(2));
 
-        // alternativeley we can create a InputEven, which will be any variant of InputEvent
+        // alternativeley we can create a InputEvent, which will be any variant of InputEvent
         // depending on the type_ value
         let up_event = InputEvent::new(EventType::KEY.0, code, 0);
         device.emit(&[up_event]).unwrap();

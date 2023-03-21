@@ -191,7 +191,7 @@ pub enum InputEventKind {
 /// and capturing the value
 ///
 /// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code).
-/// It is adviced to only use `InputEvent.matcher()` to obtain this enum and not manually create it.
+/// It is suggested to not construct this enum and instead use `InputEvent.matcher()` to obtain instances.
 pub enum InputEventMatcher {
     Synchronization(SynchronizationEvent, SynchronizationType, i32),
     Key(KeyEvent, KeyType, i32),
