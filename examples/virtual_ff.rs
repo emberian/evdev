@@ -18,7 +18,7 @@ fn main() -> Result<(), Error> {
         println!("Available as {}", path.display());
     }
 
-    let mut ids: BTreeSet<u16> = (0..16).into_iter().collect();
+    let mut ids: BTreeSet<u16> = (0..16).collect();
 
     println!("Waiting for Ctrl-C...");
     loop {

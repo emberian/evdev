@@ -1,9 +1,9 @@
-//use evdev::{Device};
+#![cfg(feature = "tokio")]
+
 use std::error::Error;
 use std::thread::sleep;
 use std::time::Duration;
 
-use tokio_1 as tokio;
 use tokio::time::timeout;
 
 use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, Key};
@@ -26,10 +26,10 @@ async fn test_virtual_device_actually_emits() -> Result<(), Box<dyn Error>> {
         println!("{:?}", d.name());
         if d.name() == Some(virtual_device_name) {
             maybe_device = Some(d);
-            break
+            break;
         }
     }
-    assert_eq!(maybe_device.is_some(), true);
+    assert!(maybe_device.is_some());
     let listen_device = maybe_device.unwrap();
 
     let type_ = EventType::KEY;
