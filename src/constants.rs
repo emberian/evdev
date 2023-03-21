@@ -406,8 +406,3 @@ pub struct PowerType(pub u16);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub struct OtherType(pub u16, pub u16);
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
-pub struct FFType(pub u16);

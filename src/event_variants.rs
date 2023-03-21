@@ -3,11 +3,11 @@ use std::time::SystemTime;
 
 use crate::compat::input_event;
 use crate::constants::{
-    AbsoluteAxisType, FFStatusType, FFType, LedType, MiscType, OtherType, PowerType,
+    AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType,
     RelativeAxisType, RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
-use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType};
+use crate::{systime_to_timeval, timeval_to_systime, EvdevEvent, EventType, FFEffectType};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -154,7 +154,7 @@ input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
 input_event_newtype!(LedEvent, EventType::LED, LedType);
 input_event_newtype!(SoundEvent, EventType::SOUND, SoundType);
 input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType);
-input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFType);
+input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFEffectType);
 input_event_newtype!(PowerEvent, EventType::POWER, PowerType);
 input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType);
 input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
