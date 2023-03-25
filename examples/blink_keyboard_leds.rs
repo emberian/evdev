@@ -4,7 +4,7 @@ mod _pick_device;
 
 fn main() {
     let mut d = _pick_device::pick_device();
-    println!("{}", d);
+    println!("{d}");
     println!("Blinking the Keyboard LEDS...");
     for i in 0..5 {
         let on = i % 2 != 0;

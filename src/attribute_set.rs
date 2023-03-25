@@ -64,6 +64,17 @@ impl<T: EvdevEnum + fmt::Debug> fmt::Debug for AttributeSetRef<T> {
     }
 }
 
+impl<T: EvdevEnum> Default for &AttributeSetRef<T> {
+    fn default() -> Self {
+        AttributeSetRef::new(BitSlice::empty())
+    }
+}
+impl<T: EvdevEnum> Default for &mut AttributeSetRef<T> {
+    fn default() -> Self {
+        AttributeSetRef::new_mut(BitSlice::empty_mut())
+    }
+}
+
 pub struct AttributeSet<T: ArrayedEvdevEnum> {
     container: T::Array,
 }
@@ -193,16 +204,16 @@ macro_rules! evdev_enum {
     ($t:ty, $($(#[$attr:meta])* $c:ident = $val:expr,)*) => {
         impl $t {
             $($(#[$attr])* pub const $c: Self = Self($val);)*
+
+            const NAME_MAP: &'static [(&'static str, $t)] = &[
+                $((stringify!($c), Self::$c),)*
+            ];
         }
         impl std::str::FromStr for $t {
             type Err = crate::EnumParseError;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let map: &[(&'static str, $t)] = &[
-                    $((stringify!($c), Self::$c),)*
-                ];
-
-                match map.iter().find(|e| e.0 == s) {
+                match Self::NAME_MAP.iter().find(|e| e.0 == s) {
                     Some(e) => Ok(e.1),
                     None => Err(crate::EnumParseError(())),
                 }
@@ -229,10 +240,10 @@ macro_rules! evdev_enum {
         }
         #[cfg(feature = "serde")]
         #[allow(unreachable_patterns)]
-        impl serde_1::Serialize for $t {
+        impl serde::Serialize for $t {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
-                S: serde_1::ser::Serializer,
+                S: serde::ser::Serializer,
             {
                 let value = match *self {
                     $(Self::$c => stringify!($c),)*
@@ -243,32 +254,30 @@ macro_rules! evdev_enum {
             }
         }
         #[cfg(feature = "serde")]
-        paste::paste! {
-            struct [<$t Visitor>];
-            impl<'de> serde_1::de::Visitor<'de> for [<$t Visitor>] {
-                type Value = $t;
+        impl<'de> serde::Deserialize<'de> for $t {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::de::Deserializer<'de>,
+            {
+                struct Visitor;
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = $t;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    write!(formatter, "a string with any of the constants in {}", stringify!($t))
-                }
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        write!(formatter, "a string with any of the constants in {}", stringify!($t))
+                    }
 
-                fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                where
-                    E: serde_1::de::Error,
-                {
-                    match s.to_lowercase().as_str() {
-                        $(stringify!([<$c:lower>]) => Ok($t::$c),)*
-                        _ => Err(serde_1::de::Error::invalid_value(serde_1::de::Unexpected::Str(s), &self)),
+                    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match <$t>::NAME_MAP.iter().find(|(key, _)| s.eq_ignore_ascii_case(key)) {
+                            Some((_, v)) => Ok(*v),
+                            None => Err(serde::de::Error::invalid_value(serde::de::Unexpected::Str(s), &self)),
+                        }
                     }
                 }
-            }
-            impl<'de> serde_1::Deserialize<'de> for $t {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-                where
-                    D: serde_1::de::Deserializer<'de>,
-                {
-                    deserializer.deserialize_str([<$t Visitor>])
-                }
+                deserializer.deserialize_str(Visitor)
             }
         }
     }

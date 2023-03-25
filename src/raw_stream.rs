@@ -1,14 +1,16 @@
-use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::fs::OpenOptions;
 use std::mem::MaybeUninit;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
+use crate::constants::*;
 use crate::ff::*;
-use crate::{constants::*, EventData, FFEvent};
-use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, KeyType};
+use crate::{
+    sys, AbsInfo, AttributeSet, AttributeSetRef, EventData, FFEffectType, FFEvent, InputEvent,
+    InputId, KeyType,
+};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -52,7 +54,7 @@ const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 /// playback.
 #[derive(Debug)]
 pub struct FFEffect {
-    file: File,
+    fd: OwnedFd,
     id: u16,
 }
 
@@ -66,8 +68,7 @@ impl FFEffect {
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
         let events = [FFEvent::new(FFEffectType(self.id), count)];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -75,8 +76,7 @@ impl FFEffect {
     /// Stops playback of the force feedback effect.
     pub fn stop(&mut self) -> io::Result<()> {
         let events = [FFEvent::new(FFEffectType(self.id), 0)];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -86,7 +86,7 @@ impl FFEffect {
         let mut effect: sys::ff_effect = data.into();
         effect.id = self.id as i16;
 
-        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
 
         Ok(())
     }
@@ -94,7 +94,7 @@ impl FFEffect {
 
 impl Drop for FFEffect {
     fn drop(&mut self) {
-        let _ = unsafe { sys::eviocrmff(self.file.as_raw_fd(), self.id as _) };
+        let _ = unsafe { sys::eviocrmff(self.fd.as_raw_fd(), self.id as _) };
     }
 }
 
@@ -105,7 +105,7 @@ impl Drop for FFEffect {
 /// and reflects changes in its position via "relative axis" reports.
 #[derive(Debug)]
 pub struct RawDevice {
-    file: File,
+    fd: OwnedFd,
     ty: AttributeSet<EventType>,
     name: Option<String>,
     phys: Option<String>,
@@ -149,33 +149,31 @@ impl RawDevice {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
-        let file = options
+        let fd: OwnedFd = options
             .read(true)
             .write(true)
             .open(path)
-            .or_else(|_| options.write(false).open(path))?;
+            .or_else(|_| options.write(false).open(path))?
+            .into();
 
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
-            unsafe { sys::eviocgbit_type(file.as_raw_fd(), ty.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_type(fd.as_raw_fd(), ty.as_mut_raw_slice())? };
             ty
         };
 
-        let name =
-            ioctl_get_cstring(sys::eviocgname, file.as_raw_fd()).map(bytes_into_string_lossy);
-        let phys =
-            ioctl_get_cstring(sys::eviocgphys, file.as_raw_fd()).map(bytes_into_string_lossy);
-        let uniq =
-            ioctl_get_cstring(sys::eviocguniq, file.as_raw_fd()).map(bytes_into_string_lossy);
+        let name = ioctl_get_cstring(sys::eviocgname, fd.as_raw_fd()).map(bytes_into_string_lossy);
+        let phys = ioctl_get_cstring(sys::eviocgphys, fd.as_raw_fd()).map(bytes_into_string_lossy);
+        let uniq = ioctl_get_cstring(sys::eviocguniq, fd.as_raw_fd()).map(bytes_into_string_lossy);
 
         let id = unsafe {
             let mut id = MaybeUninit::uninit();
-            sys::eviocgid(file.as_raw_fd(), id.as_mut_ptr())?;
+            sys::eviocgid(fd.as_raw_fd(), id.as_mut_ptr())?;
             id.assume_init()
         };
         let mut driver_version: i32 = 0;
         unsafe {
-            sys::eviocgversion(file.as_raw_fd(), &mut driver_version)?;
+            sys::eviocgversion(fd.as_raw_fd(), &mut driver_version)?;
         }
         let driver_version = (
             ((driver_version >> 16) & 0xff) as u8,
@@ -185,13 +183,13 @@ impl RawDevice {
 
         let props = {
             let mut props = AttributeSet::<PropType>::new();
-            unsafe { sys::eviocgprop(file.as_raw_fd(), props.as_mut_raw_slice())? };
+            unsafe { sys::eviocgprop(fd.as_raw_fd(), props.as_mut_raw_slice())? };
             props
         }; // FIXME: handle old kernel
 
         let supported_keys = if ty.contains(EventType::KEY) {
             let mut keys = AttributeSet::<KeyType>::new();
-            unsafe { sys::eviocgbit_key(file.as_raw_fd(), keys.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_key(fd.as_raw_fd(), keys.as_mut_raw_slice())? };
             Some(keys)
         } else {
             None
@@ -199,7 +197,7 @@ impl RawDevice {
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
             let mut rel = AttributeSet::<RelativeAxisType>::new();
-            unsafe { sys::eviocgbit_relative(file.as_raw_fd(), rel.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_relative(fd.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
             None
@@ -207,7 +205,7 @@ impl RawDevice {
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
             let mut abs = AttributeSet::<AbsoluteAxisType>::new();
-            unsafe { sys::eviocgbit_absolute(file.as_raw_fd(), abs.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_absolute(fd.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
             None
@@ -215,7 +213,7 @@ impl RawDevice {
 
         let supported_switch = if ty.contains(EventType::SWITCH) {
             let mut switch = AttributeSet::<SwitchType>::new();
-            unsafe { sys::eviocgbit_switch(file.as_raw_fd(), switch.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_switch(fd.as_raw_fd(), switch.as_mut_raw_slice())? };
             Some(switch)
         } else {
             None
@@ -223,7 +221,7 @@ impl RawDevice {
 
         let supported_led = if ty.contains(EventType::LED) {
             let mut led = AttributeSet::<LedType>::new();
-            unsafe { sys::eviocgbit_led(file.as_raw_fd(), led.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_led(fd.as_raw_fd(), led.as_mut_raw_slice())? };
             Some(led)
         } else {
             None
@@ -231,7 +229,7 @@ impl RawDevice {
 
         let supported_misc = if ty.contains(EventType::MISC) {
             let mut misc = AttributeSet::<MiscType>::new();
-            unsafe { sys::eviocgbit_misc(file.as_raw_fd(), misc.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_misc(fd.as_raw_fd(), misc.as_mut_raw_slice())? };
             Some(misc)
         } else {
             None
@@ -239,7 +237,7 @@ impl RawDevice {
 
         let supported_ff = if ty.contains(EventType::FORCEFEEDBACK) {
             let mut ff = AttributeSet::<FFEffectType>::new();
-            unsafe { sys::eviocgbit_ff(file.as_raw_fd(), ff.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_ff(fd.as_raw_fd(), ff.as_mut_raw_slice())? };
             Some(ff)
         } else {
             None
@@ -247,7 +245,7 @@ impl RawDevice {
 
         let max_ff_effects = if ty.contains(EventType::FORCEFEEDBACK) {
             let mut max_ff_effects = 0;
-            unsafe { sys::eviocgeffects(file.as_raw_fd(), &mut max_ff_effects)? };
+            unsafe { sys::eviocgeffects(fd.as_raw_fd(), &mut max_ff_effects)? };
             usize::try_from(max_ff_effects).unwrap_or(0)
         } else {
             0
@@ -255,7 +253,7 @@ impl RawDevice {
 
         let supported_snd = if ty.contains(EventType::SOUND) {
             let mut snd = AttributeSet::<SoundType>::new();
-            unsafe { sys::eviocgbit_sound(file.as_raw_fd(), snd.as_mut_raw_slice())? };
+            unsafe { sys::eviocgbit_sound(fd.as_raw_fd(), snd.as_mut_raw_slice())? };
             Some(snd)
         } else {
             None
@@ -269,7 +267,7 @@ impl RawDevice {
 
             unsafe {
                 sys::eviocgrep(
-                    file.as_raw_fd(),
+                    fd.as_raw_fd(),
                     &mut auto_repeat as *mut AutoRepeat as *mut [u32; 2],
                 )?;
             }
@@ -280,7 +278,7 @@ impl RawDevice {
         };
 
         Ok(RawDevice {
-            file,
+            fd,
             ty,
             name,
             phys,
@@ -476,8 +474,7 @@ impl RawDevice {
         let fd = self.as_raw_fd();
         self.event_buf.reserve(crate::EVENT_BATCH_SIZE);
 
-        // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(&mut self.event_buf);
+        let spare_capacity = self.event_buf.spare_capacity_mut();
         let spare_capacity_size = std::mem::size_of_val(spare_capacity);
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
@@ -515,6 +512,18 @@ impl RawDevice {
         let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
+    }
+
+    /// Get the AbsInfo for each supported AbsoluteAxis
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        let raw_absinfo = self.get_abs_state()?;
+        Ok(self
+            .supported_absolute_axes()
+            .into_iter()
+            .flat_map(AttributeSetRef::iter)
+            .map(move |axes| (axes, AbsInfo(raw_absinfo[axes.0 as usize]))))
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
@@ -704,12 +713,8 @@ impl RawDevice {
     /// [EventType::SOUND] (play a sound on the device)
     /// and [EventType::FORCEFEEDBACK] (play force feedback effects on the device, i.e. rumble).
     pub fn send_events<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
-        let raw: &[input_event] = &events
-            .iter()
-            .map(|e| *e.as_ref())
-            .collect::<Vec<input_event>>();
-        let bytes = unsafe { crate::cast_to_bytes(raw) };
-        self.file.write_all(bytes)
+        crate::write_events(self.fd.as_fd(), events)?;
+        Ok(())
     }
 
     /// Uploads a force feedback effect to the device.
@@ -717,20 +722,19 @@ impl RawDevice {
         let mut effect: sys::ff_effect = data.into();
         effect.id = -1;
 
-        unsafe { sys::eviocsff(self.file.as_raw_fd(), &effect)? };
+        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
 
-        let file = self.file.try_clone()?;
+        let fd = self.fd.try_clone()?;
         let id = effect.id as u16;
 
-        Ok(FFEffect { file, id })
+        Ok(FFEffect { fd, id })
     }
 
     /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
     /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
     pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
         let events = [FFEvent::new(FFEffectType::FF_GAIN, value.into())];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
@@ -738,28 +742,21 @@ impl RawDevice {
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
         let events = [FFEvent::new(FFEffectType::FF_AUTOCENTER, value.into())];
-        let bytes = unsafe { crate::cast_to_bytes(&events) };
-        self.file.write_all(bytes)?;
+        crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
     }
 }
 
-impl AsRawFd for RawDevice {
-    fn as_raw_fd(&self) -> RawFd {
-        self.file.as_raw_fd()
+impl AsFd for RawDevice {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
     }
 }
 
-/// A copy of the unstable Vec::spare_capacity_mut
-#[inline]
-pub(crate) fn vec_spare_capacity_mut<T>(v: &mut Vec<T>) -> &mut [mem::MaybeUninit<T>] {
-    let (len, cap) = (v.len(), v.capacity());
-    unsafe {
-        std::slice::from_raw_parts_mut(
-            v.as_mut_ptr().add(len) as *mut mem::MaybeUninit<T>,
-            cap - len,
-        )
+impl AsRawFd for RawDevice {
+    fn as_raw_fd(&self) -> RawFd {
+        self.fd.as_raw_fd()
     }
 }
 
@@ -799,11 +796,8 @@ impl Iterator for EnumerateDevices {
 mod tokio_stream {
     use super::*;
 
-    use tokio_1 as tokio;
-
-    use futures_core::{ready, Stream};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::future::poll_fn;
+    use std::task::{ready, Context, Poll};
     use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
@@ -869,26 +863,16 @@ mod tokio_stream {
         }
     }
 
-    impl Stream for EventStream {
+    #[cfg(feature = "stream-trait")]
+    impl futures_core::Stream for EventStream {
         type Item = io::Result<InputEvent>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }
     }
-
-    // version of futures_util::future::poll_fn
-    pub(crate) fn poll_fn<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin>(f: F) -> PollFn<F> {
-        PollFn(f)
-    }
-    pub(crate) struct PollFn<F>(F);
-    impl<T, F: FnMut(&mut Context<'_>) -> Poll<T> + Unpin> std::future::Future for PollFn<F> {
-        type Output = T;
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
-            (self.get_mut().0)(cx)
-        }
-    }
 }
-#[cfg(feature = "tokio")]
-pub(crate) use tokio_stream::poll_fn;
 #[cfg(feature = "tokio")]
 pub use tokio_stream::EventStream;

@@ -3,27 +3,22 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPUT_MAX_NAME_SIZE};
-use crate::constants::UInputType;
-use crate::event_variants::UInputEvent;
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
-use crate::raw_stream::vec_spare_capacity_mut;
 use crate::{
     sys, AttributeSetRef, Error, EventData, FFEffectType, InputEvent, KeyType, MiscType, PropType,
-    RelativeAxisType, SwitchType, SynchronizationEvent, UinputAbsSetup,
+    RelativeAxisType, SwitchType, SynchronizationEvent, UInputEvent, UInputType, UinputAbsSetup,
 };
-use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
-use std::os::unix::io::AsRawFd;
-use std::os::unix::prelude::RawFd;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::PathBuf;
+use std::{fs, io};
 
 const UINPUT_PATH: &str = "/dev/uinput";
 const SYSFS_PATH: &str = "/sys/devices/virtual/input";
 
 #[derive(Debug)]
 pub struct VirtualDeviceBuilder<'a> {
-    file: File,
+    fd: OwnedFd,
     name: &'a [u8],
     id: Option<input_id>,
     ff_effects_max: u32,
@@ -31,13 +26,14 @@ pub struct VirtualDeviceBuilder<'a> {
 
 impl<'a> VirtualDeviceBuilder<'a> {
     pub fn new() -> io::Result<Self> {
-        let mut options = OpenOptions::new();
-
         // Open in read-write mode.
-        let file = options.read(true).write(true).open(UINPUT_PATH)?;
+        let fd = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(UINPUT_PATH)?;
 
         Ok(VirtualDeviceBuilder {
-            file,
+            fd: fd.into(),
             name: Default::default(),
             id: None,
             ff_effects_max: 0,
@@ -60,7 +56,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         // Run ioctls for setting capability bits
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::KEY.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
         }
@@ -68,7 +64,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in keys.iter() {
             unsafe {
                 sys::ui_set_keybit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -80,14 +76,14 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_absolute_axis(self, axis: &UinputAbsSetup) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::ABSOLUTE.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
             sys::ui_set_absbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 axis.code() as nix::sys::ioctl::ioctl_param_type,
             )?;
-            sys::ui_abs_setup(self.file.as_raw_fd(), &axis.0 as *const uinput_abs_setup)?;
+            sys::ui_abs_setup(self.fd.as_raw_fd(), &axis.0 as *const uinput_abs_setup)?;
         }
 
         Ok(self)
@@ -96,7 +92,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::RELATIVE.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
         }
@@ -104,7 +100,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in axes.iter() {
             unsafe {
                 sys::ui_set_relbit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -117,7 +113,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in switches.iter() {
             unsafe {
                 sys::ui_set_propbit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -129,7 +125,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_switches(self, switches: &AttributeSetRef<SwitchType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::SWITCH.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
         }
@@ -137,7 +133,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in switches.iter() {
             unsafe {
                 sys::ui_set_swbit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -149,7 +145,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_ff(self, ff: &AttributeSetRef<FFEffectType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::FORCEFEEDBACK.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
         }
@@ -157,7 +153,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in ff.iter() {
             unsafe {
                 sys::ui_set_ffbit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -174,7 +170,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
-                self.file.as_raw_fd(),
+                self.fd.as_raw_fd(),
                 crate::EventType::MISC.0 as nix::sys::ioctl::ioctl_param_type,
             )?;
         }
@@ -182,7 +178,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in misc_set.iter() {
             unsafe {
                 sys::ui_set_mscbit(
-                    self.file.as_raw_fd(),
+                    self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
             }
@@ -208,7 +204,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         assert!(name_bytes.len() + 1 < UINPUT_MAX_NAME_SIZE);
         usetup.name[..name_bytes.len()].copy_from_slice(name_bytes);
 
-        VirtualDevice::new(self.file, &usetup)
+        VirtualDevice::new(self.fd, &usetup)
     }
 }
 
@@ -220,30 +216,26 @@ const DEFAULT_ID: input_id = input_id {
 };
 
 pub struct VirtualDevice {
-    file: File,
+    fd: OwnedFd,
     pub(crate) event_buf: Vec<input_event>,
 }
 
 impl VirtualDevice {
     /// Create a new virtual device.
-    fn new(file: File, usetup: &uinput_setup) -> io::Result<Self> {
-        unsafe { sys::ui_dev_setup(file.as_raw_fd(), usetup)? };
-        unsafe { sys::ui_dev_create(file.as_raw_fd())? };
+    fn new(fd: OwnedFd, usetup: &uinput_setup) -> io::Result<Self> {
+        unsafe { sys::ui_dev_setup(fd.as_raw_fd(), usetup)? };
+        unsafe { sys::ui_dev_create(fd.as_raw_fd())? };
 
         Ok(VirtualDevice {
-            file,
+            fd,
             event_buf: vec![],
         })
     }
 
     #[inline]
-    fn write_raw<T: AsRef<input_event>>(&mut self, messages: &[T]) -> io::Result<()> {
-        let raw: &[input_event] = &messages
-            .iter()
-            .map(|e| *e.as_ref())
-            .collect::<Vec<input_event>>();
-        let bytes = unsafe { crate::cast_to_bytes(raw) };
-        self.file.write_all(bytes)
+    fn write_raw<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
+        crate::write_events(self.fd.as_fd(), events)?;
+        Ok(())
     }
 
     /// Get the syspath representing this uinput device.
@@ -252,7 +244,7 @@ impl VirtualDevice {
     /// `/sys/devices/virtual/input/input123`), not the syspath of the device node.
     pub fn get_syspath(&mut self) -> io::Result<PathBuf> {
         let mut bytes = vec![0u8; 256];
-        unsafe { sys::ui_get_sysname(self.file.as_raw_fd(), &mut bytes)? };
+        unsafe { sys::ui_get_sysname(self.fd.as_raw_fd(), &mut bytes)? };
 
         if let Some(end) = bytes.iter().position(|c| *c == 0) {
             bytes.truncate(end);
@@ -277,7 +269,7 @@ impl VirtualDevice {
     #[cfg(feature = "tokio")]
     pub async fn enumerate_dev_nodes(&mut self) -> io::Result<DevNodes> {
         let path = self.get_syspath()?;
-        let dir = tokio_1::fs::read_dir(path).await?;
+        let dir = tokio::fs::read_dir(path).await?;
 
         Ok(DevNodes { dir })
     }
@@ -308,13 +300,13 @@ impl VirtualDevice {
 
         let mut request: sys::uinput_ff_upload = unsafe { std::mem::zeroed() };
         request.request_id = event.value() as u32;
-        unsafe { sys::ui_begin_ff_upload(self.file.as_raw_fd(), &mut request)? };
+        unsafe { sys::ui_begin_ff_upload(self.fd.as_raw_fd(), &mut request)? };
 
         request.retval = 0;
 
-        let file = self.file.try_clone()?;
+        let fd = self.fd.try_clone()?;
 
-        Ok(FFUploadEvent { file, request })
+        Ok(FFUploadEvent { fd, request })
     }
 
     /// Processes the given [`UInputEvent`] if it is a force feedback erase event, in which case
@@ -330,13 +322,13 @@ impl VirtualDevice {
 
         let mut request: sys::uinput_ff_erase = unsafe { std::mem::zeroed() };
         request.request_id = event.value() as u32;
-        unsafe { sys::ui_begin_ff_erase(self.file.as_raw_fd(), &mut request)? };
+        unsafe { sys::ui_begin_ff_erase(self.fd.as_raw_fd(), &mut request)? };
 
         request.retval = 0;
 
-        let file = self.file.try_clone()?;
+        let fd = self.fd.try_clone()?;
 
-        Ok(FFEraseEvent { file, request })
+        Ok(FFEraseEvent { fd, request })
     }
 
     /// Read a maximum of `num` events into the internal buffer. If the underlying fd is not
@@ -344,11 +336,10 @@ impl VirtualDevice {
     ///
     /// Returns the number of events that were read, or an error.
     pub(crate) fn fill_events(&mut self) -> io::Result<usize> {
-        let fd = self.file.as_raw_fd();
+        let fd = self.fd.as_raw_fd();
         self.event_buf.reserve(crate::EVENT_BATCH_SIZE);
 
-        // TODO: use Vec::spare_capacity_mut or Vec::split_at_spare_mut when they stabilize
-        let spare_capacity = vec_spare_capacity_mut(&mut self.event_buf);
+        let spare_capacity = self.event_buf.spare_capacity_mut();
         let spare_capacity_size = std::mem::size_of_val(spare_capacity);
 
         // use libc::read instead of nix::unistd::read b/c we need to pass an uninitialized buf
@@ -412,7 +403,7 @@ impl Iterator for DevNodesBlocking {
 /// `/dev/input123`.
 #[cfg(feature = "tokio")]
 pub struct DevNodes {
-    dir: tokio_1::fs::ReadDir,
+    dir: tokio::fs::ReadDir,
 }
 
 #[cfg(feature = "tokio")]
@@ -432,15 +423,21 @@ impl DevNodes {
     }
 }
 
+impl AsFd for VirtualDevice {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
+
 impl AsRawFd for VirtualDevice {
     fn as_raw_fd(&self) -> RawFd {
-        self.file.as_raw_fd()
+        self.fd.as_raw_fd()
     }
 }
 
 /// Represents a force feedback upload event that we are currently processing.
 pub struct FFUploadEvent {
-    file: File,
+    fd: OwnedFd,
     request: sys::uinput_ff_upload,
 }
 
@@ -479,14 +476,14 @@ impl FFUploadEvent {
 impl Drop for FFUploadEvent {
     fn drop(&mut self) {
         unsafe {
-            let _ = sys::ui_end_ff_upload(self.file.as_raw_fd(), &self.request);
+            let _ = sys::ui_end_ff_upload(self.fd.as_raw_fd(), &self.request);
         }
     }
 }
 
 /// Represents a force feedback erase event that we are currently processing.
 pub struct FFEraseEvent {
-    file: File,
+    fd: OwnedFd,
     request: sys::uinput_ff_erase,
 }
 
@@ -510,7 +507,7 @@ impl FFEraseEvent {
 impl Drop for FFEraseEvent {
     fn drop(&mut self) {
         unsafe {
-            let _ = sys::ui_end_ff_erase(self.file.as_raw_fd(), &self.request);
+            let _ = sys::ui_end_ff_erase(self.fd.as_raw_fd(), &self.request);
         }
     }
 }
@@ -519,12 +516,8 @@ impl Drop for FFEraseEvent {
 mod tokio_stream {
     use super::*;
 
-    use tokio_1 as tokio;
-
-    use crate::raw_stream::poll_fn;
-    use futures_core::{ready, Stream};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::future::poll_fn;
+    use std::task::{ready, Context, Poll};
     use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
@@ -590,9 +583,13 @@ mod tokio_stream {
         }
     }
 
-    impl Stream for VirtualEventStream {
+    #[cfg(feature = "stream-trait")]
+    impl futures_core::Stream for VirtualEventStream {
         type Item = io::Result<InputEvent>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }
     }

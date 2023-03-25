@@ -143,10 +143,10 @@ mod sys;
 pub mod uinput;
 
 #[cfg(feature = "serde")]
-use serde_1::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
-use std::fmt;
+use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
@@ -161,6 +161,28 @@ pub use raw_stream::{AutoRepeat, FFEffect};
 pub use scancodes::*;
 pub use sync_stream::*;
 
+macro_rules! common_trait_impls {
+    ($raw:ty, $wrapper:ty) => {
+        impl From<$raw> for $wrapper {
+            fn from(raw: $raw) -> Self {
+                Self(raw)
+            }
+        }
+
+        impl From<$wrapper> for $raw {
+            fn from(wrapper: $wrapper) -> Self {
+                wrapper.0
+            }
+        }
+
+        impl AsRef<$raw> for $wrapper {
+            fn as_ref(&self) -> &$raw {
+                &self.0
+            }
+        }
+    };
+}
+
 const EVENT_BATCH_SIZE: usize = 32;
 
 /// A convenience mapping from an event `(type, code)` to an enumeration.
@@ -169,7 +191,6 @@ const EVENT_BATCH_SIZE: usize = 32;
 /// Use [`InputEventMatcher`] for that.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(crate = "serde_1"))]
 pub enum InputEventKind {
     Synchronization(SynchronizationType),
     Key(KeyType),
@@ -220,7 +241,7 @@ pub enum InputEventMatcher {
 /// - `flat: s32`
 /// - `resolution: s32`
 ///
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct AbsInfo(input_absinfo);
 
@@ -270,12 +291,14 @@ impl AbsInfo {
     }
 }
 
+common_trait_impls!(input_absinfo, AbsInfo);
+
 /// A wrapped `uinput_abs_setup`, used to set up analogue axes with uinput
 ///
 /// `uinput_abs_setup` is a struct containing two fields:
 /// - `code: u16`
 /// - `absinfo: input_absinfo`
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct UinputAbsSetup(uinput_abs_setup);
 
@@ -313,6 +336,8 @@ pub trait EventData: AsRef<input_event> {
     fn value(&self) -> i32;
 }
 
+common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
+
 /// A wrapped `input_event` returned by the input device via the kernel.
 ///
 /// `input_event` is a struct containing four fields:
@@ -322,7 +347,7 @@ pub trait EventData: AsRef<input_event> {
 /// - `value: s32`
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum InputEvent {
     Synchronization(SynchronizationEvent),
     Key(KeyEvent),
@@ -592,5 +617,34 @@ pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
     std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumParseError(());
+
+impl Display for EnumParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to parse Key from string")
+    }
+}
+
+impl std::error::Error for EnumParseError {}
+
+fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result<()> {
+    use std::os::fd::AsRawFd;
+    loop {
+        match nix::unistd::write(fd.as_raw_fd(), data) {
+            Ok(0) => return Ok(()),
+            Ok(n) => data = &data[n..],
+            Err(e) if e == nix::Error::EINTR => {}
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn write_events<T: EventData>(fd: std::os::fd::BorrowedFd<'_>, events: &[T]) -> nix::Result<()> {
+    let raw: &[input_event] = &events
+        .iter()
+        .map(|e| *e.as_ref())
+        .collect::<Vec<input_event>>();
+    let bytes = unsafe { cast_to_bytes(raw) };
+    fd_write_all(fd, bytes)
+}

@@ -1,7 +1,5 @@
 //! Demonstrating how to monitor events with evdev + tokio
 
-use tokio_1 as tokio;
-
 // cli/"tui" shared between the evtest examples
 mod _pick_device;
 

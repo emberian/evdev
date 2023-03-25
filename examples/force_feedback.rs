@@ -6,7 +6,7 @@ mod _pick_device;
 
 fn main() -> std::io::Result<()> {
     let mut d = _pick_device::pick_device();
-    println!("{}", d);
+    println!("{d}");
     println!("It's time to rumble!");
 
     let effect_data = FFEffectData {

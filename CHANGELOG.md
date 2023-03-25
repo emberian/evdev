@@ -10,6 +10,9 @@
 - Create an `InputEventMatcher` enum which is useful for matching and capturing all the different event possibilities.
 - Demonstrate what the `FFEvent` does in the `force_feedback` example.
 
+- `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+- `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
+
 ### Changed
 - Replace the `InputEvent` struct by a enum. One variant for each `EventType`
 - Update the `send_events` and `emit` methods to accept anything that implements `EvdevEvent`
@@ -21,6 +24,10 @@
 - `InputEvent::new` no longer takes the `EventType` but `u16` as first argument. If the `EventType` is known we can directly construct the correct variant.
 - Ensure the unsafe code still does what we expect.
 - Update the Examples.
+
+- The minimum supported rust version (MSRV) is now `1.63`, due to `AsFd` support.
+- In order for the `EventStream` types to implement Stream, the `stream-trait`
+  feature must now be specified.
 
 ### Fixed
 

@@ -9,61 +9,72 @@ use crate::constants::{
 use crate::scancodes::KeyType;
 use crate::{systime_to_timeval, timeval_to_systime, EventData, EventType, FFEffectType};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
-
 /// A bookkeeping event. Usually not important to applications.
 /// [`EventType::SYNCHRONIZATION`]
 pub struct SynchronizationEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::KEY`]
 pub struct KeyEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::RELATIVE`]
 pub struct RelativeAxisEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::ABSOLUTE`]
 pub struct AbsoluteAxisEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::MISC`]
 pub struct MiscEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::SWITCH`]
 pub struct SwitchEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::LED`]
 pub struct LedEvent(input_event);
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::SOUND`]
 pub struct SoundEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::REPEAT`]
 pub struct RepeatEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::FORCEFEEDBACK`]
 pub struct FFEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::POWER`]
 pub struct PowerEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::FORCEFEEDBACKSTATUS`]
 pub struct FFStatusEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::UINPUT`]
 pub struct UInputEvent(input_event);
-#[derive(Copy, Clone)]
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// No clue, but technically possible.
 pub struct OtherEvent(pub(crate) input_event);

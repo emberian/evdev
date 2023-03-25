@@ -1,12 +1,14 @@
 use crate::compat::{input_absinfo, input_event};
+use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
-use crate::{constants::*, EventData};
 use crate::{
-    AttributeSet, AttributeSetRef, AutoRepeat, InputEvent, InputEventKind, InputId, KeyType,
+    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventData, InputEvent, InputEventKind,
+    InputId, KeyType,
 };
-use std::os::unix::io::{AsRawFd, RawFd};
+
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
 use std::{fmt, io};
@@ -277,6 +279,13 @@ impl Device {
         self.raw.get_abs_state()
     }
 
+    /// Get the AbsInfo for each supported AbsoluteAxis
+    pub fn get_absinfo(
+        &self,
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+        self.raw.get_absinfo()
+    }
+
     /// Retrieve the current switch state directly via kernel syscall.
     pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
         self.raw.get_switch_state()
@@ -381,6 +390,12 @@ impl Device {
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
         self.raw.set_ff_autocenter(value)
+    }
+}
+
+impl AsFd for Device {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.raw.as_fd()
     }
 }
 
@@ -609,12 +624,12 @@ impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}:", self.name().unwrap_or("Unnamed device"))?;
         let (maj, min, pat) = self.driver_version();
-        writeln!(f, "  Driver version: {}.{}.{}", maj, min, pat)?;
+        writeln!(f, "  Driver version: {maj}.{min}.{pat}")?;
         if let Some(ref phys) = self.physical_path() {
-            writeln!(f, "  Physical address: {:?}", phys)?;
+            writeln!(f, "  Physical address: {phys:?}")?;
         }
         if let Some(ref uniq) = self.unique_name() {
-            writeln!(f, "  Unique name: {:?}", uniq)?;
+            writeln!(f, "  Unique name: {uniq:?}")?;
         }
 
         let id = self.input_id();
@@ -646,7 +661,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_relative) = self.supported_relative_axes() {
-            writeln!(f, "  Relative Axes: {:?}", supported_relative)?;
+            writeln!(f, "  Relative Axes: {supported_relative:?}")?;
         }
 
         if let (Some(supported_abs), Some(abs_vals)) =
@@ -663,7 +678,7 @@ impl fmt::Display for Device {
         }
 
         if let Some(supported_misc) = self.misc_properties() {
-            writeln!(f, "  Miscellaneous capabilities: {:?}", supported_misc)?;
+            writeln!(f, "  Miscellaneous capabilities: {supported_misc:?}")?;
         }
 
         if let (Some(supported_switch), Some(switch_vals)) =
@@ -729,12 +744,8 @@ impl fmt::Display for Device {
 mod tokio_stream {
     use super::*;
 
-    use tokio_1 as tokio;
-
-    use crate::raw_stream::poll_fn;
-    use futures_core::{ready, Stream};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::future::poll_fn;
+    use std::task::{ready, Context, Poll};
     use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
@@ -823,9 +834,13 @@ mod tokio_stream {
         }
     }
 
-    impl Stream for EventStream {
+    #[cfg(feature = "stream-trait")]
+    impl futures_core::Stream for EventStream {
         type Item = io::Result<InputEvent>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
             self.get_mut().poll_event(cx).map(Some)
         }
     }
