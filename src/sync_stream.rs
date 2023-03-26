@@ -4,7 +4,7 @@ use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{
-    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventData, InputEvent, InputEventKind,
+    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventData, InputEvent, EventSummary,
     InputId, KeyType,
 };
 
@@ -598,11 +598,11 @@ fn sync_events(
         let mut block_dropped = false;
         for (i, ev) in event_buf.iter().enumerate().skip(block_start) {
             let ev = InputEvent::from(*ev);
-            match ev.kind() {
-                InputEventKind::Synchronization(SynchronizationType::SYN_DROPPED) => {
+            match ev.destructure() {
+                EventSummary::Synchronization(_, SynchronizationType::SYN_DROPPED, _) => {
                     block_dropped = true;
                 }
-                InputEventKind::Synchronization(SynchronizationType::SYN_REPORT) => {
+                EventSummary::Synchronization(_, SynchronizationType::SYN_REPORT, _) => {
                     consumed_to = Some(i + 1);
                     if block_dropped {
                         *range = event_buf.len()..event_buf.len();
