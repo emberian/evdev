@@ -331,13 +331,12 @@ common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
-pub struct  InputEvent(input_event);
+pub struct InputEvent(input_event);
 common_trait_impls!(input_event, InputEvent);
 
 impl InputEvent {
-    /// A convenience function to destructure the InputEvent into useful components.
-    /// See [`EventSummary`] for the layout.
-    /// 
+    /// A convenience function to destructure the InputEvent into a [`EventSummary`].
+    ///
     /// # Example
     /// ```
     /// use evdev::*;
@@ -390,7 +389,7 @@ impl EventData for InputEvent {
         self.0.type_
     }
     fn timestamp(&self) -> SystemTime {
-       timeval_to_systime(&self.0.time)
+        timeval_to_systime(&self.0.time)
     }
     fn value(&self) -> i32 {
         self.0.value

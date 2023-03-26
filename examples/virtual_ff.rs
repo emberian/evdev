@@ -1,8 +1,8 @@
 // Create a virtual force feedback device, just while this is running.
 
 use evdev::{
-    uinput::VirtualDeviceBuilder, AttributeSet, Error, FFEffectType, FFStatusType, InputEvent,
-    EventSummary, UInputType,
+    uinput::VirtualDeviceBuilder, AttributeSet, Error, EventSummary, FFEffectType, FFStatusType,
+    InputEvent, UInputType,
 };
 use std::collections::BTreeSet;
 

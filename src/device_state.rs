@@ -1,6 +1,6 @@
 use crate::compat::input_absinfo;
 use crate::{constants::*, raw_stream::RawDevice};
-use crate::{AttributeSet, AttributeSetRef, EventData, InputEvent, EventSummary, KeyType};
+use crate::{AttributeSet, AttributeSetRef, EventData, EventSummary, InputEvent, KeyType};
 use std::time::SystemTime;
 
 /// A **cached** representation of device state at a certain time.
@@ -108,14 +108,14 @@ impl DeviceState {
     #[inline]
     pub(crate) fn process_event(&mut self, ev: InputEvent) {
         match ev.destructure() {
-            EventSummary::Key(_,code,_) => {
+            EventSummary::Key(_, code, _) => {
                 let keys = self
                     .key_vals
                     .as_deref_mut()
                     .expect("got a key event despite not supporting keys");
                 keys.set(code, ev.value() != 0);
             }
-            EventSummary::AbsoluteAxis(_,axis,_) => {
+            EventSummary::AbsoluteAxis(_, axis, _) => {
                 let axes = self
                     .abs_vals
                     .as_deref_mut()

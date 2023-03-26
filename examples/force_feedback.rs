@@ -1,5 +1,5 @@
 use evdev::{
-    FFEffectData, FFEffectKind, FFEffectType, FFReplay, FFStatusType, FFTrigger, EventSummary,
+    EventSummary, FFEffectData, FFEffectKind, FFEffectType, FFReplay, FFStatusType, FFTrigger,
 };
 
 mod _pick_device;
