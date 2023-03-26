@@ -209,7 +209,50 @@ pub enum EventSummary {
 
 impl From<InputEvent> for EventSummary {
     fn from(value: InputEvent) -> Self {
-        todo!()
+        match EventType(value.event_type()) {
+            EventType::SYNCHRONIZATION => {
+                SynchronizationEvent::from_event(value).into()
+            }
+            EventType::KEY => {
+                KeyEvent::from_event(value).into()
+            }
+            EventType::RELATIVE => {
+                RelativeAxisEvent::from_event(value).into()
+            }
+            EventType::ABSOLUTE => {
+                AbsoluteAxisEvent::from_event(value).into()
+            }
+            EventType::MISC => {
+                MiscEvent::from_event(value).into()
+            }
+            EventType::SWITCH => {
+                SwitchEvent::from_event(value).into()
+            }
+            EventType::LED => {
+                LedEvent::from_event(value).into()
+            }
+            EventType::SOUND => {
+                SoundEvent::from_event(value).into()
+            }
+            EventType::REPEAT => {
+                RepeatEvent::from_event(value).into()
+            }
+            EventType::FORCEFEEDBACK => {
+                FFEvent::from_event(value).into()
+            }
+            EventType::POWER => {
+                PowerEvent::from_event(value).into()
+            }
+            EventType::FORCEFEEDBACKSTATUS => {
+                FFStatusEvent::from_event(value).into()
+            }
+            EventType::UINPUT => {
+                UInputEvent::from_event(value).into()
+            }
+            _ => {
+                OtherEvent(value).into()
+            }
+        }
     }
 }
 
