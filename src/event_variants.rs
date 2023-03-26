@@ -129,7 +129,7 @@ macro_rules! input_event_newtype {
                     code,
                     value,
                 };
-                Self::from(raw)
+                Self::from_raw(raw)
             }
             pub fn new_now($kind(code): $kind, value: i32) -> Self {
                 let raw = input_event {
@@ -138,17 +138,25 @@ macro_rules! input_event_newtype {
                     code,
                     value,
                 };
-                Self::from(raw)
+                Self::from_raw(raw)
             }
-
+            pub fn destructure(self) -> ($name, $kind, i32) {
+                (self, $kind(self.code()), self.value())
+            }
             // must be kept internal
-            pub(crate) fn from(raw: input_event) -> Self {
+            fn from_raw(raw: input_event) -> Self {
                 match EventType(raw.type_) {
                     $evdev_type => Self(InputEvent(raw)),
                     _ => unreachable!(),
                 }
             }
-
+            // must be kept internal
+            pub(crate) fn from_event(event: InputEvent) -> Self{
+                match EventType(event.event_type()){
+                    $evdev_type => Self(event),
+                    _ => unreachable!(),
+                }
+            }
             pub fn kind(&self) -> $kind {
                 $kind(self.code())
             }
