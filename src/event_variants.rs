@@ -2,106 +2,107 @@ use std::fmt;
 use std::time::SystemTime;
 
 use crate::compat::input_event;
+use crate::InputEvent;
 use crate::constants::{
     AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
     RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
-use crate::{systime_to_timeval, timeval_to_systime, EventData, EventType, FFEffectType};
+use crate::{systime_to_timeval, EventData, EventType, FFEffectType};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// A bookkeeping event. Usually not important to applications.
 /// [`EventType::SYNCHRONIZATION`]
-pub struct SynchronizationEvent(input_event);
+pub struct SynchronizationEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::KEY`]
-pub struct KeyEvent(input_event);
+pub struct KeyEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::RELATIVE`]
-pub struct RelativeAxisEvent(input_event);
+pub struct RelativeAxisEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::ABSOLUTE`]
-pub struct AbsoluteAxisEvent(input_event);
+pub struct AbsoluteAxisEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::MISC`]
-pub struct MiscEvent(input_event);
+pub struct MiscEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::SWITCH`]
-pub struct SwitchEvent(input_event);
+pub struct SwitchEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::LED`]
-pub struct LedEvent(input_event);
+pub struct LedEvent(InputEvent);
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::SOUND`]
-pub struct SoundEvent(input_event);
+pub struct SoundEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::REPEAT`]
-pub struct RepeatEvent(input_event);
+pub struct RepeatEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::FORCEFEEDBACK`]
-pub struct FFEvent(input_event);
+pub struct FFEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::POWER`]
-pub struct PowerEvent(input_event);
+pub struct PowerEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::FORCEFEEDBACKSTATUS`]
-pub struct FFStatusEvent(input_event);
+pub struct FFStatusEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// [`EventType::UINPUT`]
-pub struct UInputEvent(input_event);
+pub struct UInputEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 /// No clue, but technically possible.
-pub struct OtherEvent(pub(crate) input_event);
+pub struct OtherEvent(pub(crate) InputEvent);
 
 macro_rules! input_event_newtype {
     ($name:ty) => {
         impl EventData for $name {
             #[inline]
             fn timestamp(&self) -> SystemTime {
-                timeval_to_systime(&self.0.time)
+                self.0.timestamp()
             }
             #[inline]
             fn event_type(&self) -> u16 {
-                self.0.type_
+                self.0.event_type()
             }
             #[inline]
             fn code(&self) -> u16 {
-                self.0.code
+                self.0.code()
             }
             #[inline]
             fn value(&self) -> i32 {
-                self.0.value
+                self.0.value()
             }
         }
         impl AsRef<input_event> for $name {
             fn as_ref(&self) -> &input_event {
-                &self.0
+                &self.0.as_ref()
             }
         }
     };
@@ -132,7 +133,7 @@ macro_rules! input_event_newtype {
             // must be kept internal
             pub(crate) fn from(raw: input_event) -> Self {
                 match EventType(raw.type_) {
-                    $evdev_type => Self(raw),
+                    $evdev_type => Self(InputEvent(raw)),
                     _ => unreachable!(),
                 }
             }
