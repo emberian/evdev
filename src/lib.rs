@@ -207,6 +207,12 @@ pub enum EventSummary {
     Other(OtherEvent, OtherType, i32),
 }
 
+impl From<InputEvent> for EventSummary {
+    fn from(value: InputEvent) -> Self {
+        todo!()
+    }
+}
+
 /// A wrapped `input_absinfo` returned by EVIOCGABS and used with uinput to set up absolute
 /// axes
 ///
@@ -297,8 +303,7 @@ impl UinputAbsSetup {
     }
 }
 
-/// The common trait for all [`InputEvent`] variants and the `InputEvent` itself.
-/// Anything that implements this can be sent to a [`Device`] or [`uinput::VirtualDevice`]
+/// The common trait for [`InputEvent`] and its variants in [`event_variants`].
 pub trait EventData: AsRef<input_event> {
     /// Returns the timestamp associated with the event.
     fn timestamp(&self) -> SystemTime;
@@ -325,43 +330,9 @@ common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
 ///
 /// The meaning of the "code" and "value" fields will depend on the underlying type of event.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub enum InputEvent {
-    Synchronization(SynchronizationEvent),
-    Key(KeyEvent),
-    RelativeAxis(RelativeAxisEvent),
-    AbsoluteAxis(AbsoluteAxisEvent),
-    Misc(MiscEvent),
-    Switch(SwitchEvent),
-    Led(LedEvent),
-    Sound(SoundEvent),
-    Repeat(RepeatEvent),
-    ForceFeedback(FFEvent),
-    Power(PowerEvent),
-    ForceFeedbackStatus(FFStatusEvent),
-    UInput(UInputEvent),
-    Other(OtherEvent),
-}
-
-macro_rules! call_at_each_variant {
-    ($self:ident, $method:ident $(, $args:expr)*) => {
-        match $self {
-            InputEvent::Synchronization(ev) => ev.$method($($args),*),
-            InputEvent::Key(ev) => ev.$method($($args),*),
-            InputEvent::RelativeAxis(ev) => ev.$method($($args),*),
-            InputEvent::AbsoluteAxis(ev) => ev.$method($($args),*),
-            InputEvent::Misc(ev) => ev.$method($($args),*),
-            InputEvent::Switch(ev) => ev.$method($($args),*),
-            InputEvent::Led(ev) => ev.$method($($args),*),
-            InputEvent::Sound(ev) => ev.$method($($args),*),
-            InputEvent::Repeat(ev) => ev.$method($($args),*),
-            InputEvent::ForceFeedback(ev) => ev.$method($($args),*),
-            InputEvent::Power(ev) => ev.$method($($args),*),
-            InputEvent::ForceFeedbackStatus(ev) => ev.$method($($args),*),
-            InputEvent::UInput(ev) => ev.$method($($args),*),
-            InputEvent::Other(ev) => ev.$method($($args),*),
-        }
-    };
-}
+#[repr(transparent)]
+pub struct  InputEvent(input_event);
+common_trait_impls!(input_event, InputEvent);
 
 impl InputEvent {
     /// A convenience function to destructure the InputEvent into useful components.
@@ -376,34 +347,8 @@ impl InputEvent {
     ///     _=> panic!(),
     /// }
     /// ```
-    #[inline]
     pub fn destructure(self) -> EventSummary {
-        match self {
-            InputEvent::Synchronization(ev) => {
-                EventSummary::Synchronization(ev, ev.kind(), ev.value())
-            }
-            InputEvent::Key(ev) => EventSummary::Key(ev, ev.kind(), ev.value()),
-            InputEvent::RelativeAxis(ev) => {
-                EventSummary::RelativeAxis(ev, ev.kind(), ev.value())
-            }
-            InputEvent::AbsoluteAxis(ev) => {
-                EventSummary::AbsoluteAxis(ev, ev.kind(), ev.value())
-            }
-            InputEvent::Misc(ev) => EventSummary::Misc(ev, ev.kind(), ev.value()),
-            InputEvent::Switch(ev) => EventSummary::Switch(ev, ev.kind(), ev.value()),
-            InputEvent::Led(ev) => EventSummary::Led(ev, ev.kind(), ev.value()),
-            InputEvent::Sound(ev) => EventSummary::Sound(ev, ev.kind(), ev.value()),
-            InputEvent::Repeat(ev) => EventSummary::Repeat(ev, ev.kind(), ev.value()),
-            InputEvent::ForceFeedback(ev) => {
-                EventSummary::ForceFeedback(ev, ev.kind(), ev.value())
-            }
-            InputEvent::Power(ev) => EventSummary::Power(ev, ev.kind(), ev.value()),
-            InputEvent::ForceFeedbackStatus(ev) => {
-                EventSummary::ForceFeedbackStatus(ev, ev.kind(), ev.value())
-            }
-            InputEvent::UInput(ev) => EventSummary::UInput(ev, ev.kind(), ev.value()),
-            InputEvent::Other(ev) => EventSummary::Other(ev, ev.kind(), ev.value()),
-        }
+        self.into()
     }
 
     /// Create a new InputEvent. Only really useful for emitting events on virtual devices.
@@ -417,7 +362,7 @@ impl InputEvent {
             code,
             value,
         };
-        Self::from(raw)
+        Self(raw)
     }
 
     /// Create a new InputEvent with the time field set to "now" on the system clock.
@@ -433,79 +378,33 @@ impl InputEvent {
             code,
             value,
         };
-        Self::from(raw)
+        Self(raw)
     }
 }
-
-impl From<input_event> for InputEvent {
-    fn from(raw: input_event) -> Self {
-        match EventType(raw.type_) {
-            EventType::SYNCHRONIZATION => {
-                InputEvent::Synchronization(SynchronizationEvent::from(raw))
-            }
-            EventType::KEY => InputEvent::Key(KeyEvent::from(raw)),
-            EventType::RELATIVE => InputEvent::RelativeAxis(RelativeAxisEvent::from(raw)),
-            EventType::ABSOLUTE => InputEvent::AbsoluteAxis(AbsoluteAxisEvent::from(raw)),
-            EventType::MISC => InputEvent::Misc(MiscEvent::from(raw)),
-            EventType::SWITCH => InputEvent::Switch(SwitchEvent::from(raw)),
-            EventType::LED => InputEvent::Led(LedEvent::from(raw)),
-            EventType::SOUND => InputEvent::Sound(SoundEvent::from(raw)),
-            EventType::FORCEFEEDBACK => InputEvent::ForceFeedback(FFEvent::from(raw)),
-            EventType::FORCEFEEDBACKSTATUS => {
-                InputEvent::ForceFeedbackStatus(FFStatusEvent::from(raw))
-            }
-            EventType::UINPUT => InputEvent::UInput(UInputEvent::from(raw)),
-            _ => InputEvent::Other(OtherEvent(raw)),
-        }
-    }
-}
-
-macro_rules! impl_from_type {
-    ($type:ty, $variant:path) => {
-        impl From<$type> for InputEvent {
-            fn from(value: $type) -> Self {
-                $variant(value)
-            }
-        }
-    };
-}
-impl_from_type!(SynchronizationEvent, InputEvent::Synchronization);
-impl_from_type!(KeyEvent, InputEvent::Key);
-impl_from_type!(RelativeAxisEvent, InputEvent::RelativeAxis);
-impl_from_type!(AbsoluteAxisEvent, InputEvent::AbsoluteAxis);
-impl_from_type!(MiscEvent, InputEvent::Misc);
-impl_from_type!(SwitchEvent, InputEvent::Switch);
-impl_from_type!(LedEvent, InputEvent::Led);
-impl_from_type!(SoundEvent, InputEvent::Sound);
-impl_from_type!(FFEvent, InputEvent::ForceFeedback);
-impl_from_type!(FFStatusEvent, InputEvent::ForceFeedbackStatus);
-impl_from_type!(UInputEvent, InputEvent::UInput);
-impl_from_type!(OtherEvent, InputEvent::Other);
 
 impl EventData for InputEvent {
     fn code(&self) -> u16 {
-        call_at_each_variant!(self, code)
+        self.0.code
     }
     fn event_type(&self) -> u16 {
-        call_at_each_variant!(self, event_type)
+        self.0.type_
     }
     fn timestamp(&self) -> SystemTime {
-        call_at_each_variant!(self, timestamp)
+       timeval_to_systime(&self.0.time)
     }
     fn value(&self) -> i32 {
-        call_at_each_variant!(self, value)
-    }
-}
-
-impl AsRef<input_event> for InputEvent {
-    fn as_ref(&self) -> &input_event {
-        call_at_each_variant!(self, as_ref)
+        self.0.value
     }
 }
 
 impl fmt::Debug for InputEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        call_at_each_variant!(self, fmt, f)
+        f.debug_struct("InputEvent")
+            .field("time", &self.timestamp())
+            .field("type", &self.event_type())
+            .field("code", &self.code())
+            .field("value", &self.value())
+            .finish()
     }
 }
 
