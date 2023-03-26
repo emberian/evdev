@@ -2,7 +2,7 @@ use std::fmt;
 use std::time::SystemTime;
 
 use crate::compat::input_event;
-use crate::InputEvent;
+use crate::{InputEvent, EventSummary};
 use crate::constants::{
     AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
     RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
@@ -140,8 +140,8 @@ macro_rules! input_event_newtype {
                 };
                 Self::from_raw(raw)
             }
-            pub fn destructure(self) -> ($name, $kind, i32) {
-                (self, $kind(self.code()), self.value())
+            pub fn destructure(&self) -> ($kind, i32) {
+                ($kind(self.code()), self.value())
             }
             // must be kept internal
             fn from_raw(raw: input_event) -> Self {
@@ -171,29 +171,49 @@ macro_rules! input_event_newtype {
         }
         input_event_newtype!($name);
     };
+    ($name:ty, $evdev_type:path, $kind:path, $summary:path) => {
+        impl From<$name> for EventSummary{
+            fn from(event: $name) -> EventSummary{
+                let (kind, value) =  event.destructure();
+                $summary(event, kind, value)
+            }
+        }
+
+        input_event_newtype!($name, $evdev_type, $kind);
+    };
 }
 input_event_newtype!(
     SynchronizationEvent,
     EventType::SYNCHRONIZATION,
-    SynchronizationType
+    SynchronizationType,
+    EventSummary::Synchronization
 );
-input_event_newtype!(KeyEvent, EventType::KEY, KeyType);
-input_event_newtype!(RelativeAxisEvent, EventType::RELATIVE, RelativeAxisType);
-input_event_newtype!(AbsoluteAxisEvent, EventType::ABSOLUTE, AbsoluteAxisType);
-input_event_newtype!(MiscEvent, EventType::MISC, MiscType);
-input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType);
-input_event_newtype!(LedEvent, EventType::LED, LedType);
-input_event_newtype!(SoundEvent, EventType::SOUND, SoundType);
-input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType);
-input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFEffectType);
-input_event_newtype!(PowerEvent, EventType::POWER, PowerType);
-input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType);
-input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType);
+input_event_newtype!(KeyEvent, EventType::KEY, KeyType, EventSummary::Key);
+input_event_newtype!(RelativeAxisEvent, EventType::RELATIVE, RelativeAxisType, EventSummary::RelativeAxis);
+input_event_newtype!(AbsoluteAxisEvent, EventType::ABSOLUTE, AbsoluteAxisType, EventSummary::AbsoluteAxis);
+input_event_newtype!(MiscEvent, EventType::MISC, MiscType, EventSummary::Misc);
+input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType, EventSummary::Switch);
+input_event_newtype!(LedEvent, EventType::LED, LedType, EventSummary::Led);
+input_event_newtype!(SoundEvent, EventType::SOUND, SoundType, EventSummary::Sound);
+input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType, EventSummary::Repeat);
+input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFEffectType, EventSummary::ForceFeedback);
+input_event_newtype!(PowerEvent, EventType::POWER, PowerType, EventSummary::Power);
+input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType, EventSummary::ForceFeedbackStatus);
+input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType, EventSummary::UInput);
 input_event_newtype!(OtherEvent);
 
 impl OtherEvent {
     pub fn kind(&self) -> OtherType {
         OtherType(self.event_type(), self.code())
+    }
+    pub fn destructure(&self)->(OtherType, i32){
+        (self.kind(), self.value())
+    }
+}
+impl From<OtherEvent> for EventSummary {
+    fn from(event: OtherEvent) -> Self {
+        let (kind, value) = event.destructure();
+        EventSummary::Other(event, kind, value)
     }
 }
 impl fmt::Debug for OtherEvent {
