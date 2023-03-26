@@ -105,6 +105,17 @@ macro_rules! input_event_newtype {
                 &self.0.as_ref()
             }
         }
+        impl AsRef<InputEvent> for $name {
+            fn as_ref(&self) -> &InputEvent {
+                &self.0
+            }
+        }
+        // never implement the other direction!
+        impl From<$name> for InputEvent{
+            fn from(event: $name) -> Self { 
+                event.0
+            } 
+        }
     };
     ($name:ty, $evdev_type:path, $kind:path) => {
         impl $name {
