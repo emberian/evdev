@@ -3,13 +3,13 @@ use std::ops::Deref;
 use std::time::SystemTime;
 
 use crate::compat::input_event;
-use crate::{InputEvent, EventSummary};
 use crate::constants::{
     AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
     RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
 };
 use crate::scancodes::KeyType;
-use crate::{systime_to_timeval, EventData, EventType, FFEffectType};
+use crate::{systime_to_timeval, EventType, FFEffectType};
+use crate::{EventSummary, InputEvent};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
@@ -83,24 +83,6 @@ pub struct OtherEvent(pub(crate) InputEvent);
 
 macro_rules! input_event_newtype {
     ($name:ty) => {
-        impl EventData for $name {
-            #[inline]
-            fn timestamp(&self) -> SystemTime {
-                self.0.timestamp()
-            }
-            #[inline]
-            fn event_type(&self) -> u16 {
-                self.0.event_type()
-            }
-            #[inline]
-            fn code(&self) -> u16 {
-                self.0.code()
-            }
-            #[inline]
-            fn value(&self) -> i32 {
-                self.0.value()
-            }
-        }
         impl AsRef<input_event> for $name {
             fn as_ref(&self) -> &input_event {
                 &self.0.as_ref()
@@ -112,12 +94,12 @@ macro_rules! input_event_newtype {
             }
         }
         // never implement the other direction!
-        impl From<$name> for InputEvent{
-            fn from(event: $name) -> Self { 
+        impl From<$name> for InputEvent {
+            fn from(event: $name) -> Self {
                 event.0
-            } 
+            }
         }
-        impl Deref for $name{
+        impl Deref for $name {
             type Target = InputEvent;
             fn deref<'a>(&'a self) -> &'a InputEvent {
                 &self.0
@@ -158,8 +140,8 @@ macro_rules! input_event_newtype {
                 }
             }
             // must be kept internal
-            pub(crate) fn from_event(event: InputEvent) -> Self{
-                match EventType(event.event_type()){
+            pub(crate) fn from_event(event: InputEvent) -> Self {
+                match event.event_type() {
                     $evdev_type => Self(event),
                     _ => unreachable!(),
                 }
@@ -179,9 +161,9 @@ macro_rules! input_event_newtype {
         input_event_newtype!($name);
     };
     ($name:ty, $evdev_type:path, $kind:path, $summary:path) => {
-        impl From<$name> for EventSummary{
-            fn from(event: $name) -> EventSummary{
-                let (kind, value) =  event.destructure();
+        impl From<$name> for EventSummary {
+            fn from(event: $name) -> EventSummary {
+                let (kind, value) = event.destructure();
                 $summary(event, kind, value)
             }
         }
@@ -196,24 +178,59 @@ input_event_newtype!(
     EventSummary::Synchronization
 );
 input_event_newtype!(KeyEvent, EventType::KEY, KeyType, EventSummary::Key);
-input_event_newtype!(RelativeAxisEvent, EventType::RELATIVE, RelativeAxisType, EventSummary::RelativeAxis);
-input_event_newtype!(AbsoluteAxisEvent, EventType::ABSOLUTE, AbsoluteAxisType, EventSummary::AbsoluteAxis);
+input_event_newtype!(
+    RelativeAxisEvent,
+    EventType::RELATIVE,
+    RelativeAxisType,
+    EventSummary::RelativeAxis
+);
+input_event_newtype!(
+    AbsoluteAxisEvent,
+    EventType::ABSOLUTE,
+    AbsoluteAxisType,
+    EventSummary::AbsoluteAxis
+);
 input_event_newtype!(MiscEvent, EventType::MISC, MiscType, EventSummary::Misc);
-input_event_newtype!(SwitchEvent, EventType::SWITCH, SwitchType, EventSummary::Switch);
+input_event_newtype!(
+    SwitchEvent,
+    EventType::SWITCH,
+    SwitchType,
+    EventSummary::Switch
+);
 input_event_newtype!(LedEvent, EventType::LED, LedType, EventSummary::Led);
 input_event_newtype!(SoundEvent, EventType::SOUND, SoundType, EventSummary::Sound);
-input_event_newtype!(RepeatEvent, EventType::REPEAT, RepeatType, EventSummary::Repeat);
-input_event_newtype!(FFEvent, EventType::FORCEFEEDBACK, FFEffectType, EventSummary::ForceFeedback);
+input_event_newtype!(
+    RepeatEvent,
+    EventType::REPEAT,
+    RepeatType,
+    EventSummary::Repeat
+);
+input_event_newtype!(
+    FFEvent,
+    EventType::FORCEFEEDBACK,
+    FFEffectType,
+    EventSummary::ForceFeedback
+);
 input_event_newtype!(PowerEvent, EventType::POWER, PowerType, EventSummary::Power);
-input_event_newtype!(FFStatusEvent, EventType::FORCEFEEDBACKSTATUS, FFStatusType, EventSummary::ForceFeedbackStatus);
-input_event_newtype!(UInputEvent, EventType::UINPUT, UInputType, EventSummary::UInput);
+input_event_newtype!(
+    FFStatusEvent,
+    EventType::FORCEFEEDBACKSTATUS,
+    FFStatusType,
+    EventSummary::ForceFeedbackStatus
+);
+input_event_newtype!(
+    UInputEvent,
+    EventType::UINPUT,
+    UInputType,
+    EventSummary::UInput
+);
 input_event_newtype!(OtherEvent);
 
 impl OtherEvent {
     pub fn kind(&self) -> OtherType {
-        OtherType(self.event_type(), self.code())
+        OtherType(self.event_type().0, self.code())
     }
-    pub fn destructure(&self)->(OtherType, i32){
+    pub fn destructure(&self) -> (OtherType, i32) {
         (self.kind(), self.value())
     }
 }

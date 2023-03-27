@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use evdev::{
-    uinput::VirtualDeviceBuilder, AttributeSet, EventData, EventType, InputEvent, KeyType,
+    uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyType,
 };
 
 #[tokio::test]

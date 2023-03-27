@@ -8,8 +8,8 @@ use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
 use crate::constants::*;
 use crate::ff::*;
 use crate::{
-    sys, AbsInfo, AttributeSet, AttributeSetRef, EventData, FFEffectType, FFEvent, InputEvent,
-    InputId, KeyType,
+    sys, AbsInfo, AttributeSet, AttributeSetRef, FFEffectType, FFEvent, InputEvent, InputId,
+    KeyType,
 };
 
 fn ioctl_get_cstring(

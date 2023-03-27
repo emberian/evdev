@@ -6,7 +6,7 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, Error, EventData, FFEffectType, InputEvent, KeyType, MiscType, PropType,
+    sys, AttributeSetRef, Error, FFEffectType, InputEvent, KeyType, MiscType, PropType,
     RelativeAxisType, SwitchType, SynchronizationEvent, UInputEvent, UInputType, UinputAbsSetup,
 };
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};

@@ -4,8 +4,7 @@ use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{
-    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventData, EventSummary, InputEvent,
-    InputId, KeyType,
+    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyType,
 };
 
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};

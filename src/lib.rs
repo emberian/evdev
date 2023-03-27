@@ -209,49 +209,21 @@ pub enum EventSummary {
 
 impl From<InputEvent> for EventSummary {
     fn from(value: InputEvent) -> Self {
-        match EventType(value.event_type()) {
-            EventType::SYNCHRONIZATION => {
-                SynchronizationEvent::from_event(value).into()
-            }
-            EventType::KEY => {
-                KeyEvent::from_event(value).into()
-            }
-            EventType::RELATIVE => {
-                RelativeAxisEvent::from_event(value).into()
-            }
-            EventType::ABSOLUTE => {
-                AbsoluteAxisEvent::from_event(value).into()
-            }
-            EventType::MISC => {
-                MiscEvent::from_event(value).into()
-            }
-            EventType::SWITCH => {
-                SwitchEvent::from_event(value).into()
-            }
-            EventType::LED => {
-                LedEvent::from_event(value).into()
-            }
-            EventType::SOUND => {
-                SoundEvent::from_event(value).into()
-            }
-            EventType::REPEAT => {
-                RepeatEvent::from_event(value).into()
-            }
-            EventType::FORCEFEEDBACK => {
-                FFEvent::from_event(value).into()
-            }
-            EventType::POWER => {
-                PowerEvent::from_event(value).into()
-            }
-            EventType::FORCEFEEDBACKSTATUS => {
-                FFStatusEvent::from_event(value).into()
-            }
-            EventType::UINPUT => {
-                UInputEvent::from_event(value).into()
-            }
-            _ => {
-                OtherEvent(value).into()
-            }
+        match value.event_type() {
+            EventType::SYNCHRONIZATION => SynchronizationEvent::from_event(value).into(),
+            EventType::KEY => KeyEvent::from_event(value).into(),
+            EventType::RELATIVE => RelativeAxisEvent::from_event(value).into(),
+            EventType::ABSOLUTE => AbsoluteAxisEvent::from_event(value).into(),
+            EventType::MISC => MiscEvent::from_event(value).into(),
+            EventType::SWITCH => SwitchEvent::from_event(value).into(),
+            EventType::LED => LedEvent::from_event(value).into(),
+            EventType::SOUND => SoundEvent::from_event(value).into(),
+            EventType::REPEAT => RepeatEvent::from_event(value).into(),
+            EventType::FORCEFEEDBACK => FFEvent::from_event(value).into(),
+            EventType::POWER => PowerEvent::from_event(value).into(),
+            EventType::FORCEFEEDBACKSTATUS => FFStatusEvent::from_event(value).into(),
+            EventType::UINPUT => UInputEvent::from_event(value).into(),
+            _ => OtherEvent(value).into(),
         }
     }
 }
@@ -346,21 +318,6 @@ impl UinputAbsSetup {
     }
 }
 
-/// The common trait for [`InputEvent`] and its variants in [`event_variants`].
-pub trait EventData: AsRef<input_event> {
-    /// Returns the timestamp associated with the event.
-    fn timestamp(&self) -> SystemTime;
-    /// Returns the "type" field directly from input_event.
-    fn event_type(&self) -> u16;
-    /// Returns the raw "code" field directly from input_event.
-    fn code(&self) -> u16;
-    /// Returns the raw "value" field directly from input_event.
-    ///
-    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
-    /// For axes, the values depend on the hardware and driver implementation.
-    fn value(&self) -> i32;
-}
-
 common_trait_impls!(uinput_abs_setup, UinputAbsSetup);
 
 /// A wrapped `input_event` returned by the input device via the kernel.
@@ -378,6 +335,33 @@ pub struct InputEvent(input_event);
 common_trait_impls!(input_event, InputEvent);
 
 impl InputEvent {
+    /// Returns the timestamp associated with the event.
+    #[inline]
+    pub fn timestamp(&self) -> SystemTime {
+        timeval_to_systime(&self.0.time)
+    }
+
+    /// Returns the type of event this describes, e.g. Key, Switch, etc.
+    #[inline]
+    pub fn event_type(&self) -> EventType {
+        EventType(self.0.type_)
+    }
+
+    /// Returns the raw "code" field directly from input_event.
+    #[inline]
+    pub fn code(&self) -> u16 {
+        self.0.code
+    }
+
+    /// Returns the raw "value" field directly from input_event.
+    ///
+    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
+    /// For axes, the values depend on the hardware and driver implementation.
+    #[inline]
+    pub fn value(&self) -> i32 {
+        self.0.value
+    }
+
     /// A convenience function to destructure the InputEvent into a [`EventSummary`].
     ///
     /// # Example
@@ -421,21 +405,6 @@ impl InputEvent {
             value,
         };
         Self(raw)
-    }
-}
-
-impl EventData for InputEvent {
-    fn code(&self) -> u16 {
-        self.0.code
-    }
-    fn event_type(&self) -> u16 {
-        self.0.type_
-    }
-    fn timestamp(&self) -> SystemTime {
-        timeval_to_systime(&self.0.time)
-    }
-    fn value(&self) -> i32 {
-        self.0.value
     }
 }
 
