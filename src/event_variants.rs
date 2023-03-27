@@ -139,7 +139,10 @@ macro_rules! input_event_newtype {
                 Self::from_raw(raw)
             }
             pub fn destructure(&self) -> ($kind, i32) {
-                ($kind(self.code()), self.value())
+                (self.code(), self.value())
+            }
+            pub fn code(&self) -> $kind {
+                $kind(self.0.code())
             }
             // must be kept internal
             fn from_raw(raw: input_event) -> Self {
@@ -155,15 +158,12 @@ macro_rules! input_event_newtype {
                     _ => unreachable!(),
                 }
             }
-            pub fn kind(&self) -> $kind {
-                $kind(self.code())
-            }
         }
         impl fmt::Debug for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 let mut debug = f.debug_struct(stringify!($name));
                 debug.field("time", &self.timestamp());
-                debug.field("kind", &self.kind());
+                debug.field("code", &self.code());
                 debug.field("value", &self.value()).finish()
             }
         }

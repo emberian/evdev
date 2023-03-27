@@ -294,7 +294,7 @@ impl VirtualDevice {
     /// The returned event allows the user to allocate and set the effect ID as well as access the
     /// effect data.
     pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
-        if event.kind() != UInputType::UI_FF_UPLOAD {
+        if event.code() != UInputType::UI_FF_UPLOAD {
             return Err(Error::InvalidEvent);
         }
 
@@ -316,7 +316,7 @@ impl VirtualDevice {
     /// The returned event allows the user to access the effect ID, such that it can free any
     /// memory used for the given effect ID.
     pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
-        if event.kind() != UInputType::UI_FF_ERASE {
+        if event.code() != UInputType::UI_FF_ERASE {
             return Err(Error::InvalidEvent);
         }
 
