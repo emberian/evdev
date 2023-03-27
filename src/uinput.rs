@@ -233,7 +233,7 @@ impl VirtualDevice {
     }
 
     #[inline]
-    fn write_raw<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
+    fn write_raw(&mut self, events: &[InputEvent]) -> io::Result<()> {
         crate::write_events(self.fd.as_fd(), events)?;
         Ok(())
     }
@@ -281,9 +281,9 @@ impl VirtualDevice {
     /// of a mouse triggers a movement events for the X and Y axes separately in a batch of 2 events.
     ///
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
-    pub fn emit<T: EventData>(&mut self, events: &[T]) -> io::Result<()> {
+    pub fn emit(&mut self, events: &[InputEvent]) -> io::Result<()> {
         self.write_raw(events)?;
-        let syn = SynchronizationEvent::new(crate::SynchronizationType::SYN_REPORT, 0);
+        let syn = *SynchronizationEvent::new(crate::SynchronizationType::SYN_REPORT, 0);
         self.write_raw(&[syn])
     }
 

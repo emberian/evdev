@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Deref;
 use std::time::SystemTime;
 
 use crate::compat::input_event;
@@ -115,6 +116,12 @@ macro_rules! input_event_newtype {
             fn from(event: $name) -> Self { 
                 event.0
             } 
+        }
+        impl Deref for $name{
+            type Target = InputEvent;
+            fn deref<'a>(&'a self) -> &'a InputEvent {
+                &self.0
+            }
         }
     };
     ($name:ty, $evdev_type:path, $kind:path) => {

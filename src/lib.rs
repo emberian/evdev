@@ -522,11 +522,7 @@ fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result
     }
 }
 
-fn write_events<T: EventData>(fd: std::os::fd::BorrowedFd<'_>, events: &[T]) -> nix::Result<()> {
-    let raw: &[input_event] = &events
-        .iter()
-        .map(|e| *e.as_ref())
-        .collect::<Vec<input_event>>();
-    let bytes = unsafe { cast_to_bytes(raw) };
+fn write_events(fd: std::os::fd::BorrowedFd<'_>, events: &[InputEvent]) -> nix::Result<()> {
+    let bytes = unsafe { cast_to_bytes(events) };
     fd_write_all(fd, bytes)
 }
