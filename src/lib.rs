@@ -17,14 +17,21 @@
 //! devices and send events to the virtual devices.
 //! Virtual devices are created in `/sys/devices/virtual/input`.
 //!
-//! Devices emit events, represented by the [`EventData`] trait. Each device supports a few different
-//! kinds of events, specified by the [`EventType`] struct and the [`Device::supported_events()`]
-//! method. The [`InputEvent`] enum implements the `EventData` trait and has a variant for each
-//! `EventType`. Most event types also have a "subtype", e.g. a `KEY` event with a `KEY_ENTER` code.
-//! This type+subtype combo is represented by [`InputEventKind`]/[`InputEvent::kind()`]. The individual
-//! subtypes of a type that a device supports can be retrieved through the `Device::supported_*()`
-//! methods, e.g. [`Device::supported_keys()`]:
+//! # Input Events
 //!
+//! Devices emit events, represented by the [`InputEvent`] struct.
+//! A input event has three main fields: event [type](InputEvent::event_type), [code](InputEvent::code)
+//! and [value](InputEvent::value)
+//!
+//! The kernel documentation specifies different event types, reperesented by the [`EventType`] struct.
+//! Each device can support a subset of those types. See [`Device::supported_events()`].
+//! For each of the known event types there is a new-type wrapper around [`InputEvent`]  
+//! in [`event_variants`] see the mdule documenation for more info about those.
+//!
+//! For most event types the kernel documentation also specifies a set of codes, represented by a new-type
+//! e.g. [`KeyType`]. The individual
+//! codes of a [`EventType`] that a device supports can be retrieved through the `Device::supported_*()`
+//! methods, e.g. [`Device::supported_keys()`]:
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use evdev::{Device, KeyType};
@@ -38,6 +45,8 @@
 //! # Ok(())
 //! # }
 //! ```
+//! A [`InputEvent`] with a type of [`EventType::KEY`] a code of [`KeyType::KEY_ENTER`] and a
+//! value of 1 is emitted when the Enter key is pressed.
 //!
 //! All events (even single events) are sent in batches followed by a synchronization event:
 //! `EV_SYN / SYN_REPORT / 0`.
@@ -49,11 +58,11 @@
 //! well as a function that can be called continuously to provide an iterator over update events
 //! as they arrive.
 //!
-//! # Matching Events
+//! ## Matching Events
 //!
-//! When reading from an input Device it is often useful to check which type/subtype or value
-//! the event has. This library provides the [`InputEventMatcher`] enum which can be used to
-//! match specific events. Calling [`InputEvent::matcher`] will return that enum.
+//! When reading from an input Device it is often useful to check which type/code or value
+//! the event has. This library provides the [`EventSummary`] enum which can be used to
+//! match specific events. Calling [`InputEvent::destructure`] will return that enum.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -62,13 +71,13 @@
 //! loop {
 //!     for event in device.fetch_events().unwrap(){
 //!         match event.matcher(){
-//!             InputEventMatcher::Key(ev, KeyType::KEY_A, 1) => {
+//!             EventSummary::Key(ev, KeyType::KEY_A, 1) => {
 //!                 println!("Key 'a' was pressed, got event: {:?}", ev);
 //!             },
-//!             InputEventMatcher::Key(_, key_type, 0) => {
+//!             EventSummary::Key(_, key_type, 0) => {
 //!                 println!("Key {:?} was released", key_type);
 //!             },
-//!             InputEventMatcher::AbsoluteAxis(_, axis, value) => {
+//!             EventSummary::AbsoluteAxis(_, axis, value) => {
 //!                 println!("The Axis {:?} was moved to {}", axis, value);
 //!             },
 //!             _ => println!("got a different event!")
@@ -133,7 +142,7 @@ mod compat;
 mod constants;
 mod device_state;
 mod error;
-mod event_variants;
+pub mod event_variants;
 mod ff;
 mod inputid;
 pub mod raw_stream;

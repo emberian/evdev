@@ -6,9 +6,7 @@ use std::time::Duration;
 
 use tokio::time::timeout;
 
-use evdev::{
-    uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyType,
-};
+use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyType};
 
 #[tokio::test]
 async fn test_virtual_device_actually_emits() -> Result<(), Box<dyn Error>> {
