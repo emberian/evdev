@@ -60,7 +60,7 @@ Plenty of nice examples of how to use this crate can be found in the
 how to use a certain part of the evdev crate is missing, then feel free to open a
 pull request.
 
-A good introduction is the [evtest.rs](examples/evtest) example (which roughly
+A good introduction is the [evtest.rs](examples/evtest.rs) example (which roughly
 corresponds to the userspace [evtest](https://cgit.freedesktop.org/evtest/)
 tool.
 
