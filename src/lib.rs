@@ -70,7 +70,7 @@
 //! let mut device = Device::open("/dev/input/event0")?;
 //! loop {
 //!     for event in device.fetch_events().unwrap(){
-//!         match event.matcher(){
+//!         match event.destructure(){
 //!             EventSummary::Key(ev, KeyType::KEY_A, 1) => {
 //!                 println!("Key 'a' was pressed, got event: {:?}", ev);
 //!             },
@@ -374,7 +374,7 @@ impl InputEvent {
     /// ```
     /// use evdev::*;
     /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
-    /// match event.matcher() {
+    /// match event.destructure() {
     ///     EventSummary::Key(KeyEvent, KeyType::KEY_A, 1) => (),
     ///     _=> panic!(),
     /// }
