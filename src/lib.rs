@@ -151,9 +151,6 @@ mod sync_stream;
 mod sys;
 pub mod uinput;
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt::{self, Display};
 use std::path::PathBuf;
