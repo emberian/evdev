@@ -13,11 +13,11 @@ use std::time::SystemTime;
 
 use crate::compat::input_event;
 use crate::constants::{
-    AbsoluteAxisType, FFStatusType, LedType, MiscType, OtherType, PowerType, RelativeAxisType,
-    RepeatType, SoundType, SwitchType, SynchronizationType, UInputType,
+    AbsoluteAxisCode, FFStatusCode, LedCode, MiscCode, OtherCode, PowerCode, RelativeAxisCode,
+    RepeatCode, SoundCode, SwitchCode, SynchronizationCode, UInputCode,
 };
-use crate::scancodes::KeyType;
-use crate::{systime_to_timeval, EventType, FFEffectType};
+use crate::scancodes::KeyCode;
+use crate::{systime_to_timeval, EventType, FFEffectCode};
 use crate::{EventSummary, InputEvent};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -183,63 +183,63 @@ macro_rules! input_event_newtype {
 input_event_newtype!(
     SynchronizationEvent,
     EventType::SYNCHRONIZATION,
-    SynchronizationType,
+    SynchronizationCode,
     EventSummary::Synchronization
 );
-input_event_newtype!(KeyEvent, EventType::KEY, KeyType, EventSummary::Key);
+input_event_newtype!(KeyEvent, EventType::KEY, KeyCode, EventSummary::Key);
 input_event_newtype!(
     RelativeAxisEvent,
     EventType::RELATIVE,
-    RelativeAxisType,
+    RelativeAxisCode,
     EventSummary::RelativeAxis
 );
 input_event_newtype!(
     AbsoluteAxisEvent,
     EventType::ABSOLUTE,
-    AbsoluteAxisType,
+    AbsoluteAxisCode,
     EventSummary::AbsoluteAxis
 );
-input_event_newtype!(MiscEvent, EventType::MISC, MiscType, EventSummary::Misc);
+input_event_newtype!(MiscEvent, EventType::MISC, MiscCode, EventSummary::Misc);
 input_event_newtype!(
     SwitchEvent,
     EventType::SWITCH,
-    SwitchType,
+    SwitchCode,
     EventSummary::Switch
 );
-input_event_newtype!(LedEvent, EventType::LED, LedType, EventSummary::Led);
-input_event_newtype!(SoundEvent, EventType::SOUND, SoundType, EventSummary::Sound);
+input_event_newtype!(LedEvent, EventType::LED, LedCode, EventSummary::Led);
+input_event_newtype!(SoundEvent, EventType::SOUND, SoundCode, EventSummary::Sound);
 input_event_newtype!(
     RepeatEvent,
     EventType::REPEAT,
-    RepeatType,
+    RepeatCode,
     EventSummary::Repeat
 );
 input_event_newtype!(
     FFEvent,
     EventType::FORCEFEEDBACK,
-    FFEffectType,
+    FFEffectCode,
     EventSummary::ForceFeedback
 );
-input_event_newtype!(PowerEvent, EventType::POWER, PowerType, EventSummary::Power);
+input_event_newtype!(PowerEvent, EventType::POWER, PowerCode, EventSummary::Power);
 input_event_newtype!(
     FFStatusEvent,
     EventType::FORCEFEEDBACKSTATUS,
-    FFStatusType,
+    FFStatusCode,
     EventSummary::ForceFeedbackStatus
 );
 input_event_newtype!(
     UInputEvent,
     EventType::UINPUT,
-    UInputType,
+    UInputCode,
     EventSummary::UInput
 );
 input_event_newtype!(OtherEvent);
 
 impl OtherEvent {
-    pub fn kind(&self) -> OtherType {
-        OtherType(self.event_type().0, self.code())
+    pub fn kind(&self) -> OtherCode {
+        OtherCode(self.event_type().0, self.code())
     }
-    pub fn destructure(&self) -> (OtherType, i32) {
+    pub fn destructure(&self) -> (OtherCode, i32) {
         (self.kind(), self.value())
     }
 }

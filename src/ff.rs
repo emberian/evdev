@@ -1,6 +1,6 @@
 use crate::attribute_set::EvdevEnum;
 use crate::compat::{ff_condition_effect, ff_envelope, ff_replay, ff_trigger};
-use crate::constants::FFEffectType;
+use crate::constants::FFEffectCode;
 use crate::sys;
 
 /// Describes a generic force feedback effect envelope.
@@ -53,14 +53,14 @@ pub enum FFWaveform {
     SawDown,
 }
 
-impl From<FFWaveform> for FFEffectType {
+impl From<FFWaveform> for FFEffectCode {
     fn from(other: FFWaveform) -> Self {
         match other {
-            FFWaveform::Square => FFEffectType::FF_SQUARE,
-            FFWaveform::Triangle => FFEffectType::FF_TRIANGLE,
-            FFWaveform::Sine => FFEffectType::FF_SINE,
-            FFWaveform::SawUp => FFEffectType::FF_SAW_UP,
-            FFWaveform::SawDown => FFEffectType::FF_SAW_DOWN,
+            FFWaveform::Square => FFEffectCode::FF_SQUARE,
+            FFWaveform::Triangle => FFEffectCode::FF_TRIANGLE,
+            FFWaveform::Sine => FFEffectCode::FF_SINE,
+            FFWaveform::SawUp => FFEffectCode::FF_SAW_UP,
+            FFWaveform::SawDown => FFEffectCode::FF_SAW_DOWN,
         }
     }
 }
@@ -157,17 +157,17 @@ pub enum FFEffectKind {
     },
 }
 
-impl From<FFEffectKind> for FFEffectType {
+impl From<FFEffectKind> for FFEffectCode {
     fn from(other: FFEffectKind) -> Self {
         match other {
-            FFEffectKind::Damper => FFEffectType::FF_DAMPER,
-            FFEffectKind::Inertia => FFEffectType::FF_INERTIA,
-            FFEffectKind::Constant { .. } => FFEffectType::FF_CONSTANT,
-            FFEffectKind::Ramp { .. } => FFEffectType::FF_RAMP,
-            FFEffectKind::Periodic { .. } => FFEffectType::FF_PERIODIC,
-            FFEffectKind::Spring { .. } => FFEffectType::FF_SPRING,
-            FFEffectKind::Friction { .. } => FFEffectType::FF_FRICTION,
-            FFEffectKind::Rumble { .. } => FFEffectType::FF_RUMBLE,
+            FFEffectKind::Damper => FFEffectCode::FF_DAMPER,
+            FFEffectKind::Inertia => FFEffectCode::FF_INERTIA,
+            FFEffectKind::Constant { .. } => FFEffectCode::FF_CONSTANT,
+            FFEffectKind::Ramp { .. } => FFEffectCode::FF_RAMP,
+            FFEffectKind::Periodic { .. } => FFEffectCode::FF_PERIODIC,
+            FFEffectKind::Spring { .. } => FFEffectCode::FF_SPRING,
+            FFEffectKind::Friction { .. } => FFEffectCode::FF_FRICTION,
+            FFEffectKind::Rumble { .. } => FFEffectCode::FF_RUMBLE,
         }
     }
 }
@@ -240,10 +240,10 @@ pub struct FFEffectData {
 
 impl From<sys::ff_effect> for FFEffectData {
     fn from(value: sys::ff_effect) -> Self {
-        let kind = match FFEffectType::from_index(value.type_ as usize) {
-            FFEffectType::FF_DAMPER => FFEffectKind::Damper,
-            FFEffectType::FF_INERTIA => FFEffectKind::Inertia,
-            FFEffectType::FF_CONSTANT => {
+        let kind = match FFEffectCode::from_index(value.type_ as usize) {
+            FFEffectCode::FF_DAMPER => FFEffectKind::Damper,
+            FFEffectCode::FF_INERTIA => FFEffectKind::Inertia,
+            FFEffectCode::FF_CONSTANT => {
                 let constant = unsafe { value.u.constant };
 
                 FFEffectKind::Constant {
@@ -251,7 +251,7 @@ impl From<sys::ff_effect> for FFEffectData {
                     envelope: constant.envelope.into(),
                 }
             }
-            FFEffectType::FF_RAMP => {
+            FFEffectCode::FF_RAMP => {
                 let ramp = unsafe { value.u.ramp };
 
                 FFEffectKind::Ramp {
@@ -260,16 +260,16 @@ impl From<sys::ff_effect> for FFEffectData {
                     envelope: ramp.envelope.into(),
                 }
             }
-            FFEffectType::FF_PERIODIC => {
+            FFEffectCode::FF_PERIODIC => {
                 let periodic = unsafe { value.u.periodic };
 
                 FFEffectKind::Periodic {
-                    waveform: match FFEffectType::from_index(periodic.waveform as usize) {
-                        FFEffectType::FF_SQUARE => FFWaveform::Square,
-                        FFEffectType::FF_TRIANGLE => FFWaveform::Triangle,
-                        FFEffectType::FF_SINE => FFWaveform::Sine,
-                        FFEffectType::FF_SAW_UP => FFWaveform::SawUp,
-                        FFEffectType::FF_SAW_DOWN => FFWaveform::SawDown,
+                    waveform: match FFEffectCode::from_index(periodic.waveform as usize) {
+                        FFEffectCode::FF_SQUARE => FFWaveform::Square,
+                        FFEffectCode::FF_TRIANGLE => FFWaveform::Triangle,
+                        FFEffectCode::FF_SINE => FFWaveform::Sine,
+                        FFEffectCode::FF_SAW_UP => FFWaveform::SawUp,
+                        FFEffectCode::FF_SAW_DOWN => FFWaveform::SawDown,
                         _ => unreachable!(),
                     },
                     period: periodic.period,
@@ -279,21 +279,21 @@ impl From<sys::ff_effect> for FFEffectData {
                     envelope: periodic.envelope.into(),
                 }
             }
-            FFEffectType::FF_SPRING => {
+            FFEffectCode::FF_SPRING => {
                 let condition = unsafe { value.u.condition };
 
                 FFEffectKind::Spring {
                     condition: [condition[0].into(), condition[1].into()],
                 }
             }
-            FFEffectType::FF_FRICTION => {
+            FFEffectCode::FF_FRICTION => {
                 let condition = unsafe { value.u.condition };
 
                 FFEffectKind::Friction {
                     condition: [condition[0].into(), condition[1].into()],
                 }
             }
-            FFEffectType::FF_RUMBLE => {
+            FFEffectCode::FF_RUMBLE => {
                 let rumble = unsafe { value.u.rumble };
 
                 FFEffectKind::Rumble {
@@ -317,7 +317,7 @@ impl From<FFEffectData> for sys::ff_effect {
     fn from(other: FFEffectData) -> Self {
         let mut effect: sys::ff_effect = unsafe { std::mem::zeroed() };
 
-        let type_: FFEffectType = other.kind.into();
+        let type_: FFEffectCode = other.kind.into();
         effect.type_ = type_.0;
         effect.direction = other.direction;
         effect.trigger = other.trigger.into();
@@ -345,7 +345,7 @@ impl From<FFEffectData> for sys::ff_effect {
                 phase,
                 envelope,
             } => {
-                let waveform: FFEffectType = waveform.into();
+                let waveform: FFEffectCode = waveform.into();
                 effect.u.periodic.waveform = waveform.0;
                 effect.u.periodic.period = period;
                 effect.u.periodic.magnitude = magnitude;

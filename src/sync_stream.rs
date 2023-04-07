@@ -4,7 +4,7 @@ use crate::device_state::DeviceState;
 use crate::ff::*;
 use crate::raw_stream::{FFEffect, RawDevice};
 use crate::{
-    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyType,
+    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyCode,
 };
 
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
@@ -101,7 +101,7 @@ impl Device {
     }
 
     /// Retrieve the scancode for a keycode, if any
-    pub fn get_scancode_by_keycode(&self, keycode: KeyType) -> io::Result<Vec<u8>> {
+    pub fn get_scancode_by_keycode(&self, keycode: KeyCode) -> io::Result<Vec<u8>> {
         self.raw.get_scancode_by_keycode(keycode.code() as u32)
     }
 
@@ -111,17 +111,17 @@ impl Device {
     }
 
     /// Update a scancode. The return value is the previous keycode
-    pub fn update_scancode(&self, keycode: KeyType, scancode: &[u8]) -> io::Result<KeyType> {
+    pub fn update_scancode(&self, keycode: KeyCode, scancode: &[u8]) -> io::Result<KeyCode> {
         self.raw
             .update_scancode(keycode.code() as u32, scancode)
-            .map(|keycode| KeyType::new(keycode as u16))
+            .map(|keycode| KeyCode::new(keycode as u16))
     }
 
     /// Update a scancode by index. The return value is the previous keycode
     pub fn update_scancode_by_index(
         &self,
         index: u16,
-        keycode: KeyType,
+        keycode: KeyCode,
         scancode: &[u8],
     ) -> io::Result<u32> {
         self.raw
@@ -155,15 +155,15 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, KeyType};
+    /// use evdev::{Device, KeyCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does this device have an ENTER key?
-    /// let supported = device.supported_keys().map_or(false, |keys| keys.contains(KeyType::KEY_ENTER));
+    /// let supported = device.supported_keys().map_or(false, |keys| keys.contains(KeyCode::KEY_ENTER));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_keys(&self) -> Option<&AttributeSetRef<KeyType>> {
+    pub fn supported_keys(&self) -> Option<&AttributeSetRef<KeyCode>> {
         self.raw.supported_keys()
     }
 
@@ -175,17 +175,17 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, RelativeAxisType};
+    /// use evdev::{Device, RelativeAxisCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have a scroll wheel?
     /// let supported = device
     ///     .supported_relative_axes()
-    ///     .map_or(false, |axes| axes.contains(RelativeAxisType::REL_WHEEL));
+    ///     .map_or(false, |axes| axes.contains(RelativeAxisCode::REL_WHEEL));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisCode>> {
         self.raw.supported_relative_axes()
     }
 
@@ -197,17 +197,17 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, AbsoluteAxisType};
+    /// use evdev::{Device, AbsoluteAxisCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have an absolute X axis?
     /// let supported = device
     ///     .supported_absolute_axes()
-    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisType::ABS_X));
+    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisCode::ABS_X));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisCode>> {
         self.raw.supported_absolute_axes()
     }
 
@@ -221,17 +221,17 @@ impl Device {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, SwitchType};
+    /// use evdev::{Device, SwitchCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device report a laptop lid switch?
     /// let supported = device
     ///     .supported_switches()
-    ///     .map_or(false, |axes| axes.contains(SwitchType::SW_LID));
+    ///     .map_or(false, |axes| axes.contains(SwitchCode::SW_LID));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchType>> {
+    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchCode>> {
         self.raw.supported_switches()
     }
 
@@ -239,19 +239,19 @@ impl Device {
     ///
     /// Most commonly these are state indicator lights for things like Scroll Lock, but they
     /// can also be found in cameras and other devices.
-    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedType>> {
+    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedCode>> {
         self.raw.supported_leds()
     }
 
     /// Returns a set of supported "miscellaneous" capabilities.
     ///
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
-    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
+    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscCode>> {
         self.raw.misc_properties()
     }
 
     /// Returns the set of supported force feedback effects supported by a device.
-    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectCode>> {
         self.raw.supported_ff()
     }
 
@@ -264,34 +264,34 @@ impl Device {
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
     /// speaker, for instance.
-    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundType>> {
+    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundCode>> {
         self.raw.supported_sounds()
     }
 
     /// Retrieve the current keypress state directly via kernel syscall.
-    pub fn get_key_state(&self) -> io::Result<AttributeSet<KeyType>> {
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<KeyCode>> {
         self.raw.get_key_state()
     }
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
-    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisCode::COUNT]> {
         self.raw.get_abs_state()
     }
 
     /// Get the AbsInfo for each supported AbsoluteAxis
     pub fn get_absinfo(
         &self,
-    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisCode, AbsInfo)> + '_> {
         self.raw.get_absinfo()
     }
 
     /// Retrieve the current switch state directly via kernel syscall.
-    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchCode>> {
         self.raw.get_switch_state()
     }
 
     /// Retrieve the current LED state directly via kernel syscall.
-    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedType>> {
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedCode>> {
         self.raw.get_led_state()
     }
 
@@ -320,7 +320,7 @@ impl Device {
             self.sync_state(now)?;
             Some(SyncState::KeyTypes {
                 time: crate::systime_to_timeval(&now),
-                start: KeyType::new(0),
+                start: KeyCode::new(0),
             })
         } else {
             None
@@ -420,19 +420,19 @@ pub struct FetchEventsSynced<'a> {
 enum SyncState {
     KeyTypes {
         time: libc::timeval,
-        start: KeyType,
+        start: KeyCode,
     },
     Absolutes {
         time: libc::timeval,
-        start: AbsoluteAxisType,
+        start: AbsoluteAxisCode,
     },
     Switches {
         time: libc::timeval,
-        start: SwitchType,
+        start: SwitchCode,
     },
     Leds {
         time: libc::timeval,
-        start: LedType,
+        start: LedCode,
     },
 }
 
@@ -473,24 +473,24 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
             SyncState::KeyTypes { time, start } => {
                 try_compensate!(
                     time,
-                    start: KeyType,
+                    start: KeyCode,
                     KEY,
                     KeyTypes,
                     supported_keys,
-                    &AttributeSetRef<KeyType>,
+                    &AttributeSetRef<KeyCode>,
                     |st| st.key_vals().unwrap(),
                     |vals, key| vals.contains(key)
                 );
                 *sync = SyncState::Absolutes {
                     time: *time,
-                    start: AbsoluteAxisType(0),
+                    start: AbsoluteAxisCode(0),
                 };
                 continue;
             }
             SyncState::Absolutes { time, start } => {
                 try_compensate!(
                     time,
-                    start: AbsoluteAxisType,
+                    start: AbsoluteAxisCode,
                     ABSOLUTE,
                     Absolutes,
                     supported_absolute_axes,
@@ -500,42 +500,42 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
                 );
                 *sync = SyncState::Switches {
                     time: *time,
-                    start: SwitchType(0),
+                    start: SwitchCode(0),
                 };
                 continue;
             }
             SyncState::Switches { time, start } => {
                 try_compensate!(
                     time,
-                    start: SwitchType,
+                    start: SwitchCode,
                     SWITCH,
                     Switches,
                     supported_switches,
-                    &AttributeSetRef<SwitchType>,
+                    &AttributeSetRef<SwitchCode>,
                     |st| st.switch_vals().unwrap(),
                     |vals, sw| vals.contains(sw)
                 );
                 *sync = SyncState::Leds {
                     time: *time,
-                    start: LedType(0),
+                    start: LedCode(0),
                 };
                 continue;
             }
             SyncState::Leds { time, start } => {
                 try_compensate!(
                     time,
-                    start: LedType,
+                    start: LedCode,
                     LED,
                     Leds,
                     supported_leds,
-                    &AttributeSetRef<LedType>,
+                    &AttributeSetRef<LedCode>,
                     |st| st.led_vals().unwrap(),
                     |vals, led| vals.contains(led)
                 );
                 let ev = InputEvent::from(input_event {
                     time: *time,
                     type_: EventType::SYNCHRONIZATION.0,
-                    code: SynchronizationType::SYN_REPORT.0,
+                    code: SynchronizationCode::SYN_REPORT.0,
                     value: 0,
                 });
                 *state = None;
@@ -598,10 +598,10 @@ fn sync_events(
         for (i, ev) in event_buf.iter().enumerate().skip(block_start) {
             let ev = InputEvent::from(*ev);
             match ev.destructure() {
-                EventSummary::Synchronization(_, SynchronizationType::SYN_DROPPED, _) => {
+                EventSummary::Synchronization(_, SynchronizationCode::SYN_DROPPED, _) => {
                     block_dropped = true;
                 }
-                EventSummary::Synchronization(_, SynchronizationType::SYN_REPORT, _) => {
+                EventSummary::Synchronization(_, SynchronizationCode::SYN_REPORT, _) => {
                     consumed_to = Some(i + 1);
                     if block_dropped {
                         *range = event_buf.len()..event_buf.len();
@@ -877,17 +877,17 @@ mod tests {
     const KEY4: input_event = input_event {
         time,
         type_: EventType::KEY.0,
-        code: KeyType::KEY_4.0,
+        code: KeyCode::KEY_4.0,
         value: 1,
     };
     const REPORT: input_event = input_event {
         time,
         type_: EventType::SYNCHRONIZATION.0,
-        code: SynchronizationType::SYN_REPORT.0,
+        code: SynchronizationCode::SYN_REPORT.0,
         value: 0,
     };
     const DROPPED: input_event = input_event {
-        code: SynchronizationType::SYN_DROPPED.0,
+        code: SynchronizationCode::SYN_DROPPED.0,
         ..REPORT
     };
 

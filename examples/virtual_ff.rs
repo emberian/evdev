@@ -1,15 +1,15 @@
 // Create a virtual force feedback device, just while this is running.
 
 use evdev::{
-    uinput::VirtualDeviceBuilder, AttributeSet, Error, EventSummary, FFEffectType, FFStatusType,
-    InputEvent, UInputType,
+    uinput::VirtualDeviceBuilder, AttributeSet, Error, EventSummary, FFEffectCode, FFStatusCode,
+    InputEvent, UInputCode,
 };
 use std::collections::BTreeSet;
 
 fn main() -> Result<(), Error> {
     let mut device = VirtualDeviceBuilder::new()?
         .name("Fake Force Feedback")
-        .with_ff(&AttributeSet::from_iter([FFEffectType::FF_RUMBLE]))?
+        .with_ff(&AttributeSet::from_iter([FFEffectCode::FF_RUMBLE]))?
         .with_ff_effects_max(16)
         .build()?;
 
@@ -24,12 +24,12 @@ fn main() -> Result<(), Error> {
     loop {
         let events: Vec<InputEvent> = device.fetch_events()?.collect();
 
-        const STOPPED: i32 = FFStatusType::FF_STATUS_STOPPED.0 as i32;
-        const PLAYING: i32 = FFStatusType::FF_STATUS_PLAYING.0 as i32;
+        const STOPPED: i32 = FFStatusCode::FF_STATUS_STOPPED.0 as i32;
+        const PLAYING: i32 = FFStatusCode::FF_STATUS_PLAYING.0 as i32;
 
         for event in events {
             match event.destructure() {
-                EventSummary::UInput(event, UInputType::UI_FF_UPLOAD, ..) => {
+                EventSummary::UInput(event, UInputCode::UI_FF_UPLOAD, ..) => {
                     let mut event = device.process_ff_upload(event)?;
                     let id = ids.iter().next().copied();
                     match id {
@@ -44,7 +44,7 @@ fn main() -> Result<(), Error> {
                     }
                     println!("upload effect {:?}", event.effect());
                 }
-                EventSummary::UInput(event, UInputType::UI_FF_ERASE, ..) => {
+                EventSummary::UInput(event, UInputCode::UI_FF_ERASE, ..) => {
                     let event = device.process_ff_erase(event)?;
                     ids.insert(event.effect_id() as u16);
                     println!("erase effect ID = {}", event.effect_id());

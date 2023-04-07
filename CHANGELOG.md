@@ -13,10 +13,11 @@
 
 ### Changed
 - Consistent naming and structure of all new-types for event-codes
+  - Some of them where previously named `...Type` now they are all named `...Code`
   - Rename `InputEventKind` to `EventSummary`
   - Created missing `EventSummary` variants. I know some of them are kind of unused but it is less confusing if they are all there and look the same.
   - Each variant of the `EventSummary` enum now has the structure `Variant(...Event, ...Type, value)`
-  - Renamed `Key` struct (the one with all the Key constants) to `KeyType` to keep the naming consistent!
+  - Renamed `Key` struct (the one with all the Key constants) to `KeyCode` to keep the naming consistent!
 - Rename `InputEvent::kind` to `InputEvent::destructure` this now returns a `EventSummary`
 - `InputEvent::new` no longer takes the `EventType` but `u16` as first argument. If the `EventType` is known we can directly construct the correct variant.
 - Ensure the unsafe code still does what we expect.

@@ -29,15 +29,14 @@
 //! in [`event_variants`] see the module documenation for more info about those.
 //!
 //! For most event types the kernel documentation also specifies a set of codes, represented by a new-type
-//! e.g. [`KeyType`]. The individual
-//! codes of a [`EventType`] that a device supports can be retrieved through the `Device::supported_*()`
-//! methods, e.g. [`Device::supported_keys()`]:
+//! e.g. [`KeyCode`]. The individual codes of a [`EventType`] that a device supports can be retrieved
+//! through the `Device::supported_*()` methods, e.g. [`Device::supported_keys()`]:
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use evdev::{Device, KeyType};
+//! use evdev::{Device, KeyCode};
 //! let device = Device::open("/dev/input/event0")?;
 //! // check if the device has an ENTER key
-//! if device.supported_keys().map_or(false, |keys| keys.contains(KeyType::KEY_ENTER)) {
+//! if device.supported_keys().map_or(false, |keys| keys.contains(KeyCode::KEY_ENTER)) {
 //!     println!("are you prepared to ENTER the world of evdev?");
 //! } else {
 //!     println!(":(");
@@ -45,7 +44,7 @@
 //! # Ok(())
 //! # }
 //! ```
-//! A [`InputEvent`] with a type of [`EventType::KEY`] a code of [`KeyType::KEY_ENTER`] and a
+//! A [`InputEvent`] with a type of [`EventType::KEY`] a code of [`KeyCode::KEY_ENTER`] and a
 //! value of 1 is emitted when the Enter key is pressed.
 //!
 //! All events (even single events) are sent in batches followed by a synchronization event:
@@ -71,7 +70,7 @@
 //! loop {
 //!     for event in device.fetch_events().unwrap(){
 //!         match event.destructure(){
-//!             EventSummary::Key(ev, KeyType::KEY_A, 1) => {
+//!             EventSummary::Key(ev, KeyCode::KEY_A, 1) => {
 //!                 println!("Key 'a' was pressed, got event: {:?}", ev);
 //!             },
 //!             EventSummary::Key(_, key_type, 0) => {
@@ -198,20 +197,20 @@ const EVENT_BATCH_SIZE: usize = 32;
 /// It is suggested to not construct this enum and instead use [`InputEvent::destructure`] to obtain instances.
 #[derive(Debug)]
 pub enum EventSummary {
-    Synchronization(SynchronizationEvent, SynchronizationType, i32),
-    Key(KeyEvent, KeyType, i32),
-    RelativeAxis(RelativeAxisEvent, RelativeAxisType, i32),
-    AbsoluteAxis(AbsoluteAxisEvent, AbsoluteAxisType, i32),
-    Misc(MiscEvent, MiscType, i32),
-    Switch(SwitchEvent, SwitchType, i32),
-    Led(LedEvent, LedType, i32),
-    Sound(SoundEvent, SoundType, i32),
-    Repeat(RepeatEvent, RepeatType, i32),
-    ForceFeedback(FFEvent, FFEffectType, i32),
-    Power(PowerEvent, PowerType, i32),
-    ForceFeedbackStatus(FFStatusEvent, FFStatusType, i32),
-    UInput(UInputEvent, UInputType, i32),
-    Other(OtherEvent, OtherType, i32),
+    Synchronization(SynchronizationEvent, SynchronizationCode, i32),
+    Key(KeyEvent, KeyCode, i32),
+    RelativeAxis(RelativeAxisEvent, RelativeAxisCode, i32),
+    AbsoluteAxis(AbsoluteAxisEvent, AbsoluteAxisCode, i32),
+    Misc(MiscEvent, MiscCode, i32),
+    Switch(SwitchEvent, SwitchCode, i32),
+    Led(LedEvent, LedCode, i32),
+    Sound(SoundEvent, SoundCode, i32),
+    Repeat(RepeatEvent, RepeatCode, i32),
+    ForceFeedback(FFEvent, FFEffectCode, i32),
+    Power(PowerEvent, PowerCode, i32),
+    ForceFeedbackStatus(FFStatusEvent, FFStatusCode, i32),
+    UInput(UInputEvent, UInputCode, i32),
+    Other(OtherEvent, OtherCode, i32),
 }
 
 impl From<InputEvent> for EventSummary {
@@ -317,7 +316,7 @@ impl UinputAbsSetup {
         AbsInfo(self.0.absinfo)
     }
     /// Creates new UinputAbsSetup
-    pub fn new(code: AbsoluteAxisType, absinfo: AbsInfo) -> Self {
+    pub fn new(code: AbsoluteAxisCode, absinfo: AbsInfo) -> Self {
         UinputAbsSetup(uinput_abs_setup {
             code: code.0,
             absinfo: absinfo.0,
@@ -374,9 +373,9 @@ impl InputEvent {
     /// # Example
     /// ```
     /// use evdev::*;
-    /// let event =  InputEvent::new(1, KeyType::KEY_A.0, 1);
+    /// let event =  InputEvent::new(1, KeyCode::KEY_A.0, 1);
     /// match event.destructure() {
-    ///     EventSummary::Key(KeyEvent, KeyType::KEY_A, 1) => (),
+    ///     EventSummary::Key(KeyEvent, KeyCode::KEY_A, 1) => (),
     ///     _=> panic!(),
     /// }
     /// ```

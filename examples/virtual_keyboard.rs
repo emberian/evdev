@@ -2,13 +2,13 @@
 // Generally this requires root.
 
 use evdev::KeyEvent;
-use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyType};
+use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyCode};
 use std::thread::sleep;
 use std::time::Duration;
 
 fn main() -> std::io::Result<()> {
-    let mut keys = AttributeSet::<KeyType>::new();
-    keys.insert(KeyType::BTN_DPAD_UP);
+    let mut keys = AttributeSet::<KeyCode>::new();
+    keys.insert(KeyCode::BTN_DPAD_UP);
 
     let mut device = VirtualDeviceBuilder::new()?
         .name("Fake Keyboard")
@@ -23,12 +23,12 @@ fn main() -> std::io::Result<()> {
 
     // Note this will ACTUALLY PRESS the button on your computer.
     // Hopefully you don't have BTN_DPAD_UP bound to anything important.
-    let code = KeyType::BTN_DPAD_UP.code();
+    let code = KeyCode::BTN_DPAD_UP.code();
 
     println!("Waiting for Ctrl-C...");
     loop {
         // this guarantees a key event
-        let down_event = *KeyEvent::new(KeyType(code), 1);
+        let down_event = *KeyEvent::new(KeyCode(code), 1);
         device.emit(&[down_event]).unwrap();
         println!("Pressed.");
         sleep(Duration::from_secs(2));

@@ -56,10 +56,10 @@ impl EventType {
 
 /// A "synchronization" message type published by the kernel into the events stream.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SynchronizationType(pub u16);
+pub struct SynchronizationCode(pub u16);
 
 evdev_enum!(
-    SynchronizationType,
+    SynchronizationCode,
     /// Used to mark the end of a single atomic "reading" from the device.
     SYN_REPORT = 0,
     /// Appears to be unused.
@@ -100,10 +100,10 @@ impl PropType {
 
 /// A type of relative axis measurement, typically produced by mice.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct RelativeAxisType(pub u16);
+pub struct RelativeAxisCode(pub u16);
 
 evdev_enum!(
-    RelativeAxisType,
+    RelativeAxisCode,
     Array,
     REL_X = 0x00,
     REL_Y = 0x01,
@@ -120,16 +120,16 @@ evdev_enum!(
     REL_HWHEEL_HI_RES = 0x0c,
 );
 
-impl RelativeAxisType {
+impl RelativeAxisCode {
     pub(crate) const COUNT: usize = REL_CNT;
 }
 
 /// A type of absolute axis measurement, typically used for touch events and joysticks.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct AbsoluteAxisType(pub u16);
+pub struct AbsoluteAxisCode(pub u16);
 
 evdev_enum!(
-    AbsoluteAxisType,
+    AbsoluteAxisCode,
     Array,
     ABS_X = 0x00,
     ABS_Y = 0x01,
@@ -189,16 +189,16 @@ evdev_enum!(
     ABS_MT_TOOL_Y = 0x3d,
 );
 
-impl AbsoluteAxisType {
+impl AbsoluteAxisCode {
     pub(crate) const COUNT: usize = ABS_CNT;
 }
 
 /// An event type corresponding to a physical or virtual switch.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SwitchType(pub u16);
+pub struct SwitchCode(pub u16);
 
 evdev_enum!(
-    SwitchType,
+    SwitchCode,
     Array,
     /// "set = lid shut"
     SW_LID = 0x00,
@@ -236,16 +236,16 @@ evdev_enum!(
     SW_MACHINE_COVER = 0x10,
 );
 
-impl SwitchType {
+impl SwitchCode {
     pub(crate) const COUNT: usize = SW_CNT;
 }
 
 /// LEDs specified by USB HID.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct LedType(pub u16);
+pub struct LedCode(pub u16);
 
 evdev_enum!(
-    LedType,
+    LedCode,
     Array,
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
@@ -264,16 +264,16 @@ evdev_enum!(
     LED_CHARGING = 0x0a,
 );
 
-impl LedType {
+impl LedCode {
     pub(crate) const COUNT: usize = LED_CNT;
 }
 
 /// Various miscellaneous event types.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct MiscType(pub u16);
+pub struct MiscCode(pub u16);
 
 evdev_enum!(
-    MiscType,
+    MiscCode,
     Array,
     /// Serial number, only exported for tablets ("Transducer Serial Number")
     MSC_SERIAL = 0x00,
@@ -289,16 +289,16 @@ evdev_enum!(
     MSC_TIMESTAMP = 0x05,
 );
 
-impl MiscType {
+impl MiscCode {
     pub(crate) const COUNT: usize = MSC_CNT;
 }
 
 /// Force feedback effect types
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct FFEffectType(pub u16);
+pub struct FFEffectCode(pub u16);
 
 evdev_enum!(
-    FFEffectType,
+    FFEffectCode,
     Array,
     /// Rumble effects.
     FF_RUMBLE = 0x50,
@@ -334,16 +334,16 @@ evdev_enum!(
     FF_AUTOCENTER = 0x61,
 );
 
-impl FFEffectType {
+impl FFEffectCode {
     pub(crate) const COUNT: usize = FF_CNT;
 }
 
 /// Force feedback effect status
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct FFStatusType(pub u16);
+pub struct FFStatusCode(pub u16);
 
 evdev_enum!(
-    FFStatusType,
+    FFStatusCode,
     Array,
     /// The force feedback event is currently stopped.
     FF_STATUS_STOPPED = 0x00,
@@ -351,14 +351,14 @@ evdev_enum!(
     FF_STATUS_PLAYING = 0x01,
 );
 
-impl FFStatusType {
+impl FFStatusCode {
     pub(crate) const COUNT: usize = 2;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct RepeatType(pub u16);
+pub struct RepeatCode(pub u16);
 
-evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
+evdev_enum!(RepeatCode, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
 // impl RepeatType {
 //     pub(crate) const COUNT: usize = libc::REP_CNT;
@@ -366,26 +366,26 @@ evdev_enum!(RepeatType, REP_DELAY = 0x00, REP_PERIOD = 0x01,);
 
 /// A type associated with simple sounds, such as beeps or tones.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundType(pub u16);
+pub struct SoundCode(pub u16);
 
 evdev_enum!(
-    SoundType,
+    SoundCode,
     Array,
     SND_CLICK = 0x00,
     SND_BELL = 0x01,
     SND_TONE = 0x02,
 );
 
-impl SoundType {
+impl SoundCode {
     pub(crate) const COUNT: usize = SND_CNT;
 }
 
 /// A uinput event published by the kernel into the events stream for uinput devices.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UInputType(pub u16);
+pub struct UInputCode(pub u16);
 
 evdev_enum!(
-    UInputType,
+    UInputCode,
     /// The virtual uinput device is uploading a force feedback effect.
     UI_FF_UPLOAD = 1,
     /// The virtual uinput device is erasing a force feedback event.
@@ -399,8 +399,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PowerType(pub u16);
+pub struct PowerCode(pub u16);
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OtherType(pub u16, pub u16);
+pub struct OtherCode(pub u16, pub u16);

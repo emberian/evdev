@@ -1,6 +1,6 @@
 use crate::compat::input_absinfo;
 use crate::{constants::*, raw_stream::RawDevice};
-use crate::{AttributeSet, AttributeSetRef, EventSummary, InputEvent, KeyType};
+use crate::{AttributeSet, AttributeSetRef, EventSummary, InputEvent, KeyCode};
 use std::time::SystemTime;
 
 /// A **cached** representation of device state at a certain time.
@@ -9,12 +9,12 @@ pub struct DeviceState {
     /// The state corresponds to kernel state at this timestamp.
     pub(crate) timestamp: SystemTime,
     /// Set = key pressed
-    pub(crate) key_vals: Option<AttributeSet<KeyType>>,
-    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisType::COUNT]>>,
+    pub(crate) key_vals: Option<AttributeSet<KeyCode>>,
+    pub(crate) abs_vals: Option<Box<[input_absinfo; AbsoluteAxisCode::COUNT]>>,
     /// Set = switch enabled (closed)
-    pub(crate) switch_vals: Option<AttributeSet<SwitchType>>,
+    pub(crate) switch_vals: Option<AttributeSet<SwitchCode>>,
     /// Set = LED lit
-    pub(crate) led_vals: Option<AttributeSet<LedType>>,
+    pub(crate) led_vals: Option<AttributeSet<LedCode>>,
 }
 
 // manual Clone impl for clone_from optimization
@@ -80,7 +80,7 @@ impl DeviceState {
     /// Returns the set of keys pressed when the snapshot was taken.
     ///
     /// Returns `None` if keys are not supported by this device.
-    pub fn key_vals(&self) -> Option<&AttributeSetRef<KeyType>> {
+    pub fn key_vals(&self) -> Option<&AttributeSetRef<KeyCode>> {
         self.key_vals.as_deref()
     }
 
@@ -94,14 +94,14 @@ impl DeviceState {
     /// Returns the set of switches triggered when the snapshot was taken.
     ///
     /// Returns `None` if switches are not supported by this device.
-    pub fn switch_vals(&self) -> Option<&AttributeSetRef<SwitchType>> {
+    pub fn switch_vals(&self) -> Option<&AttributeSetRef<SwitchCode>> {
         self.switch_vals.as_deref()
     }
 
     /// Returns the set of LEDs turned on when the snapshot was taken.
     ///
     /// Returns `None` if LEDs are not supported by this device.
-    pub fn led_vals(&self) -> Option<&AttributeSetRef<LedType>> {
+    pub fn led_vals(&self) -> Option<&AttributeSetRef<LedCode>> {
         self.led_vals.as_deref()
     }
 

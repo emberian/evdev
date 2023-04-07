@@ -6,8 +6,8 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, KeyType, MiscType, PropType,
-    RelativeAxisType, SwitchType, SynchronizationEvent, UInputEvent, UInputType, UinputAbsSetup,
+    sys, AttributeSetRef, Error, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType,
+    RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::PathBuf;
@@ -52,7 +52,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_keys(self, keys: &AttributeSetRef<KeyType>) -> io::Result<Self> {
+    pub fn with_keys(self, keys: &AttributeSetRef<KeyCode>) -> io::Result<Self> {
         // Run ioctls for setting capability bits
         unsafe {
             sys::ui_set_evbit(
@@ -89,7 +89,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisType>) -> io::Result<Self> {
+    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -122,7 +122,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_switches(self, switches: &AttributeSetRef<SwitchType>) -> io::Result<Self> {
+    pub fn with_switches(self, switches: &AttributeSetRef<SwitchCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -142,7 +142,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_ff(self, ff: &AttributeSetRef<FFEffectType>) -> io::Result<Self> {
+    pub fn with_ff(self, ff: &AttributeSetRef<FFEffectCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -167,7 +167,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self> {
+    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -283,7 +283,7 @@ impl VirtualDevice {
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
     pub fn emit(&mut self, events: &[InputEvent]) -> io::Result<()> {
         self.write_raw(events)?;
-        let syn = *SynchronizationEvent::new(crate::SynchronizationType::SYN_REPORT, 0);
+        let syn = *SynchronizationEvent::new(crate::SynchronizationCode::SYN_REPORT, 0);
         self.write_raw(&[syn])
     }
 
@@ -294,7 +294,7 @@ impl VirtualDevice {
     /// The returned event allows the user to allocate and set the effect ID as well as access the
     /// effect data.
     pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
-        if event.code() != UInputType::UI_FF_UPLOAD {
+        if event.code() != UInputCode::UI_FF_UPLOAD {
             return Err(Error::InvalidEvent);
         }
 
@@ -316,7 +316,7 @@ impl VirtualDevice {
     /// The returned event allows the user to access the effect ID, such that it can free any
     /// memory used for the given effect ID.
     pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
-        if event.code() != UInputType::UI_FF_ERASE {
+        if event.code() != UInputCode::UI_FF_ERASE {
             return Err(Error::InvalidEvent);
         }
 
