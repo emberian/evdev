@@ -33,7 +33,7 @@ async fn test_virtual_device_actually_emits() -> Result<(), Box<dyn Error>> {
     let listen_device = maybe_device.unwrap();
 
     let type_ = EventType::KEY;
-    let code = Key::BTN_DPAD_UP.code();
+    let code = Key::KEY_ESC.code();
 
     // listen for events on the listen device
     let listener = tokio::spawn(async move {
