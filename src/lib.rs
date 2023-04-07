@@ -196,6 +196,7 @@ const EVENT_BATCH_SIZE: usize = 32;
 ///
 /// Note This enum can not enforce that `InputEvent.code() == ` enum variant(code).
 /// It is suggested to not construct this enum and instead use [`InputEvent::destructure`] to obtain instances.
+#[derive(Debug)]
 pub enum EventSummary {
     Synchronization(SynchronizationEvent, SynchronizationType, i32),
     Key(KeyEvent, KeyType, i32),
