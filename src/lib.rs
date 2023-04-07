@@ -26,7 +26,7 @@
 //! The kernel documentation specifies different event types, reperesented by the [`EventType`] struct.
 //! Each device can support a subset of those types. See [`Device::supported_events()`].
 //! For each of the known event types there is a new-type wrapper around [`InputEvent`]  
-//! in [`event_variants`] see the mdule documenation for more info about those.
+//! in [`event_variants`] see the module documenation for more info about those.
 //!
 //! For most event types the kernel documentation also specifies a set of codes, represented by a new-type
 //! e.g. [`KeyType`]. The individual
