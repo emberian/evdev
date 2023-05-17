@@ -3,16 +3,14 @@
 //! This is quite useful when testing/debugging devices, or synchronization.
 
 use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPUT_MAX_NAME_SIZE};
-use crate::constants::{EventType, UInputEventType};
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectType, InputEvent, InputEventKind, Key, MiscType, PropType,
-    RelativeAxisType, SwitchType, UinputAbsSetup,
+    sys, AttributeSetRef, Error, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType,
+    RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::PathBuf;
-use std::time::SystemTime;
 use std::{fs, io};
 
 const UINPUT_PATH: &str = "/dev/uinput";
@@ -54,7 +52,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_keys(self, keys: &AttributeSetRef<Key>) -> io::Result<Self> {
+    pub fn with_keys(self, keys: &AttributeSetRef<KeyCode>) -> io::Result<Self> {
         // Run ioctls for setting capability bits
         unsafe {
             sys::ui_set_evbit(
@@ -91,7 +89,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisType>) -> io::Result<Self> {
+    pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -124,7 +122,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_switches(self, switches: &AttributeSetRef<SwitchType>) -> io::Result<Self> {
+    pub fn with_switches(self, switches: &AttributeSetRef<SwitchCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -144,7 +142,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
-    pub fn with_ff(self, ff: &AttributeSetRef<FFEffectType>) -> io::Result<Self> {
+    pub fn with_ff(self, ff: &AttributeSetRef<FFEffectCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -169,7 +167,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         self
     }
 
-    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscType>) -> io::Result<Self> {
+    pub fn with_msc(self, misc_set: &AttributeSetRef<MiscCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
                 self.fd.as_raw_fd(),
@@ -235,8 +233,8 @@ impl VirtualDevice {
     }
 
     #[inline]
-    fn write_raw(&mut self, messages: &[InputEvent]) -> io::Result<()> {
-        crate::write_events(self.fd.as_fd(), messages)?;
+    fn write_raw(&mut self, events: &[InputEvent]) -> io::Result<()> {
+        crate::write_events(self.fd.as_fd(), events)?;
         Ok(())
     }
 
@@ -283,9 +281,9 @@ impl VirtualDevice {
     /// of a mouse triggers a movement events for the X and Y axes separately in a batch of 2 events.
     ///
     /// Single events such as a `KEY` event must still be followed by a `SYN_REPORT`.
-    pub fn emit(&mut self, messages: &[InputEvent]) -> io::Result<()> {
-        self.write_raw(messages)?;
-        let syn = InputEvent::new(EventType::SYNCHRONIZATION, 0, 0);
+    pub fn emit(&mut self, events: &[InputEvent]) -> io::Result<()> {
+        self.write_raw(events)?;
+        let syn = *SynchronizationEvent::new(crate::SynchronizationCode::SYN_REPORT, 0);
         self.write_raw(&[syn])
     }
 
@@ -296,7 +294,7 @@ impl VirtualDevice {
     /// The returned event allows the user to allocate and set the effect ID as well as access the
     /// effect data.
     pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
-        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_UPLOAD.0) {
+        if event.code() != UInputCode::UI_FF_UPLOAD {
             return Err(Error::InvalidEvent);
         }
 
@@ -318,7 +316,7 @@ impl VirtualDevice {
     /// The returned event allows the user to access the effect ID, such that it can free any
     /// memory used for the given effect ID.
     pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
-        if event.kind() != InputEventKind::UInput(UInputEventType::UI_FF_ERASE.0) {
+        if event.code() != UInputCode::UI_FF_ERASE {
             return Err(Error::InvalidEvent);
         }
 
@@ -360,9 +358,9 @@ impl VirtualDevice {
     ///
     /// By default this will block until events are available. Typically, users will want to call
     /// this in a tight loop within a thread.
-    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = UInputEvent> + '_> {
+    pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
-        Ok(self.event_buf.drain(..).map(InputEvent).map(UInputEvent))
+        Ok(self.event_buf.drain(..).map(InputEvent::from))
     }
 
     #[cfg(feature = "tokio")]
@@ -372,7 +370,7 @@ impl VirtualDevice {
     }
 }
 
-/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes] function and will yield
+/// This struct is returned from the [VirtualDevice::enumerate_dev_nodes_blocking] function and will yield
 /// the syspaths corresponding to the virtual device. These are of the form `/dev/input123`.
 pub struct DevNodesBlocking {
     dir: std::fs::ReadDir,
@@ -434,49 +432,6 @@ impl AsFd for VirtualDevice {
 impl AsRawFd for VirtualDevice {
     fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
-    }
-}
-
-/// An event from a virtual uinput device.
-#[derive(Debug)]
-pub struct UInputEvent(InputEvent);
-
-impl UInputEvent {
-    /// Returns the timestamp associated with the event.
-    #[inline]
-    pub fn timestamp(&self) -> SystemTime {
-        self.0.timestamp()
-    }
-
-    /// Returns the type of event this describes, e.g. Key, Switch, etc.
-    #[inline]
-    pub fn event_type(&self) -> EventType {
-        self.0.event_type()
-    }
-
-    /// Returns the raw "code" field directly from input_event.
-    #[inline]
-    pub fn code(&self) -> u16 {
-        self.0.code()
-    }
-
-    /// A convenience function to return `self.code()` wrapped in a certain newtype determined by
-    /// the type of this event.
-    ///
-    /// This is useful if you want to match events by specific key codes or axes. Note that this
-    /// does not capture the event value, just the type and code.
-    #[inline]
-    pub fn kind(&self) -> InputEventKind {
-        self.0.kind()
-    }
-
-    /// Returns the raw "value" field directly from input_event.
-    ///
-    /// For keys and switches the values 0 and 1 map to pressed and not pressed respectively.
-    /// For axes, the values depend on the hardware and driver implementation.
-    #[inline]
-    pub fn value(&self) -> i32 {
-        self.0.value()
     }
 }
 
@@ -597,16 +552,16 @@ mod tokio_stream {
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
         /// any calls afterwards will likely error as well.
-        pub async fn next_event(&mut self) -> io::Result<UInputEvent> {
+        pub async fn next_event(&mut self) -> io::Result<InputEvent> {
             poll_fn(|cx| self.poll_event(cx)).await
         }
 
         /// A lower-level function for directly polling this stream.
-        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<UInputEvent>> {
+        pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
             'outer: loop {
                 if let Some(&ev) = self.device.get_ref().event_buf.get(self.index) {
                     self.index += 1;
-                    return Poll::Ready(Ok(UInputEvent(InputEvent(ev))));
+                    return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
                 self.device.get_mut().event_buf.clear();
@@ -630,7 +585,7 @@ mod tokio_stream {
 
     #[cfg(feature = "stream-trait")]
     impl futures_core::Stream for VirtualEventStream {
-        type Item = io::Result<UInputEvent>;
+        type Item = io::Result<InputEvent>;
         fn poll_next(
             self: std::pin::Pin<&mut Self>,
             cx: &mut Context<'_>,

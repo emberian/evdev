@@ -1,15 +1,15 @@
 // Create a virtual force feedback device, just while this is running.
 
 use evdev::{
-    uinput::{UInputEvent, VirtualDeviceBuilder},
-    AttributeSet, Error, EvdevEnum, FFEffectType, FFStatus, InputEventKind, UInputEventType,
+    uinput::VirtualDeviceBuilder, AttributeSet, Error, EventSummary, FFEffectCode, FFStatusCode,
+    InputEvent, UInputCode,
 };
 use std::collections::BTreeSet;
 
 fn main() -> Result<(), Error> {
     let mut device = VirtualDeviceBuilder::new()?
         .name("Fake Force Feedback")
-        .with_ff(&AttributeSet::from_iter([FFEffectType::FF_RUMBLE]))?
+        .with_ff(&AttributeSet::from_iter([FFEffectCode::FF_RUMBLE]))?
         .with_ff_effects_max(16)
         .build()?;
 
@@ -22,38 +22,16 @@ fn main() -> Result<(), Error> {
 
     println!("Waiting for Ctrl-C...");
     loop {
-        let events: Vec<UInputEvent> = device.fetch_events()?.collect();
+        let events: Vec<InputEvent> = device.fetch_events()?.collect();
+
+        const STOPPED: i32 = FFStatusCode::FF_STATUS_STOPPED.0 as i32;
+        const PLAYING: i32 = FFStatusCode::FF_STATUS_PLAYING.0 as i32;
 
         for event in events {
-            let code = match event.kind() {
-                InputEventKind::UInput(code) => UInputEventType::from_index(code as usize),
-                InputEventKind::ForceFeedback(effect_id) => {
-                    let value = FFStatus::from_index(event.value() as usize);
-
-                    match value {
-                        FFStatus::FF_STATUS_STOPPED => {
-                            println!("stopped effect ID = {effect_id}");
-                        }
-                        FFStatus::FF_STATUS_PLAYING => {
-                            println!("playing effect ID = {effect_id}");
-                        }
-                        _ => (),
-                    }
-
-                    continue;
-                }
-                kind => {
-                    println!("event kind = {kind:?}");
-                    continue;
-                }
-            };
-
-            match code {
-                UInputEventType::UI_FF_UPLOAD => {
+            match event.destructure() {
+                EventSummary::UInput(event, UInputCode::UI_FF_UPLOAD, ..) => {
                     let mut event = device.process_ff_upload(event)?;
-
                     let id = ids.iter().next().copied();
-
                     match id {
                         Some(id) => {
                             ids.remove(&id);
@@ -64,20 +42,23 @@ fn main() -> Result<(), Error> {
                             event.set_retval(-1);
                         }
                     }
-
                     println!("upload effect {:?}", event.effect());
                 }
-                UInputEventType::UI_FF_ERASE => {
+                EventSummary::UInput(event, UInputCode::UI_FF_ERASE, ..) => {
                     let event = device.process_ff_erase(event)?;
-
                     ids.insert(event.effect_id() as u16);
-
                     println!("erase effect ID = {}", event.effect_id());
                 }
-                _ => {
-                    println!("event code {}", event.code());
+                EventSummary::ForceFeedback(.., effect_id, STOPPED) => {
+                    println!("stopped effect ID = {}", effect_id.0);
                 }
-            }
+                EventSummary::ForceFeedback(.., effect_id, PLAYING) => {
+                    println!("playing effect ID = {}", effect_id.0);
+                }
+                _ => {
+                    println!("event = {:?}", event);
+                }
+            };
         }
     }
 }

@@ -1,4 +1,6 @@
-use evdev::{FFEffectData, FFEffectKind, FFReplay, FFTrigger};
+use evdev::{
+    EventSummary, FFEffectCode, FFEffectData, FFEffectKind, FFReplay, FFStatusCode, FFTrigger,
+};
 
 mod _pick_device;
 
@@ -21,6 +23,25 @@ fn main() -> std::io::Result<()> {
     };
 
     let mut effect = d.upload_ff_effect(effect_data)?;
+
+    std::thread::spawn(move || {
+        loop {
+            // monitor the response from the device
+            const STOPPED: i32 = FFStatusCode::FF_STATUS_STOPPED.0 as i32;
+            const STARTED: i32 = FFStatusCode::FF_STATUS_PLAYING.0 as i32;
+            for ev in d.fetch_events().unwrap() {
+                match ev.destructure() {
+                    EventSummary::ForceFeedback(_, FFEffectCode(id), STARTED) => {
+                        println!("Device Started effect id {}", id);
+                    }
+                    EventSummary::ForceFeedback(_, FFEffectCode(id), STOPPED) => {
+                        println!("Device Stopped effect id {}", id);
+                    }
+                    _ => (),
+                }
+            }
+        }
+    });
 
     effect.play(1)?;
     std::thread::sleep(std::time::Duration::from_secs(1));

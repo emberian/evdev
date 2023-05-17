@@ -1,7 +1,7 @@
 // Create a virtual mouse, just while this is running.
 // Generally this requires root.
 
-use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, RelativeAxisType};
+use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, RelativeAxisCode};
 use std::thread::sleep;
 use std::time::Duration;
 use MoveDirection::*;
@@ -10,10 +10,10 @@ fn main() -> std::io::Result<()> {
     let mut device = VirtualDeviceBuilder::new()?
         .name("fake-mouse")
         .with_relative_axes(&AttributeSet::from_iter([
-            RelativeAxisType::REL_X,
-            RelativeAxisType::REL_Y,
-            RelativeAxisType::REL_WHEEL,
-            RelativeAxisType::REL_HWHEEL,
+            RelativeAxisCode::REL_X,
+            RelativeAxisCode::REL_Y,
+            RelativeAxisCode::REL_WHEEL,
+            RelativeAxisCode::REL_HWHEEL,
         ]))?
         .build()
         .unwrap();
@@ -76,20 +76,20 @@ enum MoveDirection {
 
 fn new_move_mouse_event(direction: MoveDirection, distance: u16) -> InputEvent {
     let (axis, distance) = match direction {
-        MoveDirection::Up => (RelativeAxisType::REL_Y, -i32::from(distance)),
-        MoveDirection::Down => (RelativeAxisType::REL_Y, i32::from(distance)),
-        MoveDirection::Left => (RelativeAxisType::REL_X, -i32::from(distance)),
-        MoveDirection::Right => (RelativeAxisType::REL_X, i32::from(distance)),
+        MoveDirection::Up => (RelativeAxisCode::REL_Y, -i32::from(distance)),
+        MoveDirection::Down => (RelativeAxisCode::REL_Y, i32::from(distance)),
+        MoveDirection::Left => (RelativeAxisCode::REL_X, -i32::from(distance)),
+        MoveDirection::Right => (RelativeAxisCode::REL_X, i32::from(distance)),
     };
-    InputEvent::new_now(EventType::RELATIVE, axis.0, distance)
+    InputEvent::new_now(EventType::RELATIVE.0, axis.0, distance)
 }
 
 fn new_scroll_mouse_event(direction: MoveDirection, distance: u16) -> InputEvent {
     let (axis, distance) = match direction {
-        MoveDirection::Up => (RelativeAxisType::REL_WHEEL.0, i32::from(distance)),
-        MoveDirection::Down => (RelativeAxisType::REL_WHEEL.0, -i32::from(distance)),
-        MoveDirection::Left => (RelativeAxisType::REL_HWHEEL.0, -i32::from(distance)),
-        MoveDirection::Right => (RelativeAxisType::REL_HWHEEL.0, i32::from(distance)),
+        MoveDirection::Up => (RelativeAxisCode::REL_WHEEL.0, i32::from(distance)),
+        MoveDirection::Down => (RelativeAxisCode::REL_WHEEL.0, -i32::from(distance)),
+        MoveDirection::Left => (RelativeAxisCode::REL_HWHEEL.0, -i32::from(distance)),
+        MoveDirection::Right => (RelativeAxisCode::REL_HWHEEL.0, i32::from(distance)),
     };
-    InputEvent::new_now(EventType::RELATIVE, axis, distance)
+    InputEvent::new_now(EventType::RELATIVE.0, axis, distance)
 }

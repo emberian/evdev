@@ -5,9 +5,12 @@ use std::path::{Path, PathBuf};
 use std::{io, mem};
 
 use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
+use crate::constants::*;
 use crate::ff::*;
-use crate::{constants::*, AbsInfo};
-use crate::{sys, AttributeSet, AttributeSetRef, FFEffectType, InputEvent, InputId, Key};
+use crate::{
+    sys, AbsInfo, AttributeSet, AttributeSetRef, FFEffectCode, FFEvent, InputEvent, InputId,
+    KeyCode,
+};
 
 fn ioctl_get_cstring(
     f: unsafe fn(RawFd, &mut [u8]) -> nix::Result<libc::c_int>,
@@ -42,8 +45,8 @@ const ABSINFO_ZERO: input_absinfo = input_absinfo {
     resolution: 0,
 };
 
-pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisType::COUNT] =
-    [ABSINFO_ZERO; AbsoluteAxisType::COUNT];
+pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisCode::COUNT] =
+    [ABSINFO_ZERO; AbsoluteAxisCode::COUNT];
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
@@ -64,7 +67,7 @@ impl FFEffect {
     /// Plays the force feedback effect with the `count` argument specifying how often the effect
     /// should be played.
     pub fn play(&mut self, count: i32) -> io::Result<()> {
-        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, count)];
+        let events = [*FFEvent::new(FFEffectCode(self.id), count)];
         crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
@@ -72,7 +75,7 @@ impl FFEffect {
 
     /// Stops playback of the force feedback effect.
     pub fn stop(&mut self) -> io::Result<()> {
-        let events = [InputEvent::new(EventType::FORCEFEEDBACK, self.id, 0)];
+        let events = [*FFEvent::new(FFEffectCode(self.id), 0)];
         crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
@@ -110,18 +113,18 @@ pub struct RawDevice {
     id: input_id,
     props: AttributeSet<PropType>,
     driver_version: (u8, u8, u8),
-    supported_keys: Option<AttributeSet<Key>>,
-    supported_relative: Option<AttributeSet<RelativeAxisType>>,
-    supported_absolute: Option<AttributeSet<AbsoluteAxisType>>,
-    supported_switch: Option<AttributeSet<SwitchType>>,
-    supported_led: Option<AttributeSet<LedType>>,
-    supported_misc: Option<AttributeSet<MiscType>>,
-    supported_ff: Option<AttributeSet<FFEffectType>>,
+    supported_keys: Option<AttributeSet<KeyCode>>,
+    supported_relative: Option<AttributeSet<RelativeAxisCode>>,
+    supported_absolute: Option<AttributeSet<AbsoluteAxisCode>>,
+    supported_switch: Option<AttributeSet<SwitchCode>>,
+    supported_led: Option<AttributeSet<LedCode>>,
+    supported_misc: Option<AttributeSet<MiscCode>>,
+    supported_ff: Option<AttributeSet<FFEffectCode>>,
     auto_repeat: Option<AutoRepeat>,
     max_ff_effects: usize,
     // ff: Option<AttributeSet<_>>,
     // ff_stat: Option<FFStatus>,
-    supported_snd: Option<AttributeSet<SoundType>>,
+    supported_snd: Option<AttributeSet<SoundCode>>,
     pub(crate) event_buf: Vec<input_event>,
     grabbed: bool,
 }
@@ -185,7 +188,7 @@ impl RawDevice {
         }; // FIXME: handle old kernel
 
         let supported_keys = if ty.contains(EventType::KEY) {
-            let mut keys = AttributeSet::<Key>::new();
+            let mut keys = AttributeSet::<KeyCode>::new();
             unsafe { sys::eviocgbit_key(fd.as_raw_fd(), keys.as_mut_raw_slice())? };
             Some(keys)
         } else {
@@ -193,7 +196,7 @@ impl RawDevice {
         };
 
         let supported_relative = if ty.contains(EventType::RELATIVE) {
-            let mut rel = AttributeSet::<RelativeAxisType>::new();
+            let mut rel = AttributeSet::<RelativeAxisCode>::new();
             unsafe { sys::eviocgbit_relative(fd.as_raw_fd(), rel.as_mut_raw_slice())? };
             Some(rel)
         } else {
@@ -201,7 +204,7 @@ impl RawDevice {
         };
 
         let supported_absolute = if ty.contains(EventType::ABSOLUTE) {
-            let mut abs = AttributeSet::<AbsoluteAxisType>::new();
+            let mut abs = AttributeSet::<AbsoluteAxisCode>::new();
             unsafe { sys::eviocgbit_absolute(fd.as_raw_fd(), abs.as_mut_raw_slice())? };
             Some(abs)
         } else {
@@ -209,7 +212,7 @@ impl RawDevice {
         };
 
         let supported_switch = if ty.contains(EventType::SWITCH) {
-            let mut switch = AttributeSet::<SwitchType>::new();
+            let mut switch = AttributeSet::<SwitchCode>::new();
             unsafe { sys::eviocgbit_switch(fd.as_raw_fd(), switch.as_mut_raw_slice())? };
             Some(switch)
         } else {
@@ -217,7 +220,7 @@ impl RawDevice {
         };
 
         let supported_led = if ty.contains(EventType::LED) {
-            let mut led = AttributeSet::<LedType>::new();
+            let mut led = AttributeSet::<LedCode>::new();
             unsafe { sys::eviocgbit_led(fd.as_raw_fd(), led.as_mut_raw_slice())? };
             Some(led)
         } else {
@@ -225,7 +228,7 @@ impl RawDevice {
         };
 
         let supported_misc = if ty.contains(EventType::MISC) {
-            let mut misc = AttributeSet::<MiscType>::new();
+            let mut misc = AttributeSet::<MiscCode>::new();
             unsafe { sys::eviocgbit_misc(fd.as_raw_fd(), misc.as_mut_raw_slice())? };
             Some(misc)
         } else {
@@ -233,7 +236,7 @@ impl RawDevice {
         };
 
         let supported_ff = if ty.contains(EventType::FORCEFEEDBACK) {
-            let mut ff = AttributeSet::<FFEffectType>::new();
+            let mut ff = AttributeSet::<FFEffectCode>::new();
             unsafe { sys::eviocgbit_ff(fd.as_raw_fd(), ff.as_mut_raw_slice())? };
             Some(ff)
         } else {
@@ -249,7 +252,7 @@ impl RawDevice {
         };
 
         let supported_snd = if ty.contains(EventType::SOUND) {
-            let mut snd = AttributeSet::<SoundType>::new();
+            let mut snd = AttributeSet::<SoundCode>::new();
             unsafe { sys::eviocgbit_sound(fd.as_raw_fd(), snd.as_mut_raw_slice())? };
             Some(snd)
         } else {
@@ -350,15 +353,15 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, Key};
+    /// use evdev::{Device, KeyCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does this device have an ENTER key?
-    /// let supported = device.supported_keys().map_or(false, |keys| keys.contains(Key::KEY_ENTER));
+    /// let supported = device.supported_keys().map_or(false, |keys| keys.contains(KeyCode::KEY_ENTER));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_keys(&self) -> Option<&AttributeSetRef<Key>> {
+    pub fn supported_keys(&self) -> Option<&AttributeSetRef<KeyCode>> {
         self.supported_keys.as_deref()
     }
 
@@ -370,17 +373,17 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, RelativeAxisType};
+    /// use evdev::{Device, RelativeAxisCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have a scroll wheel?
     /// let supported = device
     ///     .supported_relative_axes()
-    ///     .map_or(false, |axes| axes.contains(RelativeAxisType::REL_WHEEL));
+    ///     .map_or(false, |axes| axes.contains(RelativeAxisCode::REL_WHEEL));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisType>> {
+    pub fn supported_relative_axes(&self) -> Option<&AttributeSetRef<RelativeAxisCode>> {
         self.supported_relative.as_deref()
     }
 
@@ -392,17 +395,17 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, AbsoluteAxisType};
+    /// use evdev::{Device, AbsoluteAxisCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device have an absolute X axis?
     /// let supported = device
     ///     .supported_absolute_axes()
-    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisType::ABS_X));
+    ///     .map_or(false, |axes| axes.contains(AbsoluteAxisCode::ABS_X));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisType>> {
+    pub fn supported_absolute_axes(&self) -> Option<&AttributeSetRef<AbsoluteAxisCode>> {
         self.supported_absolute.as_deref()
     }
 
@@ -416,17 +419,17 @@ impl RawDevice {
     ///
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use evdev::{Device, SwitchType};
+    /// use evdev::{Device, SwitchCode};
     /// let device = Device::open("/dev/input/event0")?;
     ///
     /// // Does the device report a laptop lid switch?
     /// let supported = device
     ///     .supported_switches()
-    ///     .map_or(false, |axes| axes.contains(SwitchType::SW_LID));
+    ///     .map_or(false, |axes| axes.contains(SwitchCode::SW_LID));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchType>> {
+    pub fn supported_switches(&self) -> Option<&AttributeSetRef<SwitchCode>> {
         self.supported_switch.as_deref()
     }
 
@@ -434,19 +437,19 @@ impl RawDevice {
     ///
     /// Most commonly these are state indicator lights for things like Scroll Lock, but they
     /// can also be found in cameras and other devices.
-    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedType>> {
+    pub fn supported_leds(&self) -> Option<&AttributeSetRef<LedCode>> {
         self.supported_led.as_deref()
     }
 
     /// Returns a set of supported "miscellaneous" capabilities.
     ///
     /// Aside from vendor-specific key scancodes, most of these are uncommon.
-    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscType>> {
+    pub fn misc_properties(&self) -> Option<&AttributeSetRef<MiscCode>> {
         self.supported_misc.as_deref()
     }
 
     /// Returns the set of supported force feedback effects supported by a device.
-    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectType>> {
+    pub fn supported_ff(&self) -> Option<&AttributeSetRef<FFEffectCode>> {
         self.supported_ff.as_deref()
     }
 
@@ -459,7 +462,7 @@ impl RawDevice {
     ///
     /// You can use these to make really annoying beep sounds come from an internal self-test
     /// speaker, for instance.
-    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundType>> {
+    pub fn supported_sounds(&self) -> Option<&AttributeSetRef<SoundCode>> {
         self.supported_snd.as_deref()
     }
 
@@ -492,12 +495,12 @@ impl RawDevice {
     /// this in a tight loop within a thread.
     pub fn fetch_events(&mut self) -> io::Result<impl Iterator<Item = InputEvent> + '_> {
         self.fill_events()?;
-        Ok(self.event_buf.drain(..).map(InputEvent))
+        Ok(self.event_buf.drain(..).map(InputEvent::from))
     }
 
     /// Retrieve the current keypress state directly via kernel syscall.
     #[inline]
-    pub fn get_key_state(&self) -> io::Result<AttributeSet<Key>> {
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<KeyCode>> {
         let mut key_vals = AttributeSet::new();
         self.update_key_state(&mut key_vals)?;
         Ok(key_vals)
@@ -505,8 +508,8 @@ impl RawDevice {
 
     /// Retrieve the current absolute axis state directly via kernel syscall.
     #[inline]
-    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisType::COUNT]> {
-        let mut abs_vals: [input_absinfo; AbsoluteAxisType::COUNT] = ABS_VALS_INIT;
+    pub fn get_abs_state(&self) -> io::Result<[input_absinfo; AbsoluteAxisCode::COUNT]> {
+        let mut abs_vals: [input_absinfo; AbsoluteAxisCode::COUNT] = ABS_VALS_INIT;
         self.update_abs_state(&mut abs_vals)?;
         Ok(abs_vals)
     }
@@ -514,7 +517,7 @@ impl RawDevice {
     /// Get the AbsInfo for each supported AbsoluteAxis
     pub fn get_absinfo(
         &self,
-    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisType, AbsInfo)> + '_> {
+    ) -> io::Result<impl Iterator<Item = (AbsoluteAxisCode, AbsInfo)> + '_> {
         let raw_absinfo = self.get_abs_state()?;
         Ok(self
             .supported_absolute_axes()
@@ -525,7 +528,7 @@ impl RawDevice {
 
     /// Retrieve the current switch state directly via kernel syscall.
     #[inline]
-    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchType>> {
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchCode>> {
         let mut switch_vals = AttributeSet::new();
         self.update_switch_state(&mut switch_vals)?;
         Ok(switch_vals)
@@ -533,7 +536,7 @@ impl RawDevice {
 
     /// Retrieve the current LED state directly via kernel syscall.
     #[inline]
-    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedType>> {
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedCode>> {
         let mut led_vals = AttributeSet::new();
         self.update_led_state(&mut led_vals)?;
         Ok(led_vals)
@@ -543,7 +546,7 @@ impl RawDevice {
     /// If you don't already have a buffer, you probably want
     /// [`get_key_state`](Self::get_key_state) instead.
     #[inline]
-    pub fn update_key_state(&self, key_vals: &mut AttributeSet<Key>) -> io::Result<()> {
+    pub fn update_key_state(&self, key_vals: &mut AttributeSet<KeyCode>) -> io::Result<()> {
         unsafe { sys::eviocgkey(self.as_raw_fd(), key_vals.as_mut_raw_slice())? };
         Ok(())
     }
@@ -554,10 +557,10 @@ impl RawDevice {
     #[inline]
     pub fn update_abs_state(
         &self,
-        abs_vals: &mut [input_absinfo; AbsoluteAxisType::COUNT],
+        abs_vals: &mut [input_absinfo; AbsoluteAxisCode::COUNT],
     ) -> io::Result<()> {
         if let Some(supported_abs) = self.supported_absolute_axes() {
-            for AbsoluteAxisType(idx) in supported_abs.iter() {
+            for AbsoluteAxisCode(idx) in supported_abs.iter() {
                 // ignore multitouch, we'll handle that later.
                 //
                 // handling later removed. not sure what the intention of "handling that later" was
@@ -576,7 +579,7 @@ impl RawDevice {
     #[inline]
     pub fn update_switch_state(
         &self,
-        switch_vals: &mut AttributeSet<SwitchType>,
+        switch_vals: &mut AttributeSet<SwitchCode>,
     ) -> io::Result<()> {
         unsafe { sys::eviocgsw(self.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
         Ok(())
@@ -586,7 +589,7 @@ impl RawDevice {
     /// If you don't already have a buffer, you probably want
     /// [`get_led_state`](Self::get_led_state) instead.
     #[inline]
-    pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedType>) -> io::Result<()> {
+    pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedCode>) -> io::Result<()> {
         unsafe { sys::eviocgled(self.as_raw_fd(), led_vals.as_mut_raw_slice())? };
         Ok(())
     }
@@ -730,11 +733,7 @@ impl RawDevice {
     /// Sets the force feedback gain, i.e. how strong the force feedback effects should be for the
     /// device. A gain of 0 means no gain, whereas `u16::MAX` is the maximum gain.
     pub fn set_ff_gain(&mut self, value: u16) -> io::Result<()> {
-        let events = [InputEvent::new(
-            EventType::FORCEFEEDBACK,
-            FFEffectType::FF_GAIN.0,
-            value.into(),
-        )];
+        let events = [*FFEvent::new(FFEffectCode::FF_GAIN, value.into())];
         crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
@@ -742,11 +741,7 @@ impl RawDevice {
 
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
-        let events = [InputEvent::new(
-            EventType::FORCEFEEDBACK,
-            FFEffectType::FF_AUTOCENTER.0,
-            value.into(),
-        )];
+        let events = [*FFEvent::new(FFEffectCode::FF_AUTOCENTER, value.into())];
         crate::write_events(self.fd.as_fd(), &events)?;
 
         Ok(())
@@ -846,7 +841,7 @@ mod tokio_stream {
             'outer: loop {
                 if let Some(&ev) = self.device.get_ref().event_buf.get(self.index) {
                     self.index += 1;
-                    return Poll::Ready(Ok(InputEvent(ev)));
+                    return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
                 self.device.get_mut().event_buf.clear();

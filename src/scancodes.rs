@@ -7,9 +7,9 @@ use crate::compat::KEY_CNT;
 /// Each associated constant for this struct represents a distinct key.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Key(pub u16);
+pub struct KeyCode(pub u16);
 
-impl Key {
+impl KeyCode {
     #[inline]
     pub const fn new(code: u16) -> Self {
         Self(code)
@@ -24,7 +24,7 @@ impl Key {
 }
 
 evdev_enum!(
-    Key,
+    KeyCode,
     box Array,
     KEY_RESERVED = 0,
     KEY_ESC = 1,
@@ -580,6 +580,6 @@ evdev_enum!(
 fn from_str() {
     use std::str::FromStr;
 
-    assert_eq!(Key::from_str("KEY_A"), Ok(Key::KEY_A));
-    assert!(Key::from_str("KEY_FOOBAR").is_err());
+    assert_eq!(KeyCode::from_str("KEY_A"), Ok(KeyCode::KEY_A));
+    assert!(KeyCode::from_str("KEY_FOOBAR").is_err());
 }

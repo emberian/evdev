@@ -4,17 +4,31 @@
 [8fc58e1...HEAD](https://github.com/emberian/evdev/compare/8fc58e1...HEAD)
 
 ### Added
+- Create a `...Event` struct for each `EventType` to hold the `InputEvent`
+  - Guarantee that each `...Event` struct can only hold a `InputEvent` of the corresponding `EventType`
+- Demonstrate what the `FFEvent` does in the `force_feedback` example.
 
 - `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
 - `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
 
 ### Changed
+- Consistent naming and structure of all new-types for event-codes
+  - Some of them where previously named `...Type` now they are all named `...Code`
+  - Rename `InputEventKind` to `EventSummary`
+  - Created missing `EventSummary` variants. I know some of them are kind of unused but it is less confusing if they are all there and look the same.
+  - Each variant of the `EventSummary` enum now has the structure `Variant(...Event, ...Type, value)`
+  - Renamed `Key` struct (the one with all the Key constants) to `KeyCode` to keep the naming consistent!
+- Rename `InputEvent::kind` to `InputEvent::destructure` this now returns a `EventSummary`
+- `InputEvent::new` no longer takes the `EventType` but `u16` as first argument. If the `EventType` is known we can directly construct the correct variant.
+- Ensure the unsafe code still does what we expect.
+- Update the Examples.
 
 - The minimum supported rust version (MSRV) is now `1.63`, due to `AsFd` support.
 - In order for the `EventStream` types to implement Stream, the `stream-trait`
   feature must now be specified.
 
 ### Fixed
+- Update `VirtualDevice::fetch_events` to yield `InputEvent`s instead of `UInputEvent`s. That was a bug which was not accounted for be the type system. Yielding `UInputEvent`s there will now panic.
 
 ## evdev 0.12.1 (2022-12-09)
 [86dfe33...8fc58e1](https://github.com/emberian/evdev/compare/86dfe33...8fc58e1)
