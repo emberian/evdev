@@ -66,3 +66,22 @@ jobs:
       run: cargo test --target ${{ matrix.target.rust }}
     - name: Doc
       run: cargo doc --target ${{ matrix.target.rust }}
+
+  freebsd:
+    runs-on: macos-12
+    name: build (FreeBSD)
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      uses: vmactions/freebsd-vm@v0
+      with:
+        envs: 'RUSTFLAGS'
+        usesh: true
+        prepare: |
+          pkg install -y curl
+
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- --profile minimal -y
+          . "$HOME/.cargo/env"
+          cargo build
+          cargo test
