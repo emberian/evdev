@@ -7,6 +7,7 @@ use crate::{
     AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyCode,
 };
 
+use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
@@ -401,6 +402,14 @@ impl AsFd for Device {
 impl AsRawFd for Device {
     fn as_raw_fd(&self) -> RawFd {
         self.raw.as_raw_fd()
+    }
+}
+
+impl TryFrom<File> for Device {
+    type Error = io::Error;
+
+    fn try_from(file: File) -> Result<Self, Self::Error> {
+        RawDevice::try_from(file).map(Self::from_raw_device)
     }
 }
 
