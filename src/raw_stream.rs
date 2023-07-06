@@ -142,7 +142,10 @@ impl RawDevice {
     /// Paths are typically something like `/dev/input/event0`.
     #[inline(always)]
     pub fn open(path: impl AsRef<Path>) -> io::Result<RawDevice> {
-        let path = path.as_ref();
+        Self::_open(path.as_ref())
+    }
+
+    fn _open(path: &Path) -> io::Result<RawDevice> {
         let mut options = OpenOptions::new();
 
         // Try to load read/write, then fall back to read-only.
@@ -153,10 +156,10 @@ impl RawDevice {
             .or_else(|_| options.write(false).open(path))?
             .into();
 
-        Self::_open(fd)
+        Self::from_fd(fd)
     }
 
-    fn _open(fd: OwnedFd) -> io::Result<RawDevice> {
+    fn from_fd(fd: OwnedFd) -> io::Result<RawDevice> {
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
             unsafe { sys::eviocgbit_type(fd.as_raw_fd(), ty.as_mut_raw_slice())? };
@@ -765,7 +768,7 @@ impl TryFrom<File> for RawDevice {
     type Error = io::Error;
 
     fn try_from(file: File) -> Result<Self, Self::Error> {
-        Self::_open(file.into())
+        Self::from_fd(file.into())
     }
 }
 
