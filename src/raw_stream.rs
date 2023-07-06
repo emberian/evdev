@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::mem::MaybeUninit;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
@@ -156,6 +156,10 @@ impl RawDevice {
             .or_else(|_| options.write(false).open(path))?
             .into();
 
+        Self::from_fd(fd)
+    }
+
+    fn from_fd(fd: OwnedFd) -> io::Result<RawDevice> {
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
             unsafe { sys::eviocgbit_type(fd.as_raw_fd(), ty.as_mut_raw_slice())? };
@@ -757,6 +761,14 @@ impl AsFd for RawDevice {
 impl AsRawFd for RawDevice {
     fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
+    }
+}
+
+impl TryFrom<File> for RawDevice {
+    type Error = io::Error;
+
+    fn try_from(file: File) -> Result<Self, Self::Error> {
+        Self::from_fd(file.into())
     }
 }
 
