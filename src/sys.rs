@@ -86,7 +86,7 @@ ioctl_write_int!(ui_set_mscbit, UINPUT_IOCTL_BASE, 104);
 ioctl_write_int!(ui_set_ledbit, UINPUT_IOCTL_BASE, 105);
 ioctl_write_int!(ui_set_sndbit, UINPUT_IOCTL_BASE, 106);
 ioctl_write_int!(ui_set_ffbit, UINPUT_IOCTL_BASE, 107);
-ioctl_write_buf!(ui_set_phys, UINPUT_IOCTL_BASE, 108, u8);
+ioctl_write_ptr!(ui_set_phys, UINPUT_IOCTL_BASE, 108, usize);
 ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
 ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
 
