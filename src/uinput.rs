@@ -9,6 +9,7 @@ use crate::{
     sys, AttributeSetRef, Error, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType,
     RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
+use std::ffi::CString;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::PathBuf;
 use std::{fs, io};
@@ -50,6 +51,14 @@ impl<'a> VirtualDeviceBuilder<'a> {
     pub fn input_id(mut self, id: InputId) -> Self {
         self.id = Some(id.0);
         self
+    }
+
+    pub fn with_phys(self, path: &str) -> io::Result<Self> {
+        let c_str = CString::new(path)?;
+        unsafe {
+            sys::ui_set_phys(self.fd.as_raw_fd(), c_str.as_ptr() as *const usize)?;
+        }
+        Ok(self)
     }
 
     pub fn with_keys(self, keys: &AttributeSetRef<KeyCode>) -> io::Result<Self> {
