@@ -224,6 +224,7 @@ const DEFAULT_ID: input_id = input_id {
     version: 0x111,
 };
 
+#[derive(Debug)]
 pub struct VirtualDevice {
     fd: OwnedFd,
     pub(crate) event_buf: Vec<input_event>,
