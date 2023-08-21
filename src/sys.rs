@@ -4,8 +4,8 @@ use crate::compat::{
     uinput_setup,
 };
 use nix::{
-    convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_readwrite, ioctl_write_buf,
-    ioctl_write_int, ioctl_write_ptr, request_code_read,
+    convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_readwrite, ioctl_write_int,
+    ioctl_write_ptr, request_code_read,
 };
 
 #[repr(C)]
