@@ -159,7 +159,7 @@ impl RawDevice {
         Self::from_fd(fd)
     }
 
-    fn from_fd(fd: OwnedFd) -> io::Result<RawDevice> {
+    pub fn from_fd(fd: OwnedFd) -> io::Result<RawDevice> {
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
             unsafe { sys::eviocgbit_type(fd.as_raw_fd(), ty.as_mut_raw_slice())? };
