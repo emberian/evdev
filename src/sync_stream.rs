@@ -8,7 +8,7 @@ use crate::{
 };
 
 use std::fs::File;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::Path;
 use std::time::SystemTime;
 use std::{fmt, io};
@@ -39,6 +39,12 @@ impl Device {
     #[inline(always)]
     pub fn open(path: impl AsRef<Path>) -> io::Result<Device> {
         Self::_open(path.as_ref())
+    }
+
+    /// Opens a device, given an already opened file descriptor.
+    #[inline(always)]
+    pub fn from_fd(fd: OwnedFd) -> io::Result<Device> {
+        RawDevice::from_fd(fd).map(Self::from_raw_device)
     }
 
     #[inline]
