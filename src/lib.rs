@@ -17,6 +17,34 @@
 //! devices and send events to the virtual devices.
 //! Virtual devices are created in `/sys/devices/virtual/input`.
 //!
+//! # Devices
+//!
+//! Devices can be opened directly via their path:
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use evdev::Device;
+//! let device = Device::open("/dev/input/event0")?;
+//! # Ok(())
+//! # }
+//! ```
+//! This approach requires the calling process to have the appropriate privileges to
+//! open the device node (typically this requires running as root user).
+//! Alternatively a device can be created from an already open file descriptor. This approach
+//! is useful where the file descriptor is provided by an external privileged process
+//! (e.g. systemd's logind):
+//!
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use evdev::Device;
+//! use std::fs::File;
+//! use std::os::fd::OwnedFd;
+//! let f = File::open("/dev/input/event0")?;
+//! let fd = OwnedFd::from(f);
+//! let device = Device::from_fd(fd)?;
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! # Input Events
 //!
 //! Devices emit events, represented by the [`InputEvent`] struct.
