@@ -159,6 +159,7 @@ impl RawDevice {
         Self::from_fd(fd)
     }
 
+    /// Opens a device, given an already opened file descriptor
     pub fn from_fd(fd: OwnedFd) -> io::Result<RawDevice> {
         let ty = {
             let mut ty = AttributeSet::<EventType>::new();
