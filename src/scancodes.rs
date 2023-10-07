@@ -425,6 +425,8 @@ evdev_enum!(
     KEY_10CHANNELSUP = 0x1b8,   /* 10 channels up (10+) */
     KEY_10CHANNELSDOWN = 0x1b9, /* 10 channels down (10-) */
     KEY_IMAGES = 0x1ba,         /* AL Image Browser */
+    KEY_PICKUP_PHONE = 0x1bd,
+    KEY_HANGUP_PHONE = 0x1be,
     KEY_DEL_EOL = 0x1c0,
     KEY_DEL_EOS = 0x1c1,
     KEY_INS_LINE = 0x1c2,
