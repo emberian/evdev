@@ -10,6 +10,8 @@
 
 - `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
 - `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
+- `&AttributeSetRef` now implements `IntoIterator`.
+- `AttributeSet` now implements `FromIterator<&T>`.
 
 ### Changed
 - Consistent naming and structure of all new-types for event-codes
