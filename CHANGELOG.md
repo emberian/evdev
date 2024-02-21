@@ -14,6 +14,7 @@
 - `AttributeSet` now implements `FromIterator<&T>`.
 
 ### Changed
+- Removed the `evdev::Error` type - fallible functions now just return `io::Error`.
 - Consistent naming and structure of all new-types for event-codes
   - Some of them where previously named `...Type` now they are all named `...Code`
   - Rename `InputEventKind` to `EventSummary`

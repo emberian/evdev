@@ -6,8 +6,8 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, Error, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType,
-    RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
+    sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType, RelativeAxisCode,
+    SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
 use std::ffi::CString;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
@@ -303,10 +303,12 @@ impl VirtualDevice {
     ///
     /// The returned event allows the user to allocate and set the effect ID as well as access the
     /// effect data.
-    pub fn process_ff_upload(&mut self, event: UInputEvent) -> Result<FFUploadEvent, Error> {
-        if event.code() != UInputCode::UI_FF_UPLOAD {
-            return Err(Error::InvalidEvent);
-        }
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `event.code()` is not `UI_FF_UPLOAD`.
+    pub fn process_ff_upload(&mut self, event: UInputEvent) -> io::Result<FFUploadEvent> {
+        assert_eq!(event.code(), UInputCode::UI_FF_UPLOAD);
 
         let mut request: sys::uinput_ff_upload = unsafe { std::mem::zeroed() };
         request.request_id = event.value() as u32;
@@ -325,10 +327,12 @@ impl VirtualDevice {
     ///
     /// The returned event allows the user to access the effect ID, such that it can free any
     /// memory used for the given effect ID.
-    pub fn process_ff_erase(&mut self, event: UInputEvent) -> Result<FFEraseEvent, Error> {
-        if event.code() != UInputCode::UI_FF_ERASE {
-            return Err(Error::InvalidEvent);
-        }
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `event.code()` is not `UI_FF_ERASE`.
+    pub fn process_ff_erase(&mut self, event: UInputEvent) -> io::Result<FFEraseEvent> {
+        assert_eq!(event.code(), UInputCode::UI_FF_ERASE);
 
         let mut request: sys::uinput_ff_erase = unsafe { std::mem::zeroed() };
         request.request_id = event.value() as u32;
