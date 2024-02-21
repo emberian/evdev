@@ -6,6 +6,8 @@
 ### Added
 
 - `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+- `&AttributeSetRef` now implements `IntoIterator`.
+- `AttributeSet` now implements `FromIterator<&T>`.
 
 ### Changed
 
