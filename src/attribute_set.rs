@@ -34,8 +34,8 @@ impl<T: EvdevEnum> AttributeSetRef<T> {
 
     /// Provides an iterator over all "set" bits in the collection.
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
-        self.bitslice.iter_ones().map(T::from_index)
+    pub fn iter(&self) -> AttributeSetRefIter<'_, T> {
+        self.into_iter()
     }
 
     #[inline]
@@ -72,6 +72,43 @@ impl<T: EvdevEnum> Default for &AttributeSetRef<T> {
 impl<T: EvdevEnum> Default for &mut AttributeSetRef<T> {
     fn default() -> Self {
         AttributeSetRef::new_mut(BitSlice::empty_mut())
+    }
+}
+
+impl<'a, T: EvdevEnum> IntoIterator for &'a AttributeSetRef<T> {
+    type Item = T;
+    type IntoIter = AttributeSetRefIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        AttributeSetRefIter {
+            _indexer: std::marker::PhantomData,
+            inner: self.bitslice.iter_ones(),
+        }
+    }
+}
+
+pub struct AttributeSetRefIter<'a, T> {
+    _indexer: std::marker::PhantomData<&'a T>,
+    inner: bitvec::slice::IterOnes<'a, u8, Lsb0>,
+}
+
+impl<T: EvdevEnum> Iterator for AttributeSetRefIter<'_, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(T::from_index)
+    }
+}
+
+impl<T: EvdevEnum> ExactSizeIterator for AttributeSetRefIter<'_, T> {
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<T: EvdevEnum> DoubleEndedIterator for AttributeSetRefIter<'_, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back().map(T::from_index)
     }
 }
 
@@ -130,6 +167,15 @@ impl<T: ArrayedEvdevEnum> Deref for AttributeSet<T> {
 impl<T: ArrayedEvdevEnum> DerefMut for AttributeSet<T> {
     fn deref_mut(&mut self) -> &mut AttributeSetRef<T> {
         AttributeSetRef::new_mut(self.as_mut_bitslice())
+    }
+}
+
+impl<'a, T: ArrayedEvdevEnum> IntoIterator for &'a AttributeSet<T> {
+    type Item = T;
+    type IntoIter = AttributeSetRefIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (**self).into_iter()
     }
 }
 
