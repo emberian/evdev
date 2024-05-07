@@ -9,9 +9,10 @@ use crate::{
     sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType, RelativeAxisCode,
     SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
-use std::ffi::CString;
+use std::ffi::{CString, OsStr};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 const UINPUT_PATH: &str = "/dev/uinput";
@@ -254,18 +255,13 @@ impl VirtualDevice {
     /// The syspath returned is the one of the input node itself (e.g.
     /// `/sys/devices/virtual/input/input123`), not the syspath of the device node.
     pub fn get_syspath(&mut self) -> io::Result<PathBuf> {
-        let mut bytes = vec![0u8; 256];
-        unsafe { sys::ui_get_sysname(self.fd.as_raw_fd(), &mut bytes)? };
+        let mut syspath = vec![0u8; 256];
+        let len = unsafe { sys::ui_get_sysname(self.fd.as_raw_fd(), &mut syspath)? };
+        syspath.truncate(len as usize - 1);
 
-        if let Some(end) = bytes.iter().position(|c| *c == 0) {
-            bytes.truncate(end);
-        }
+        let syspath = OsStr::from_bytes(&syspath);
 
-        let s = String::from_utf8_lossy(&bytes).into_owned();
-        let mut path = PathBuf::from(SYSFS_PATH);
-        path.push(s);
-
-        Ok(path)
+        Ok(Path::new(SYSFS_PATH).join(syspath))
     }
 
     /// Get the syspaths of the corresponding device nodes in /dev/input.
@@ -402,16 +398,15 @@ impl Iterator for DevNodesBlocking {
             };
 
             // Map the directory name to its file name.
-            let name = entry.file_name().to_string_lossy().to_owned().to_string();
+            let file_name = entry.file_name();
 
             // Ignore file names that do not start with event.
-            if !name.starts_with("event") {
+            if !file_name.as_bytes().starts_with(b"event") {
                 continue;
             }
 
             // Construct the path of the form '/dev/input/eventX'.
-            let mut path: PathBuf = PathBuf::from(DEV_PATH);
-            path.push(name);
+            let path = Path::new(DEV_PATH).join(file_name);
 
             return Some(Ok(path));
         }
@@ -434,16 +429,15 @@ impl DevNodes {
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
         while let Some(entry) = self.dir.next_entry().await? {
             // Map the directory name to its file name.
-            let name = entry.file_name().to_string_lossy().to_owned().to_string();
+            let file_name = entry.file_name();
 
             // Ignore file names that do not start with event.
-            if !name.starts_with("event") {
+            if !file_name.as_bytes().starts_with(b"event") {
                 continue;
             }
 
             // Construct the path of the form '/dev/input/eventX'.
-            let mut path: PathBuf = PathBuf::from(DEV_PATH);
-            path.push(name);
+            let path = Path::new(DEV_PATH).join(file_name);
 
             return Ok(Some(path));
         }
