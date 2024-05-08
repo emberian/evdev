@@ -8,10 +8,7 @@
   - Guarantee that each `...Event` struct can only hold a `InputEvent` of the corresponding `EventType`
 - Demonstrate what the `FFEvent` does in the `force_feedback` example.
 
-- `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
 - `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
-- `&AttributeSetRef` now implements `IntoIterator`.
-- `AttributeSet` now implements `FromIterator<&T>`.
 
 ### Changed
 - Removed the `evdev::Error` type - fallible functions now just return `io::Error`.
@@ -32,6 +29,20 @@
 
 ### Fixed
 - Update `VirtualDevice::fetch_events` to yield `InputEvent`s instead of `UInputEvent`s. That was a bug which was not accounted for be the type system. Yielding `UInputEvent`s there will now panic.
+
+## evdev 0.12.1
+[8fc58e1...af3c9b3](https://github.com/emberian/evdev/compare/8fc58e1...af3c9b3)
+
+### Added
+
+- `&AttributeSetRef` and `&mut AttributeSetRef` now implement `Default`.
+- `&AttributeSetRef` now implements `IntoIterator`.
+- `AttributeSet` now implements `FromIterator<&T>`.
+
+### Changed
+
+### Fixed
+- `enumerate_dev_nodes[_blocking]` now always returns a path to a file in `/dev/input`
 
 ## evdev 0.12.1 (2022-12-09)
 [86dfe33...8fc58e1](https://github.com/emberian/evdev/compare/86dfe33...8fc58e1)
