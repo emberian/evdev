@@ -12,6 +12,7 @@
 ### Changed
 
 ### Fixed
+- `enumerate_dev_nodes[_blocking]` now always returns a path to a file in `/dev/input`
 
 ## evdev 0.12.1 (2022-12-09)
 [86dfe33...HEAD](https://github.com/emberian/evdev/compare/86dfe33...HEAD)
