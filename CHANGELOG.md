@@ -1,7 +1,7 @@
 # Changelog
 
-## evdev next
-[8fc58e1...HEAD](https://github.com/emberian/evdev/compare/8fc58e1...HEAD)
+## evdev 0.12.1
+[8fc58e1...af3c9b3](https://github.com/emberian/evdev/compare/8fc58e1...af3c9b3)
 
 ### Added
 
