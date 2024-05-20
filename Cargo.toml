@@ -18,7 +18,7 @@ stream-trait = ["tokio", "futures-core"]
 libc = { version = "0.2.121", features = ["extra_traits"]}
 bitvec = "1.0.0"
 cfg-if = "1.0"
-nix = { version = "0.29", features = ["ioctl"] }
+nix = { version = "0.29", features = ["ioctl", "fs", "event"] }
 
 serde = { version = "1.0", features = ["derive"], optional = true }
 tokio = { version = "1.17", features = ["fs","time", "net"], optional = true }
@@ -31,10 +31,6 @@ itertools = "0.10"
 [[example]]
 name = "evtest_tokio"
 required-features = ["tokio"]
-
-[[example]]
-name = "evtest_nonblocking"
-required-features = ["nix/fs", "nix/event"]
 
 [package.metadata.docs.rs]
 all-features = true
