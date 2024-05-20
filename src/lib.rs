@@ -512,9 +512,8 @@ impl Display for EnumParseError {
 impl std::error::Error for EnumParseError {}
 
 fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result<()> {
-    use std::os::fd::AsRawFd;
     loop {
-        match nix::unistd::write(fd.as_raw_fd(), data) {
+        match nix::unistd::write(fd, data) {
             Ok(0) => return Ok(()),
             Ok(n) => data = &data[n..],
             Err(e) if e == nix::Error::EINTR => {}

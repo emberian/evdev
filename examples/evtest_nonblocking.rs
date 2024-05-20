@@ -15,43 +15,36 @@ mod _pick_device;
 #[cfg(target_os = "linux")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use nix::{
-        fcntl::{FcntlArg, OFlag},
+        fcntl::{fcntl, FcntlArg, OFlag},
         sys::epoll,
     };
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::fd::AsRawFd;
 
-    let mut d = _pick_device::pick_device();
-    println!("{d}");
+    let mut dev = _pick_device::pick_device();
+    println!("{dev}");
 
-    let raw_fd = d.as_raw_fd();
     // Set nonblocking
-    nix::fcntl::fcntl(raw_fd, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?;
+    fcntl(dev.as_raw_fd(), FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?;
 
     // Create epoll handle and attach raw_fd
-    let epoll_fd = epoll::epoll_create1(epoll::EpollCreateFlags::EPOLL_CLOEXEC)?;
-    let epoll_fd = unsafe { OwnedFd::from_raw_fd(epoll_fd) };
-    let mut event = epoll::EpollEvent::new(epoll::EpollFlags::EPOLLIN, 0);
-    epoll::epoll_ctl(
-        epoll_fd.as_raw_fd(),
-        epoll::EpollOp::EpollCtlAdd,
-        raw_fd,
-        Some(&mut event),
-    )?;
+    let epoll = epoll::Epoll::new(epoll::EpollCreateFlags::EPOLL_CLOEXEC)?;
+    let event = epoll::EpollEvent::new(epoll::EpollFlags::EPOLLIN, 0);
+    epoll.add(&dev, event)?;
 
     // We don't care about these, but the kernel wants to fill them.
     let mut events = [epoll::EpollEvent::empty(); 2];
 
     println!("Events:");
     loop {
-        match d.fetch_events() {
+        match dev.fetch_events() {
             Ok(iterator) => {
                 for ev in iterator {
                     println!("{ev:?}");
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                // Wait forever for bytes available on raw_fd
-                epoll::epoll_wait(epoll_fd.as_raw_fd(), &mut events, -1)?;
+                // Wait forever for bytes available on dev
+                epoll.wait(&mut events, epoll::EpollTimeout::NONE)?;
             }
             Err(e) => {
                 eprintln!("{e}");
