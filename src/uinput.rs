@@ -254,7 +254,7 @@ const DEFAULT_ID: input_id = input_id {
 pub struct VirtualDevice {
     fd: OwnedFd,
     pub(crate) event_buf: Vec<input_event>,
-    file_event: File,
+    fd_event: OwnedFd,
 }
 
 impl VirtualDevice {
@@ -268,7 +268,7 @@ impl VirtualDevice {
         Ok(VirtualDevice {
             fd,
             event_buf: vec![],
-            file_event,
+            fd_event: file_event.into(),
         })
     }
 
@@ -446,7 +446,7 @@ impl VirtualDevice {
     /// [`get_key_state`](Self::get_key_state) instead.
     #[inline]
     pub fn update_key_state(&self, key_vals: &mut AttributeSet<KeyCode>) -> io::Result<()> {
-        unsafe { sys::eviocgkey(self.file_event.as_raw_fd(), key_vals.as_mut_raw_slice())? };
+        unsafe { sys::eviocgkey(self.fd_event.as_raw_fd(), key_vals.as_mut_raw_slice())? };
         Ok(())
     }
 
@@ -474,7 +474,7 @@ impl VirtualDevice {
         &self,
         switch_vals: &mut AttributeSet<SwitchCode>,
     ) -> io::Result<()> {
-        unsafe { sys::eviocgsw(self.file_event.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
+        unsafe { sys::eviocgsw(self.fd_event.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
         Ok(())
     }
 
@@ -483,7 +483,7 @@ impl VirtualDevice {
     /// [`get_led_state`](Self::get_led_state) instead.
     #[inline]
     pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedCode>) -> io::Result<()> {
-        unsafe { sys::eviocgled(self.file_event.as_raw_fd(), led_vals.as_mut_raw_slice())? };
+        unsafe { sys::eviocgled(self.fd_event.as_raw_fd(), led_vals.as_mut_raw_slice())? };
         Ok(())
     }
 }
