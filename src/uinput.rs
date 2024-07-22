@@ -6,14 +6,18 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType, RelativeAxisCode,
-    SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
+    sys, AttributeSet, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, LedCode, MiscCode,
+    PropType, RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent,
+    UinputAbsSetup,
 };
+use libc::O_NONBLOCK;
 use std::ffi::{CString, OsStr};
+use std::fs::{self, File, OpenOptions};
+use std::io;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::{fs, io};
 
 const UINPUT_PATH: &str = "/dev/uinput";
 const SYSFS_PATH: &str = "/sys/devices/virtual/input";
@@ -198,6 +202,26 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    pub fn with_leds(self, keys: &AttributeSetRef<LedCode>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.fd.as_raw_fd(),
+                crate::EventType::LED.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in keys.iter() {
+            unsafe {
+                sys::ui_set_ledbit(
+                    self.fd.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
     pub fn build(self) -> io::Result<VirtualDevice> {
         // Populate the uinput_setup struct
 
@@ -230,6 +254,7 @@ const DEFAULT_ID: input_id = input_id {
 pub struct VirtualDevice {
     fd: OwnedFd,
     pub(crate) event_buf: Vec<input_event>,
+    fd_event: OwnedFd,
 }
 
 impl VirtualDevice {
@@ -238,10 +263,30 @@ impl VirtualDevice {
         unsafe { sys::ui_dev_setup(fd.as_raw_fd(), usetup)? };
         unsafe { sys::ui_dev_create(fd.as_raw_fd())? };
 
+        let file_event = Self::open_event_file(fd.as_raw_fd())?;
+
         Ok(VirtualDevice {
             fd,
             event_buf: vec![],
+            fd_event: file_event.into(),
         })
+    }
+
+    fn open_event_file(fd: RawFd) -> io::Result<File> {
+        let nodes_blocking = Self::enumerate_dev_nodes_blocking_(fd)?;
+        for entry in nodes_blocking {
+            if let Ok(entry) = entry {
+                return OpenOptions::new()
+                    .read(true)
+                    .custom_flags(O_NONBLOCK)
+                    .open(entry);
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Failed to find event file for uinput virtual device."),
+        ))
     }
 
     #[inline]
@@ -250,13 +295,9 @@ impl VirtualDevice {
         Ok(())
     }
 
-    /// Get the syspath representing this uinput device.
-    ///
-    /// The syspath returned is the one of the input node itself (e.g.
-    /// `/sys/devices/virtual/input/input123`), not the syspath of the device node.
-    pub fn get_syspath(&mut self) -> io::Result<PathBuf> {
+    fn get_syspath_(fd: RawFd) -> io::Result<PathBuf> {
         let mut syspath = vec![0u8; 256];
-        let len = unsafe { sys::ui_get_sysname(self.fd.as_raw_fd(), &mut syspath)? };
+        let len = unsafe { sys::ui_get_sysname(fd, &mut syspath)? };
         syspath.truncate(len as usize - 1);
 
         let syspath = OsStr::from_bytes(&syspath);
@@ -264,12 +305,24 @@ impl VirtualDevice {
         Ok(Path::new(SYSFS_PATH).join(syspath))
     }
 
-    /// Get the syspaths of the corresponding device nodes in /dev/input.
-    pub fn enumerate_dev_nodes_blocking(&mut self) -> io::Result<DevNodesBlocking> {
-        let path = self.get_syspath()?;
+    /// Get the syspath representing this uinput device.
+    ///
+    /// The syspath returned is the one of the input node itself (e.g.
+    /// `/sys/devices/virtual/input/input123`), not the syspath of the device node.
+    pub fn get_syspath(&mut self) -> io::Result<PathBuf> {
+        Self::get_syspath_(self.fd.as_raw_fd())
+    }
+
+    fn enumerate_dev_nodes_blocking_(fd: RawFd) -> io::Result<DevNodesBlocking> {
+        let path = Self::get_syspath_(fd)?;
         let dir = std::fs::read_dir(path)?;
 
         Ok(DevNodesBlocking { dir })
+    }
+
+    /// Get the syspaths of the corresponding device nodes in /dev/input.
+    pub fn enumerate_dev_nodes_blocking(&mut self) -> io::Result<DevNodesBlocking> {
+        Self::enumerate_dev_nodes_blocking_(self.fd.as_raw_fd())
     }
 
     /// Get the syspaths of the corresponding device nodes in /dev/input.
@@ -378,6 +431,60 @@ impl VirtualDevice {
     #[inline]
     pub fn into_event_stream(self) -> io::Result<VirtualEventStream> {
         VirtualEventStream::new(self)
+    }
+
+    /// Retrieve the current keypress state directly via kernel syscall.
+    #[inline]
+    pub fn get_key_state(&self) -> io::Result<AttributeSet<KeyCode>> {
+        let mut key_vals = AttributeSet::new();
+        self.update_key_state(&mut key_vals)?;
+        Ok(key_vals)
+    }
+
+    /// Fetch the current kernel key state directly into the provided buffer.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_key_state`](Self::get_key_state) instead.
+    #[inline]
+    pub fn update_key_state(&self, key_vals: &mut AttributeSet<KeyCode>) -> io::Result<()> {
+        unsafe { sys::eviocgkey(self.fd_event.as_raw_fd(), key_vals.as_mut_raw_slice())? };
+        Ok(())
+    }
+
+    /// Retrieve the current switch state directly via kernel syscall.
+    #[inline]
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchCode>> {
+        let mut switch_vals = AttributeSet::new();
+        self.update_switch_state(&mut switch_vals)?;
+        Ok(switch_vals)
+    }
+
+    /// Retrieve the current LED state directly via kernel syscall.
+    #[inline]
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedCode>> {
+        let mut led_vals = AttributeSet::new();
+        self.update_led_state(&mut led_vals)?;
+        Ok(led_vals)
+    }
+
+    /// Fetch the current kernel switch state directly into the provided buffer.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_switch_state`](Self::get_switch_state) instead.
+    #[inline]
+    pub fn update_switch_state(
+        &self,
+        switch_vals: &mut AttributeSet<SwitchCode>,
+    ) -> io::Result<()> {
+        unsafe { sys::eviocgsw(self.fd_event.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
+        Ok(())
+    }
+
+    /// Fetch the current kernel LED state directly into the provided buffer.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_led_state`](Self::get_led_state) instead.
+    #[inline]
+    pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedCode>) -> io::Result<()> {
+        unsafe { sys::eviocgled(self.fd_event.as_raw_fd(), led_vals.as_mut_raw_slice())? };
+        Ok(())
     }
 }
 
@@ -617,5 +724,6 @@ mod tokio_stream {
         }
     }
 }
+
 #[cfg(feature = "tokio")]
 pub use tokio_stream::VirtualEventStream;

@@ -30,14 +30,20 @@ fn main() -> std::io::Result<()> {
         // this guarantees a key event
         let down_event = *KeyEvent::new(KeyCode(code), 1);
         device.emit(&[down_event]).unwrap();
-        println!("Pressed.");
+        println!(
+            "BTN_DPAD_UP pressed, get_key_state: {:?}",
+            device.get_key_state()
+        );
         sleep(Duration::from_secs(2));
 
         // alternativeley we can create a InputEvent, which will be any variant of InputEvent
         // depending on the type_ value
         let up_event = InputEvent::new(EventType::KEY.0, code, 0);
         device.emit(&[up_event]).unwrap();
-        println!("Released.");
+        println!(
+            "BTN_DPAD_UP peleased, get_key_state: {:?}",
+            device.get_key_state()
+        );
         sleep(Duration::from_secs(2));
     }
 }
