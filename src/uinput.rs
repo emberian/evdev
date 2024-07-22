@@ -6,9 +6,11 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSet, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType,
-    RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
+    sys, AttributeSet, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, LedCode, MiscCode,
+    PropType, RelativeAxisCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent,
+    UinputAbsSetup,
 };
+use libc::O_NONBLOCK;
 use std::ffi::{CString, OsStr};
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -191,6 +193,26 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in misc_set.iter() {
             unsafe {
                 sys::ui_set_mscbit(
+                    self.fd.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    pub fn with_leds(self, keys: &AttributeSetRef<LedCode>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.fd.as_raw_fd(),
+                crate::EventType::LED.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in keys.iter() {
+            unsafe {
+                sys::ui_set_ledbit(
                     self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
@@ -425,6 +447,43 @@ impl VirtualDevice {
     #[inline]
     pub fn update_key_state(&self, key_vals: &mut AttributeSet<KeyCode>) -> io::Result<()> {
         unsafe { sys::eviocgkey(self.file_event.as_raw_fd(), key_vals.as_mut_raw_slice())? };
+        Ok(())
+    }
+
+    /// Retrieve the current switch state directly via kernel syscall.
+    #[inline]
+    pub fn get_switch_state(&self) -> io::Result<AttributeSet<SwitchCode>> {
+        let mut switch_vals = AttributeSet::new();
+        self.update_switch_state(&mut switch_vals)?;
+        Ok(switch_vals)
+    }
+
+    /// Retrieve the current LED state directly via kernel syscall.
+    #[inline]
+    pub fn get_led_state(&self) -> io::Result<AttributeSet<LedCode>> {
+        let mut led_vals = AttributeSet::new();
+        self.update_led_state(&mut led_vals)?;
+        Ok(led_vals)
+    }
+
+    /// Fetch the current kernel switch state directly into the provided buffer.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_switch_state`](Self::get_switch_state) instead.
+    #[inline]
+    pub fn update_switch_state(
+        &self,
+        switch_vals: &mut AttributeSet<SwitchCode>,
+    ) -> io::Result<()> {
+        unsafe { sys::eviocgsw(self.file_event.as_raw_fd(), switch_vals.as_mut_raw_slice())? };
+        Ok(())
+    }
+
+    /// Fetch the current kernel LED state directly into the provided buffer.
+    /// If you don't already have a buffer, you probably want
+    /// [`get_led_state`](Self::get_led_state) instead.
+    #[inline]
+    pub fn update_led_state(&self, led_vals: &mut AttributeSet<LedCode>) -> io::Result<()> {
+        unsafe { sys::eviocgled(self.file_event.as_raw_fd(), led_vals.as_mut_raw_slice())? };
         Ok(())
     }
 }
@@ -665,6 +724,6 @@ mod tokio_stream {
         }
     }
 }
-use libc::O_NONBLOCK;
+
 #[cfg(feature = "tokio")]
 pub use tokio_stream::VirtualEventStream;
