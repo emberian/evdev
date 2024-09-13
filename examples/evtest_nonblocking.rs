@@ -13,18 +13,13 @@ fn main() {}
 mod _pick_device;
 
 #[cfg(target_os = "linux")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use nix::{
-        fcntl::{fcntl, FcntlArg, OFlag},
-        sys::epoll,
-    };
-    use std::os::fd::AsRawFd;
+fn main() -> std::io::Result<()> {
+    use nix::sys::epoll;
 
     let mut dev = _pick_device::pick_device();
     println!("{dev}");
 
-    // Set nonblocking
-    fcntl(dev.as_raw_fd(), FcntlArg::F_SETFL(OFlag::O_NONBLOCK))?;
+    dev.set_nonblocking(true)?;
 
     // Create epoll handle and attach raw_fd
     let epoll = epoll::Epoll::new(epoll::EpollCreateFlags::EPOLL_CLOEXEC)?;

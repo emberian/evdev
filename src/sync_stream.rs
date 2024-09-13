@@ -7,6 +7,7 @@ use crate::{
     AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyCode,
 };
 
+use nix::fcntl;
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::path::Path;
@@ -357,6 +358,15 @@ impl Device {
     #[cfg(feature = "tokio")]
     pub fn into_event_stream(self) -> io::Result<EventStream> {
         EventStream::new(self)
+    }
+
+    /// Set `O_NONBLOCK` on this device.
+    pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        let mut flags =
+            fcntl::OFlag::from_bits_retain(fcntl::fcntl(self.as_raw_fd(), fcntl::F_GETFL)?);
+        flags.set(fcntl::OFlag::O_NONBLOCK, nonblocking);
+        fcntl::fcntl(self.as_raw_fd(), fcntl::F_SETFL(flags))?;
+        Ok(())
     }
 
     /// Grab the device through a kernel syscall.
@@ -778,8 +788,7 @@ mod tokio_stream {
 
     impl EventStream {
         pub(crate) fn new(device: Device) -> io::Result<Self> {
-            use nix::fcntl;
-            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
+            device.set_nonblocking(true)?;
             let device = AsyncFd::new(device)?;
             Ok(Self {
                 device,
