@@ -360,7 +360,7 @@ impl Device {
         EventStream::new(self)
     }
 
-    /// Set `O_NONBLOCK` on this device.
+    /// Set `O_NONBLOCK` on this device handle.
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         let mut flags =
             fcntl::OFlag::from_bits_retain(fcntl::fcntl(self.as_raw_fd(), fcntl::F_GETFL)?);
