@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use tokio::time::timeout;
 
-use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyCode};
+use evdev::{uinput::VirtualDevice, AttributeSet, EventType, InputEvent, KeyCode};
 
 #[tokio::test]
 async fn test_virtual_device_actually_emits() -> Result<(), Box<dyn Error>> {
@@ -14,7 +14,7 @@ async fn test_virtual_device_actually_emits() -> Result<(), Box<dyn Error>> {
     let virtual_device_name = "fake-keyboard";
     keys.insert(KeyCode::KEY_ESC);
 
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name(virtual_device_name)
         .with_keys(&keys)?
         .build()
