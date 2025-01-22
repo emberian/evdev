@@ -54,6 +54,7 @@ impl fmt::Debug for InputId {
     }
 }
 
+/// The bus type of an [`InputId`].
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct BusType(pub u16);
 

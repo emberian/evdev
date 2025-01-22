@@ -9,6 +9,8 @@
 - Demonstrate what the `FFEvent` does in the `force_feedback` example.
 
 - `Device`, `RawDevice`, and `VirtualDevice` now implement `AsFd`.
+- `VirtualDevice::builder()` as an alias for `VirtualDeviceBuilder::new()`
+  - `VirtualDeviceBuilder::new()` is now deprecated.
 
 ### Changed
 - Removed the `evdev::Error` type - fallible functions now just return `io::Error`.
@@ -26,6 +28,8 @@
 - The minimum supported rust version (MSRV) is now `1.63`, due to `AsFd` support.
 - In order for the `EventStream` types to implement Stream, the `stream-trait`
   feature must now be specified.
+- `FFEffect` and `AutoRepeat` are now defined in the root of the crate instead of in `raw_stream`.
+- `VirtualDeviceBuilder::with_phys` now accepts a `&CStr` instead of a `&str`.
 
 ### Fixed
 - Update `VirtualDevice::fetch_events` to yield `InputEvent`s instead of `UInputEvent`s. That was a bug which was not accounted for be the type system. Yielding `UInputEvent`s there will now panic.

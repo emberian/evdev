@@ -2,7 +2,7 @@
 // Generally this requires root.
 
 use evdev::KeyEvent;
-use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, KeyCode};
+use evdev::{uinput::VirtualDevice, AttributeSet, EventType, InputEvent, KeyCode};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -10,7 +10,7 @@ fn main() -> std::io::Result<()> {
     let mut keys = AttributeSet::<KeyCode>::new();
     keys.insert(KeyCode::BTN_DPAD_UP);
 
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name("Fake Keyboard")
         .with_keys(&keys)?
         .build()

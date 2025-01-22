@@ -1,13 +1,13 @@
 // Create a virtual mouse, just while this is running.
 // Generally this requires root.
 
-use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent, RelativeAxisCode};
+use evdev::{uinput::VirtualDevice, AttributeSet, EventType, InputEvent, RelativeAxisCode};
 use std::thread::sleep;
 use std::time::Duration;
 use MoveDirection::*;
 
 fn main() -> std::io::Result<()> {
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name("fake-mouse")
         .with_relative_axes(&AttributeSet::from_iter([
             RelativeAxisCode::REL_X,

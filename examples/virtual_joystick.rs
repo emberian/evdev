@@ -1,9 +1,7 @@
 // Create a virtual joystick, just while this is running.
 // Generally this requires root.
 
-use evdev::{
-    uinput::VirtualDeviceBuilder, AbsInfo, AbsoluteAxisCode, AbsoluteAxisEvent, UinputAbsSetup,
-};
+use evdev::{uinput::VirtualDevice, AbsInfo, AbsoluteAxisCode, AbsoluteAxisEvent, UinputAbsSetup};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -11,7 +9,7 @@ fn main() -> std::io::Result<()> {
     let abs_setup = AbsInfo::new(256, 0, 512, 20, 20, 1);
     let abs_x = UinputAbsSetup::new(AbsoluteAxisCode::ABS_X, abs_setup);
 
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name("Fake Joystick")
         .with_absolute_axis(&abs_x)?
         .build()

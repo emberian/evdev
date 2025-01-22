@@ -1,13 +1,13 @@
 // Create a virtual force feedback device, just while this is running.
 
 use evdev::{
-    uinput::VirtualDeviceBuilder, AttributeSet, EventSummary, FFEffectCode, FFStatusCode,
-    InputEvent, UInputCode,
+    uinput::VirtualDevice, AttributeSet, EventSummary, FFEffectCode, FFStatusCode, InputEvent,
+    UInputCode,
 };
 use std::collections::BTreeSet;
 
 fn main() -> std::io::Result<()> {
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name("Fake Force Feedback")
         .with_ff(&AttributeSet::from_iter([FFEffectCode::FF_RUMBLE]))?
         .with_ff_effects_max(16)
