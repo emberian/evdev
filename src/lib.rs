@@ -442,10 +442,27 @@ impl InputEvent {
 
 impl fmt::Debug for InputEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let summary = self.destructure();
+        let code: &dyn fmt::Debug = match &summary {
+            EventSummary::Synchronization(_, code, _) => code,
+            EventSummary::Key(_, code, _) => code,
+            EventSummary::RelativeAxis(_, code, _) => code,
+            EventSummary::AbsoluteAxis(_, code, _) => code,
+            EventSummary::Misc(_, code, _) => code,
+            EventSummary::Switch(_, code, _) => code,
+            EventSummary::Led(_, code, _) => code,
+            EventSummary::Sound(_, code, _) => code,
+            EventSummary::Repeat(_, code, _) => code,
+            EventSummary::ForceFeedback(_, code, _) => code,
+            EventSummary::Power(_, code, _) => code,
+            EventSummary::ForceFeedbackStatus(_, code, _) => code,
+            EventSummary::UInput(_, code, _) => code,
+            EventSummary::Other(_, code, _) => &code.1,
+        };
         f.debug_struct("InputEvent")
             .field("time", &self.timestamp())
             .field("type", &self.event_type())
-            .field("code", &self.code())
+            .field("code", code)
             .field("value", &self.value())
             .finish()
     }
