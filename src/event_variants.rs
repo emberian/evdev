@@ -111,7 +111,7 @@ macro_rules! input_event_newtype {
         }
         impl Deref for $name {
             type Target = InputEvent;
-            fn deref<'a>(&'a self) -> &'a InputEvent {
+            fn deref(&self) -> &InputEvent {
                 &self.0
             }
         }

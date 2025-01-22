@@ -571,7 +571,7 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
     }
 }
 
-impl<'a> Iterator for FetchEventsSynced<'a> {
+impl Iterator for FetchEventsSynced<'_> {
     type Item = InputEvent;
     fn next(&mut self) -> Option<InputEvent> {
         // first: check if we need to emit compensatory events due to a SYN_DROPPED we found in the
@@ -599,7 +599,7 @@ impl<'a> Iterator for FetchEventsSynced<'a> {
     }
 }
 
-impl<'a> Drop for FetchEventsSynced<'a> {
+impl Drop for FetchEventsSynced<'_> {
     fn drop(&mut self) {
         self.dev.raw.event_buf.drain(..self.consumed_to);
     }
