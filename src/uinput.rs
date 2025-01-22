@@ -9,7 +9,7 @@ use crate::{
     sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType, RelativeAxisCode,
     SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
 };
-use std::ffi::{CString, OsStr};
+use std::ffi::{CStr, OsStr};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -19,6 +19,7 @@ const UINPUT_PATH: &str = "/dev/uinput";
 const SYSFS_PATH: &str = "/sys/devices/virtual/input";
 const DEV_PATH: &str = "/dev/input";
 
+/// A builder struct for creating a new uinput virtual device.
 #[derive(Debug)]
 pub struct VirtualDeviceBuilder<'a> {
     fd: OwnedFd,
@@ -27,7 +28,12 @@ pub struct VirtualDeviceBuilder<'a> {
     ff_effects_max: u32,
 }
 
+/// A builder struct for [`VirtualDevice`].
+///
+/// Created via [`VirtualDevice::builder()`].
 impl<'a> VirtualDeviceBuilder<'a> {
+    #[deprecated(note = "use `VirtualDevice::builder()` instead")]
+    #[doc(hidden)]
     pub fn new() -> io::Result<Self> {
         // Open in read-write mode.
         let fd = fs::OpenOptions::new()
@@ -43,26 +49,29 @@ impl<'a> VirtualDeviceBuilder<'a> {
         })
     }
 
+    /// Set the display name of this device.
     #[inline]
     pub fn name<S: AsRef<[u8]> + ?Sized>(mut self, name: &'a S) -> Self {
         self.name = name.as_ref();
         self
     }
 
+    /// Set a custom input ID.
     #[inline]
     pub fn input_id(mut self, id: InputId) -> Self {
         self.id = Some(id.0);
         self
     }
 
-    pub fn with_phys(self, path: &str) -> io::Result<Self> {
-        let c_str = CString::new(path)?;
+    /// Set the device's physical location, e.g. `usb-00:01.2-2.1/input0`.
+    pub fn with_phys(self, path: &CStr) -> io::Result<Self> {
         unsafe {
-            sys::ui_set_phys(self.fd.as_raw_fd(), c_str.as_ptr() as *const usize)?;
+            sys::ui_set_phys(self.fd.as_raw_fd(), path.as_ptr())?;
         }
         Ok(self)
     }
 
+    /// Set the key codes that can be emitted by this device.
     pub fn with_keys(self, keys: &AttributeSetRef<KeyCode>) -> io::Result<Self> {
         // Run ioctls for setting capability bits
         unsafe {
@@ -84,6 +93,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the absolute axes of this device.
     pub fn with_absolute_axis(self, axis: &UinputAbsSetup) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
@@ -100,6 +110,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the relative axes of this device.
     pub fn with_relative_axes(self, axes: &AttributeSetRef<RelativeAxisCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
@@ -120,6 +131,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the properties of this device.
     pub fn with_properties(self, switches: &AttributeSetRef<PropType>) -> io::Result<Self> {
         for bit in switches.iter() {
             unsafe {
@@ -133,6 +145,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the switch codes that can be emitted by this device.
     pub fn with_switches(self, switches: &AttributeSetRef<SwitchCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
@@ -153,6 +166,7 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the force-feedback effects that can be emitted by this device.
     pub fn with_ff(self, ff: &AttributeSetRef<FFEffectCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
@@ -173,11 +187,13 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Set the maximum number for a force-feedback effect for this device.
     pub fn with_ff_effects_max(mut self, ff_effects_max: u32) -> Self {
         self.ff_effects_max = ff_effects_max;
         self
     }
 
+    /// Set the `MiscCode`s of this device.
     pub fn with_msc(self, misc_set: &AttributeSetRef<MiscCode>) -> io::Result<Self> {
         unsafe {
             sys::ui_set_evbit(
@@ -198,6 +214,10 @@ impl<'a> VirtualDeviceBuilder<'a> {
         Ok(self)
     }
 
+    /// Finalize and register this device.
+    ///
+    /// # Errors
+    /// Returns an error if device setup or creation fails.
     pub fn build(self) -> io::Result<VirtualDevice> {
         // Populate the uinput_setup struct
 
@@ -226,6 +246,7 @@ const DEFAULT_ID: input_id = input_id {
     version: 0x111,
 };
 
+/// A handle to a uinput virtual device.
 #[derive(Debug)]
 pub struct VirtualDevice {
     fd: OwnedFd,
@@ -233,6 +254,12 @@ pub struct VirtualDevice {
 }
 
 impl VirtualDevice {
+    /// Convenience method for creating a `VirtualDeviceBuilder`.
+    pub fn builder<'a>() -> io::Result<VirtualDeviceBuilder<'a>> {
+        #[allow(deprecated)]
+        VirtualDeviceBuilder::new()
+    }
+
     /// Create a new virtual device.
     fn new(fd: OwnedFd, usetup: &uinput_setup) -> io::Result<Self> {
         unsafe { sys::ui_dev_setup(fd.as_raw_fd(), usetup)? };

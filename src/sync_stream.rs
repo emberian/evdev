@@ -2,9 +2,10 @@ use crate::compat::{input_absinfo, input_event};
 use crate::constants::*;
 use crate::device_state::DeviceState;
 use crate::ff::*;
-use crate::raw_stream::{FFEffect, RawDevice};
+use crate::raw_stream::RawDevice;
 use crate::{
-    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, InputEvent, InputId, KeyCode,
+    AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, EventSummary, FFEffect, InputEvent,
+    InputId, KeyCode,
 };
 
 use nix::fcntl;

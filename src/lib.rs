@@ -179,6 +179,8 @@ pub mod uinput;
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};
 use std::fmt::{self, Display};
+use std::io;
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
@@ -188,7 +190,6 @@ pub use device_state::DeviceState;
 pub use event_variants::*;
 pub use ff::*;
 pub use inputid::*;
-pub use raw_stream::{AutoRepeat, FFEffect};
 pub use scancodes::*;
 pub use sync_stream::*;
 
@@ -478,6 +479,7 @@ pub fn enumerate() -> EnumerateDevices {
     }
 }
 
+/// An iterator over currently connected evdev devices.
 pub struct EnumerateDevices {
     inner: raw_stream::EnumerateDevices,
 }
@@ -517,6 +519,7 @@ pub(crate) unsafe fn cast_to_bytes<T: ?Sized>(mem: &T) -> &[u8] {
     std::slice::from_raw_parts(mem as *const T as *const u8, std::mem::size_of_val(mem))
 }
 
+/// An error type for the `FromStr` implementation for enum-like types in this crate.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumParseError(());
 
@@ -542,4 +545,63 @@ fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result
 fn write_events(fd: std::os::fd::BorrowedFd<'_>, events: &[InputEvent]) -> nix::Result<()> {
     let bytes = unsafe { cast_to_bytes(events) };
     fd_write_all(fd, bytes)
+}
+
+/// Represents a force feedback effect that has been successfully uploaded to the device for
+/// playback.
+#[derive(Debug)]
+pub struct FFEffect {
+    fd: OwnedFd,
+    id: u16,
+}
+
+impl FFEffect {
+    /// Returns the effect ID.
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
+    /// Plays the force feedback effect with the `count` argument specifying how often the effect
+    /// should be played.
+    pub fn play(&mut self, count: i32) -> io::Result<()> {
+        let events = [*FFEvent::new(FFEffectCode(self.id), count)];
+        crate::write_events(self.fd.as_fd(), &events)?;
+
+        Ok(())
+    }
+
+    /// Stops playback of the force feedback effect.
+    pub fn stop(&mut self) -> io::Result<()> {
+        let events = [*FFEvent::new(FFEffectCode(self.id), 0)];
+        crate::write_events(self.fd.as_fd(), &events)?;
+
+        Ok(())
+    }
+
+    /// Updates the force feedback effect.
+    pub fn update(&mut self, data: FFEffectData) -> io::Result<()> {
+        let mut effect: sys::ff_effect = data.into();
+        effect.id = self.id as i16;
+
+        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
+
+        Ok(())
+    }
+}
+
+impl Drop for FFEffect {
+    fn drop(&mut self) {
+        let _ = unsafe { sys::eviocrmff(self.fd.as_raw_fd(), self.id as _) };
+    }
+}
+
+/// Auto-repeat settings for a device.
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct AutoRepeat {
+    /// The duration, in milliseconds, that a key needs to be held down before
+    /// it begins to auto-repeat.
+    pub delay: u32,
+    /// The duration, in milliseconds, between auto-repetitions of a held-down key.
+    pub period: u32,
 }

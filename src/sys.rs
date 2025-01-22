@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use crate::compat::{
     ff_condition_effect, ff_constant_effect, ff_periodic_effect, ff_ramp_effect, ff_replay,
     ff_rumble_effect, ff_trigger, input_absinfo, input_id, input_keymap_entry, uinput_abs_setup,
@@ -86,7 +88,7 @@ ioctl_write_int!(ui_set_mscbit, UINPUT_IOCTL_BASE, 104);
 ioctl_write_int!(ui_set_ledbit, UINPUT_IOCTL_BASE, 105);
 ioctl_write_int!(ui_set_sndbit, UINPUT_IOCTL_BASE, 106);
 ioctl_write_int!(ui_set_ffbit, UINPUT_IOCTL_BASE, 107);
-ioctl_write_ptr!(ui_set_phys, UINPUT_IOCTL_BASE, 108, usize);
+ioctl_write_ptr!(ui_set_phys, UINPUT_IOCTL_BASE, 108, libc::c_char);
 ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
 ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
 

@@ -1,3 +1,5 @@
+//! A device implementation with no userspace synchronization performed.
+
 use std::fs::{File, OpenOptions};
 use std::mem::MaybeUninit;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
@@ -8,8 +10,8 @@ use crate::compat::{input_absinfo, input_event, input_id, input_keymap_entry};
 use crate::constants::*;
 use crate::ff::*;
 use crate::{
-    sys, AbsInfo, AttributeSet, AttributeSetRef, FFEffectCode, FFEvent, InputEvent, InputId,
-    KeyCode,
+    sys, AbsInfo, AttributeSet, AttributeSetRef, AutoRepeat, FFEffect, FFEffectCode, FFEvent,
+    InputEvent, InputId, KeyCode,
 };
 
 fn ioctl_get_cstring(
@@ -50,59 +52,15 @@ pub(crate) const ABS_VALS_INIT: [input_absinfo; AbsoluteAxisCode::COUNT] =
 
 const INPUT_KEYMAP_BY_INDEX: u8 = 1;
 
-/// Represents a force feedback effect that has been successfully uploaded to the device for
-/// playback.
-#[derive(Debug)]
-pub struct FFEffect {
-    fd: OwnedFd,
-    id: u16,
-}
-
-impl FFEffect {
-    /// Returns the effect ID.
-    pub fn id(&self) -> u16 {
-        self.id
-    }
-
-    /// Plays the force feedback effect with the `count` argument specifying how often the effect
-    /// should be played.
-    pub fn play(&mut self, count: i32) -> io::Result<()> {
-        let events = [*FFEvent::new(FFEffectCode(self.id), count)];
-        crate::write_events(self.fd.as_fd(), &events)?;
-
-        Ok(())
-    }
-
-    /// Stops playback of the force feedback effect.
-    pub fn stop(&mut self) -> io::Result<()> {
-        let events = [*FFEvent::new(FFEffectCode(self.id), 0)];
-        crate::write_events(self.fd.as_fd(), &events)?;
-
-        Ok(())
-    }
-
-    /// Updates the force feedback effect.
-    pub fn update(&mut self, data: FFEffectData) -> io::Result<()> {
-        let mut effect: sys::ff_effect = data.into();
-        effect.id = self.id as i16;
-
-        unsafe { sys::eviocsff(self.fd.as_raw_fd(), &effect)? };
-
-        Ok(())
-    }
-}
-
-impl Drop for FFEffect {
-    fn drop(&mut self) {
-        let _ = unsafe { sys::eviocrmff(self.fd.as_raw_fd(), self.id as _) };
-    }
-}
-
 /// A physical or virtual device supported by evdev.
 ///
 /// Each device corresponds to a path typically found in `/dev/input`, and supports access via
 /// one or more "types". For example, an optical mouse has buttons that are represented by "keys",
 /// and reflects changes in its position via "relative axis" reports.
+///
+/// If events are dropped from the kernel's internal buffer, no synchronization will be done to
+/// fetch the device's state, meaning the state as observed through events may drift from
+/// the actual state of the device.
 #[derive(Debug)]
 pub struct RawDevice {
     fd: OwnedFd,
@@ -127,13 +85,6 @@ pub struct RawDevice {
     supported_snd: Option<AttributeSet<SoundCode>>,
     pub(crate) event_buf: Vec<input_event>,
     grabbed: bool,
-}
-
-#[derive(Debug, Clone)]
-#[repr(C)]
-pub struct AutoRepeat {
-    pub delay: u32,
-    pub period: u32,
 }
 
 impl RawDevice {
@@ -783,6 +734,7 @@ pub fn enumerate() -> EnumerateDevices {
     }
 }
 
+/// An iterator over currently connected evdev devices.
 pub struct EnumerateDevices {
     readdir: Option<std::fs::ReadDir>,
 }

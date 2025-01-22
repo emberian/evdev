@@ -1,11 +1,12 @@
 //! The event_variants module contains new-type wrappers around [`InputEvent`]
-//! for each known [`EventType`]. These event variants guarantee that the underlying
-//! `InputEvent` has the corresponding type. They may also contain additional methods
-//! for the specific type and convinient short cut methods for event creation.
-//! An `InputEvent` can be convertet to the corresponding event variant with the
-//! [`InputEvent::destructure()`] method.
-//! Each event variant implements [`Into<InputEvent>`] and [`Deref<Target=InputEvent>`]
-//! for easy back conversion.
+//! for each known [`EventType`].
+//!
+//! These event variants guarantee that the underlying `InputEvent` has the
+//! corresponding type. They may also contain additional methods for the
+//! specific type and convenient shortcut methods for event creation.
+//! An `InputEvent` can be converted to the corresponding event variant with
+//! the [`InputEvent::destructure()`] method. Each event variant implements
+//! `Into<InputEvent>` and `Deref<Target=InputEvent>` for easy back conversion.
 
 use std::fmt;
 use std::ops::Deref;
@@ -87,7 +88,7 @@ pub struct UInputEvent(InputEvent);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(transparent)]
-/// No clue, but technically possible.
+/// An event not covered by any other variant.
 pub struct OtherEvent(pub(crate) InputEvent);
 
 macro_rules! input_event_newtype {
