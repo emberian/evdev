@@ -19,13 +19,13 @@ jobs:
     - name: Format
       run: cargo fmt --check
     - name: Clippy
-      run: cargo clippy
+      run: cargo clippy && cargo clippy --all-features
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --all-features
     - name: Run tests
       run: cargo test --verbose
     - name: Doc
-      run: cargo doc
+      run: cargo doc --all-features
 
   cross-linux:
     runs-on: ubuntu-latest
@@ -68,12 +68,12 @@ jobs:
       run: cargo doc --target ${{ matrix.target.rust }}
 
   freebsd:
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     name: build (FreeBSD)
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      uses: vmactions/freebsd-vm@v0
+      uses: vmactions/freebsd-vm@v1
       with:
         envs: 'RUSTFLAGS'
         usesh: true
@@ -83,5 +83,5 @@ jobs:
         run: |
           curl https://sh.rustup.rs -sSf | sh -s -- --profile minimal -y
           . "$HOME/.cargo/env"
-          cargo build
+          cargo build --all-features
           cargo test

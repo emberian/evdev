@@ -536,7 +536,7 @@ fn fd_write_all(fd: std::os::fd::BorrowedFd<'_>, mut data: &[u8]) -> nix::Result
         match nix::unistd::write(fd, data) {
             Ok(0) => return Ok(()),
             Ok(n) => data = &data[n..],
-            Err(e) if e == nix::Error::EINTR => {}
+            Err(nix::Error::EINTR) => {}
             Err(e) => return Err(e),
         }
     }
