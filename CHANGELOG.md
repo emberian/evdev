@@ -1,5 +1,14 @@
 # Changelog
 
+## evdev next
+[7cbae16...HEAD](https://github.com/emberian/evdev/compare/7cbae16...HEAD)
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## evdev 0.13.0 (2025-01-22)
 [02aef0c...5a5ec3c](https://github.com/emberian/evdev/compare/02aef0c...5a5ec3c)
 
