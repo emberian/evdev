@@ -1,7 +1,7 @@
 # Changelog
 
-## evdev next
-[8fc58e1...HEAD](https://github.com/emberian/evdev/compare/8fc58e1...HEAD)
+## evdev 0.13.0 (2025-01-22)
+[02aef0c...5a5ec3c](https://github.com/emberian/evdev/compare/02aef0c...5a5ec3c)
 
 ### Added
 - Create a `...Event` struct for each `EventType` to hold the `InputEvent`
@@ -34,7 +34,7 @@
 ### Fixed
 - Update `VirtualDevice::fetch_events` to yield `InputEvent`s instead of `UInputEvent`s. That was a bug which was not accounted for be the type system. Yielding `UInputEvent`s there will now panic.
 
-## evdev 0.12.1
+## evdev 0.12.2 (2024-05-08)
 [8fc58e1...af3c9b3](https://github.com/emberian/evdev/compare/8fc58e1...af3c9b3)
 
 ### Added
