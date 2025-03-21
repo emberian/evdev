@@ -27,6 +27,7 @@ use std::{fmt, io};
 /// If `fetch_events()` isn't called often enough and the kernel drops events from its internal
 /// buffer, synthetic events will be injected into the iterator returned by `fetch_events()` and
 /// [`Device::cached_state()`] will be kept up to date when `fetch_events()` is called.
+#[derive(Debug)]
 pub struct Device {
     raw: RawDevice,
     prev_state: DeviceState,
@@ -383,6 +384,11 @@ impl Device {
         self.raw.ungrab()
     }
 
+    /// Whether the device is currently grabbed for exclusive use or not.
+    pub fn is_grabbed(&self) -> bool {
+        self.raw.is_grabbed()
+    }
+
     /// Send an event to the device.
     ///
     /// Events that are typically sent to devices are
@@ -407,6 +413,14 @@ impl Device {
     /// Enables or disables autocenter for the force feedback device.
     pub fn set_ff_autocenter(&mut self, value: u16) -> io::Result<()> {
         self.raw.set_ff_autocenter(value)
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        if let Err(error) = self.ungrab() {
+            eprintln!("Failed to ungrab device: {error}");
+        }
     }
 }
 

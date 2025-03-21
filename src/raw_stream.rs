@@ -662,6 +662,11 @@ impl RawDevice {
         Ok(())
     }
 
+    /// Whether the device is currently grabbed for exclusive use or not.
+    pub fn is_grabbed(&self) -> bool {
+        self.grabbed
+    }
+
     /// Send an event to the device.
     ///
     /// Events that are typically sent to devices are
