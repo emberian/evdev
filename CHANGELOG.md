@@ -1,7 +1,16 @@
 # Changelog
 
 ## evdev next
-[7cbae16...HEAD](https://github.com/emberian/evdev/compare/7cbae16...HEAD)
+[6aed780...HEAD](https://github.com/emberian/evdev/compare/7cbae16...HEAD)
+
+### Added
+
+### Changed
+
+### Fixed
+
+## evdev 0.13.1 (2025-03-31)
+[7cbae16...6aed780](https://github.com/emberian/evdev/compare/7cbae16...6aed780)
 
 ### Added
 - `Device::is_grabbed() -> bool`
