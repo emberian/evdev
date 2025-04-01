@@ -4,8 +4,11 @@
 [7cbae16...HEAD](https://github.com/emberian/evdev/compare/7cbae16...HEAD)
 
 ### Added
+- `Device::is_grabbed() -> bool`
 
 ### Changed
+- `Device` now implements `Debug`.
+- `Device` now calls `ungrab()` on Drop.
 
 ### Fixed
 
