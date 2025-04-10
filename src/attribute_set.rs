@@ -38,11 +38,6 @@ impl<T: EvdevEnum> AttributeSetRef<T> {
         self.into_iter()
     }
 
-    #[inline]
-    pub(crate) fn slice(&self, start: T) -> &Self {
-        Self::new(&self.bitslice[start.to_index()..])
-    }
-
     pub fn insert(&mut self, attr: T) {
         self.set(attr, true)
     }
@@ -55,6 +50,17 @@ impl<T: EvdevEnum> AttributeSetRef<T> {
     #[inline]
     pub(crate) fn set(&mut self, attr: T, on: bool) {
         self.bitslice.set(attr.to_index(), on)
+    }
+
+    #[inline]
+    pub(crate) fn slice_iter(&self, start: T) -> AttributeSetRefIter<T> {
+        let slice = Self::new(&self.bitslice[start.to_index()..]);
+
+        AttributeSetRefIter {
+            _indexer: std::marker::PhantomData,
+            inner: slice.bitslice.iter_ones(),
+            offset: start.to_index(),
+        }
     }
 }
 
@@ -83,6 +89,7 @@ impl<'a, T: EvdevEnum> IntoIterator for &'a AttributeSetRef<T> {
         AttributeSetRefIter {
             _indexer: std::marker::PhantomData,
             inner: self.bitslice.iter_ones(),
+            offset: 0,
         }
     }
 }
@@ -90,13 +97,16 @@ impl<'a, T: EvdevEnum> IntoIterator for &'a AttributeSetRef<T> {
 pub struct AttributeSetRefIter<'a, T> {
     _indexer: std::marker::PhantomData<&'a T>,
     inner: bitvec::slice::IterOnes<'a, u8, Lsb0>,
+    offset: usize,
 }
 
 impl<T: EvdevEnum> Iterator for AttributeSetRefIter<'_, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(T::from_index)
+        self.inner
+            .next()
+            .map(|idx| T::from_index(self.offset + idx))
     }
 }
 

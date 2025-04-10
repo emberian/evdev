@@ -175,6 +175,8 @@ pub mod raw_stream;
 mod scancodes;
 mod sync_stream;
 mod sys;
+#[cfg(test)]
+mod tests;
 pub mod uinput;
 
 use crate::compat::{input_absinfo, input_event, uinput_abs_setup};

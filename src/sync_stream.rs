@@ -485,12 +485,12 @@ fn compensate_events(state: &mut Option<SyncState>, dev: &mut Device) -> Option<
     macro_rules! try_compensate {
         ($time:expr, $start:ident : $typ:ident, $evtype:ident, $sync:ident, $supporteds:ident, $state:ty, $get_state:expr, $get_value:expr) => {
             if let Some(supported_types) = dev.$supporteds() {
-                let types_to_check = supported_types.slice(*$start);
+                let types_to_check = supported_types.slice_iter(*$start);
                 let get_state: fn(&DeviceState) -> $state = $get_state;
                 let vals = get_state(&dev.state);
                 let old_vals = get_state(&dev.prev_state);
                 let get_value: fn($state, $typ) -> _ = $get_value;
-                for typ in types_to_check.iter() {
+                for typ in types_to_check {
                     let prev = get_value(old_vals, typ);
                     let value = get_value(vals, typ);
                     if prev != value {
@@ -889,6 +889,7 @@ pub use tokio_stream::EventStream;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::{get_test_device, key_event};
 
     fn result_events_iter(
         events: &[input_event],
@@ -955,5 +956,24 @@ mod tests {
         assert_eq!(next(), (Err(false), None));
         assert_eq!(next(), (Err(false), None));
         assert_eq!(next(), (Err(false), None));
+    }
+
+    #[test]
+    pub fn test_get_key_state() -> Result<(), Box<dyn std::error::Error>> {
+        let (input, mut output) = get_test_device()?;
+
+        output.emit(&[key_event(KeyCode::KEY_DOT, 1)])?;
+
+        assert_eq!(1, input.get_key_state()?.iter().count());
+        assert!(input
+            .get_key_state()?
+            .iter()
+            .all(|e| e.code() == KeyCode::KEY_DOT.code()));
+
+        output.emit(&[key_event(KeyCode::KEY_DOT, 0)])?;
+
+        assert_eq!(0, input.get_key_state()?.iter().count());
+
+        Ok(())
     }
 }
