@@ -13,6 +13,7 @@ rust-version = "1.64"
 serde = ["dep:serde"]
 tokio = ["dep:tokio"]
 stream-trait = ["tokio", "futures-core"]
+device-test = []
 
 [dependencies]
 libc = { version = "0.2.121", features = ["extra_traits"]}

@@ -26,6 +26,8 @@ jobs:
       run: cargo test --verbose
     - name: Doc
       run: cargo doc --all-features
+    - name: Run device tests
+      run: sudo -E env "PATH=$PATH" cargo test --tests --features device-test
 
   cross-linux:
     runs-on: ubuntu-latest

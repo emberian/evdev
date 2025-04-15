@@ -1,5 +1,9 @@
-use crate::tests::{final_dot_state, final_event_state, get_test_device, key_click, key_event};
-use crate::{EventType, InputEvent, KeyCode, SwitchCode};
+#![cfg(feature = "device-test")]
+
+mod common;
+
+use common::{final_dot_state, final_event_state, get_test_device, key_click, key_event};
+use evdev::{EventType, InputEvent, KeyCode, SwitchCode};
 
 #[test]
 pub fn test_compensate_keys() -> std::io::Result<()> {

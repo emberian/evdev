@@ -1,11 +1,12 @@
-use crate::tests::get_test_device;
 use crate::{AttributeSet, KeyCode};
 
 #[test]
 pub fn test_iteration_keys() -> std::io::Result<()> {
-    let (input, _) = get_test_device()?;
+    let mut keys: AttributeSet<KeyCode> = AttributeSet::new();
 
-    let keys = input.supported_keys().unwrap();
+    for code in 1..59 {
+        keys.insert(KeyCode::new(code));
+    }
 
     assert_eq!(58, keys.iter().count());
 
