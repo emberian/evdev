@@ -53,7 +53,7 @@ impl<T: EvdevEnum> AttributeSetRef<T> {
     }
 
     #[inline]
-    pub(crate) fn slice_iter(&self, start: T) -> AttributeSetRefIter<T> {
+    pub(crate) fn slice_iter(&self, start: T) -> AttributeSetRefIter<'_, T> {
         let slice = Self::new(&self.bitslice[start.to_index()..]);
 
         AttributeSetRefIter {
