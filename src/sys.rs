@@ -7,7 +7,7 @@ use crate::compat::{
 };
 use nix::{
     convert_ioctl_res, ioctl_none, ioctl_read, ioctl_read_buf, ioctl_readwrite, ioctl_write_int,
-    ioctl_write_ptr, request_code_read,
+    ioctl_write_ptr, ioctl_write_ptr_bad, request_code_read, request_code_write,
 };
 
 #[repr(C)]
@@ -88,7 +88,17 @@ ioctl_write_int!(ui_set_mscbit, UINPUT_IOCTL_BASE, 104);
 ioctl_write_int!(ui_set_ledbit, UINPUT_IOCTL_BASE, 105);
 ioctl_write_int!(ui_set_sndbit, UINPUT_IOCTL_BASE, 106);
 ioctl_write_int!(ui_set_ffbit, UINPUT_IOCTL_BASE, 107);
-ioctl_write_ptr!(ui_set_phys, UINPUT_IOCTL_BASE, 108, libc::c_char);
+
+ioctl_write_ptr_bad!(
+    ui_set_phys,
+    request_code_write!(
+        UINPUT_IOCTL_BASE,
+        108,
+        ::std::mem::size_of::<*const libc::c_char>()
+    ) as ::nix::sys::ioctl::ioctl_num_type,
+    libc::c_char
+);
+
 ioctl_write_int!(ui_set_swbit, UINPUT_IOCTL_BASE, 109);
 ioctl_write_int!(ui_set_propbit, UINPUT_IOCTL_BASE, 110);
 
