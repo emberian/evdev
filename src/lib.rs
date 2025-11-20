@@ -147,8 +147,8 @@
 //! async runtime with the fd returned by `<Device as AsRawFd>::as_raw_fd` to process events when
 //! they are ready.
 //!
-//! For demonstrations of how to use this library in blocking, nonblocking, and async (tokio) modes,
-//! please reference the "examples" directory.
+//! For demonstrations of how to use this library in blocking, nonblocking, and async
+//! (tokio / async-io) modes, please reference the "examples" directory.
 
 // should really be cfg(target_os = "linux") and maybe also android?
 #![cfg(unix)]
@@ -160,6 +160,9 @@
 //   attribute can be removed entirely
 // (see https://github.com/rust-lang/rust/pull/100883#issuecomment-1264470491)
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+#[cfg(all(feature = "tokio", feature = "async-io"))]
+compile_error!("Features 'tokio' and 'async-io' are mutually exclusive");
 
 // has to be first for its macro
 #[macro_use]

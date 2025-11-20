@@ -1,3 +1,4 @@
+#![allow(unused_unsafe)]
 //! A device implementation with no userspace synchronization performed.
 
 use std::fs::{File, OpenOptions};
@@ -636,7 +637,7 @@ impl RawDevice {
         Ok(keycode as u32)
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(any(feature = "tokio", feature = "async-io"))]
     #[inline]
     pub fn into_event_stream(self) -> io::Result<EventStream> {
         EventStream::new(self)
@@ -762,13 +763,16 @@ impl Iterator for EnumerateDevices {
     }
 }
 
-#[cfg(feature = "tokio")]
-mod tokio_stream {
+#[cfg(any(feature = "tokio", feature = "async-io"))]
+mod async_stream {
     use super::*;
 
     use std::future::poll_fn;
     use std::task::{ready, Context, Poll};
+    #[cfg(feature = "tokio")]
     use tokio::io::unix::AsyncFd;
+    #[cfg(feature = "async-io")]
+    use async_io::Async as AsyncFd;
 
     /// An asynchronous stream of input events.
     ///
@@ -796,8 +800,20 @@ mod tokio_stream {
         }
 
         /// Returns a mutable reference to the underlying device.
+        #[cfg(feature = "tokio")]
         pub fn device_mut(&mut self) -> &mut RawDevice {
             self.device.get_mut()
+        }
+
+        /// Returns a mutable reference to the underlying device.
+        /// This is the same as [EventStream::device_mut] as with `tokio` feature,
+        /// but is unsafe due to async-io's file descriptor implementation.
+        ///
+        /// # Safety
+        /// Must not drop the mutable reference with mem::swap() or mem::take().
+        #[cfg(feature = "async-io")]
+        pub unsafe fn device_mut_nodrop(&mut self) -> &mut RawDevice {
+            unsafe{self.device.get_mut()}
         }
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
@@ -814,13 +830,22 @@ mod tokio_stream {
                     return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
-                self.device.get_mut().event_buf.clear();
+                unsafe{self.device.get_mut().event_buf.clear()};
                 self.index = 0;
 
                 loop {
-                    let mut guard = ready!(self.device.poll_read_ready_mut(cx))?;
-
-                    let res = guard.try_io(|device| device.get_mut().fill_events());
+                    let res = {
+                        #[cfg(feature = "tokio")]
+                        {
+                            let mut guard = ready!(self.device.poll_read_ready_mut(cx))?;
+                            guard.try_io(|device| device.get_mut().fill_events())
+                        }
+                        #[cfg(feature = "async-io")]
+                        {
+                            ready!(self.device.poll_readable(cx))?;
+                            unsafe {io::Result::Ok(self.device.get_mut().fill_events())}
+                        }
+                    };
                     match res {
                         Ok(res) => {
                             let _ = res?;
@@ -844,5 +869,5 @@ mod tokio_stream {
         }
     }
 }
-#[cfg(feature = "tokio")]
-pub use tokio_stream::EventStream;
+#[cfg(any(feature = "tokio", feature = "async-io"))]
+pub use async_stream::EventStream;
