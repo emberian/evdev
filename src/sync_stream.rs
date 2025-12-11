@@ -785,12 +785,12 @@ impl fmt::Display for Device {
 mod async_stream {
     use super::*;
 
+    #[cfg(feature = "async-io")]
+    use async_io::Async as AsyncFd;
     use std::future::poll_fn;
     use std::task::{ready, Context, Poll};
     #[cfg(feature = "tokio")]
     use tokio::io::unix::AsyncFd;
-    #[cfg(feature = "async-io")]
-    use async_io::Async as AsyncFd;
 
     /// An asynchronous stream of input events.
     ///
@@ -837,7 +837,7 @@ mod async_stream {
         /// Must not drop the mutable reference with mem::swap() or mem::take().
         #[cfg(feature = "async-io")]
         pub unsafe fn device_mut_nodrop(&mut self) -> &mut Device {
-            unsafe{self.device.get_mut()}
+            unsafe { self.device.get_mut() }
         }
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
@@ -849,7 +849,7 @@ mod async_stream {
         /// A lower-level function for directly polling this stream.
         pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
             'outer: loop {
-                let dev = unsafe{self.device.get_mut()};
+                let dev = unsafe { self.device.get_mut() };
                 if let Some(ev) = compensate_events(&mut self.sync, dev) {
                     return Poll::Ready(Ok(ev));
                 }
@@ -882,7 +882,7 @@ mod async_stream {
                         #[cfg(feature = "async-io")]
                         {
                             ready!(self.device.poll_readable(cx))?;
-                            unsafe {io::Result::Ok(self.device.get_mut().fetch_events_inner())}
+                            unsafe { io::Result::Ok(self.device.get_mut().fetch_events_inner()) }
                         }
                     };
                     match res {

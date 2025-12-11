@@ -767,12 +767,12 @@ impl Iterator for EnumerateDevices {
 mod async_stream {
     use super::*;
 
+    #[cfg(feature = "async-io")]
+    use async_io::Async as AsyncFd;
     use std::future::poll_fn;
     use std::task::{ready, Context, Poll};
     #[cfg(feature = "tokio")]
     use tokio::io::unix::AsyncFd;
-    #[cfg(feature = "async-io")]
-    use async_io::Async as AsyncFd;
 
     /// An asynchronous stream of input events.
     ///
@@ -813,7 +813,7 @@ mod async_stream {
         /// Must not drop the mutable reference with mem::swap() or mem::take().
         #[cfg(feature = "async-io")]
         pub unsafe fn device_mut_nodrop(&mut self) -> &mut RawDevice {
-            unsafe{self.device.get_mut()}
+            unsafe { self.device.get_mut() }
         }
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
@@ -830,7 +830,7 @@ mod async_stream {
                     return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
-                unsafe{self.device.get_mut().event_buf.clear()};
+                unsafe { self.device.get_mut().event_buf.clear() };
                 self.index = 0;
 
                 loop {
@@ -843,7 +843,7 @@ mod async_stream {
                         #[cfg(feature = "async-io")]
                         {
                             ready!(self.device.poll_readable(cx))?;
-                            unsafe {io::Result::Ok(self.device.get_mut().fill_events())}
+                            unsafe { io::Result::Ok(self.device.get_mut().fill_events()) }
                         }
                     };
                     match res {

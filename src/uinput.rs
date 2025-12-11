@@ -463,12 +463,16 @@ impl DevNodes {
     pub async fn next_entry(&mut self) -> io::Result<Option<PathBuf>> {
         while let Some(entry) = {
             #[cfg(feature = "tokio")]
-            { self.dir.next_entry().await? }
+            {
+                self.dir.next_entry().await?
+            }
             #[cfg(feature = "async-io")]
-            { match futures_lite::StreamExt::next(&mut self.dir).await {
-                Some(v) => Some(v?),
-                None => None
-            } }
+            {
+                match futures_lite::StreamExt::next(&mut self.dir).await {
+                    Some(v) => Some(v?),
+                    None => None,
+                }
+            }
         } {
             // Map the directory name to its file name.
             let file_name = entry.file_name();
@@ -584,11 +588,10 @@ mod async_stream {
     use std::future::poll_fn;
     use std::task::{ready, Context, Poll};
 
-    #[cfg(feature = "tokio")]
-    use tokio::io::unix::AsyncFd;
     #[cfg(feature = "async-io")]
     use async_io::Async as AsyncFd;
-
+    #[cfg(feature = "tokio")]
+    use tokio::io::unix::AsyncFd;
 
     /// An asynchronous stream of input events.
     ///
@@ -629,7 +632,7 @@ mod async_stream {
         /// Must not drop the mutable reference with mem::swap() or mem::take().
         #[cfg(feature = "async-io")]
         pub unsafe fn device_mut_nodrop(&mut self) -> &mut VirtualDevice {
-            unsafe{self.device.get_mut()}
+            unsafe { self.device.get_mut() }
         }
 
         /// Try to wait for the next event in this stream. Any errors are likely to be fatal, i.e.
@@ -646,7 +649,7 @@ mod async_stream {
                     return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
 
-                unsafe{self.device.get_mut().event_buf.clear()};
+                unsafe { self.device.get_mut().event_buf.clear() };
                 self.index = 0;
 
                 loop {
@@ -659,7 +662,7 @@ mod async_stream {
                         #[cfg(feature = "async-io")]
                         {
                             ready!(self.device.poll_readable(cx))?;
-                            unsafe {io::Result::Ok(self.device.get_mut().fill_events())}
+                            unsafe { io::Result::Ok(self.device.get_mut().fill_events()) }
                         }
                     };
 
