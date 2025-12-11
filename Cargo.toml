@@ -32,6 +32,7 @@ futures-lite = { version = "2.6.1", optional = true }
 [dev-dependencies]
 tokio = { version = "1.17", features = ["macros", "rt-multi-thread", "time"] }
 itertools = "0.10"
+async-executor = "1.13.3"
 
 [[example]]
 name = "evtest_tokio"
