@@ -37,6 +37,10 @@ itertools = "0.10"
 name = "evtest_tokio"
 required-features = ["tokio"]
 
+[[example]]
+name = "evtest_async-io"
+required-features = ["async-io"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
