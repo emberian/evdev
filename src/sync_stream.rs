@@ -1,5 +1,3 @@
-#![allow(unused_unsafe)]
-
 use crate::compat::{input_absinfo, input_event};
 use crate::constants::*;
 use crate::device_state::DeviceState;
@@ -849,6 +847,7 @@ mod async_stream {
         /// A lower-level function for directly polling this stream.
         pub fn poll_event(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<InputEvent>> {
             'outer: loop {
+                #[allow(unused_unsafe)] // async-io requires unsafe, tokio does not
                 let dev = unsafe { self.device.get_mut() };
                 if let Some(ev) = compensate_events(&mut self.sync, dev) {
                     return Poll::Ready(Ok(ev));

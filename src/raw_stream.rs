@@ -1,4 +1,3 @@
-#![allow(unused_unsafe)]
 //! A device implementation with no userspace synchronization performed.
 
 use std::fs::{File, OpenOptions};
@@ -829,7 +828,7 @@ mod async_stream {
                     self.index += 1;
                     return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
-
+                #[allow(unused_unsafe)] // async-io requires unsafe, tokio does not
                 unsafe { self.device.get_mut().event_buf.clear() };
                 self.index = 0;
 

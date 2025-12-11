@@ -1,4 +1,3 @@
-#![allow(unused_unsafe)]
 //! Virtual device emulation for evdev via uinput.
 //!
 //! This is quite useful when testing/debugging devices, or synchronization.
@@ -648,7 +647,7 @@ mod async_stream {
                     self.index += 1;
                     return Poll::Ready(Ok(InputEvent::from(ev)));
                 }
-
+                #[allow(unused_unsafe)] // async-io requires unsafe, tokio does not
                 unsafe { self.device.get_mut().event_buf.clear() };
                 self.index = 0;
 
