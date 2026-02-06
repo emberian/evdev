@@ -111,8 +111,14 @@ impl From<FFCondition> for ff_condition_effect {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FFEffectKind {
-    Damper,
-    Inertia,
+    Damper {
+        /// Condition data for each axis.
+        condition: [FFCondition; 2],
+    },
+    Inertia {
+        /// Condition data for each axis.
+        condition: [FFCondition; 2],
+    },
     Constant {
         /// The strength of the effect.
         level: i16,
@@ -160,8 +166,8 @@ pub enum FFEffectKind {
 impl From<FFEffectKind> for FFEffectCode {
     fn from(other: FFEffectKind) -> Self {
         match other {
-            FFEffectKind::Damper => FFEffectCode::FF_DAMPER,
-            FFEffectKind::Inertia => FFEffectCode::FF_INERTIA,
+            FFEffectKind::Damper { .. } => FFEffectCode::FF_DAMPER,
+            FFEffectKind::Inertia { .. } => FFEffectCode::FF_INERTIA,
             FFEffectKind::Constant { .. } => FFEffectCode::FF_CONSTANT,
             FFEffectKind::Ramp { .. } => FFEffectCode::FF_RAMP,
             FFEffectKind::Periodic { .. } => FFEffectCode::FF_PERIODIC,
@@ -241,8 +247,20 @@ pub struct FFEffectData {
 impl From<sys::ff_effect> for FFEffectData {
     fn from(value: sys::ff_effect) -> Self {
         let kind = match FFEffectCode::from_index(value.type_ as usize) {
-            FFEffectCode::FF_DAMPER => FFEffectKind::Damper,
-            FFEffectCode::FF_INERTIA => FFEffectKind::Inertia,
+            FFEffectCode::FF_DAMPER => {
+                let condition = unsafe { value.u.condition };
+
+                FFEffectKind::Damper {
+                    condition: [condition[0].into(), condition[1].into()],
+                }
+            }
+            FFEffectCode::FF_INERTIA => {
+                let condition = unsafe { value.u.condition };
+
+                FFEffectKind::Inertia {
+                    condition: [condition[0].into(), condition[1].into()],
+                }
+            }
             FFEffectCode::FF_CONSTANT => {
                 let constant = unsafe { value.u.constant };
 
