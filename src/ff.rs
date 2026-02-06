@@ -384,7 +384,6 @@ impl From<FFEffectData> for sys::ff_effect {
                 effect.u.rumble.strong_magnitude = strong_magnitude;
                 effect.u.rumble.weak_magnitude = weak_magnitude;
             }
-            _ => (),
         }
 
         effect
