@@ -1,6 +1,6 @@
 [package]
 name = "evdev"
-version = "0.13.3"
+version = "0.14.0"
 authors = ["Corey Richardson <corey@octayn.net>"]
 description = "evdev interface for Linux"
 license = "Apache-2.0 OR MIT"
@@ -13,7 +13,7 @@ rust-version = "1.64"
 serde = ["dep:serde"]
 async-io = ["dep:async-io", "dep:async-fs", "dep:futures-lite"]
 tokio = ["dep:tokio"]
-stream-trait = ["tokio", "futures-core"]
+stream-trait = ["futures-core"]
 device-test = []
 
 [dependencies]

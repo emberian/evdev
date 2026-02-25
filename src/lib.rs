@@ -164,6 +164,9 @@
 #[cfg(all(feature = "tokio", feature = "async-io"))]
 compile_error!("Features 'tokio' and 'async-io' are mutually exclusive");
 
+#[cfg(all(feature = "stream-trait", not(any(feature = "tokio", feature = "async-io"))))]
+compile_error!("Feature 'stream-trait' requires either 'tokio' or 'async-io' feature.");
+
 // has to be first for its macro
 #[macro_use]
 mod attribute_set;
