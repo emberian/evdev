@@ -147,8 +147,8 @@
 //! async runtime with the fd returned by `<Device as AsRawFd>::as_raw_fd` to process events when
 //! they are ready.
 //!
-//! For demonstrations of how to use this library in blocking, nonblocking, and async (tokio) modes,
-//! please reference the "examples" directory.
+//! For demonstrations of how to use this library in blocking, nonblocking, and async
+//! (tokio / async-io) modes, please reference the "examples" directory.
 
 // should really be cfg(target_os = "linux") and maybe also android?
 #![cfg(unix)]
@@ -160,6 +160,12 @@
 //   attribute can be removed entirely
 // (see https://github.com/rust-lang/rust/pull/100883#issuecomment-1264470491)
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+#[cfg(all(feature = "tokio", feature = "async-io"))]
+compile_error!("Features 'tokio' and 'async-io' are mutually exclusive");
+
+#[cfg(all(feature = "stream-trait", not(any(feature = "tokio", feature = "async-io"))))]
+compile_error!("Feature 'stream-trait' requires either 'tokio' or 'async-io' feature.");
 
 // has to be first for its macro
 #[macro_use]
@@ -606,4 +612,18 @@ pub struct AutoRepeat {
     pub delay: u32,
     /// The duration, in milliseconds, between auto-repetitions of a held-down key.
     pub period: u32,
+}
+
+#[cfg(feature = "async-io")]
+fn warn_if_tokio() {
+    static WARN: std::sync::Once = std::sync::Once::new();
+    WARN.call_once(|| {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            eprintln!(
+                "Warning: evdev is configured with feature 'async-io', but is called \
+                from tokio runtime. While it works, it causes wakeup storms with 100x \
+                performance overhead. Please use evdev with feauture 'tokio' instead."
+            );
+        }
+    });
 }
