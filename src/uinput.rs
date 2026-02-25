@@ -407,6 +407,8 @@ impl VirtualDevice {
     #[cfg(any(feature = "tokio", feature = "async-io"))]
     #[inline]
     pub fn into_event_stream(self) -> io::Result<VirtualEventStream> {
+        #[cfg(feature = "async-io")]
+        crate::warn_if_tokio();
         VirtualEventStream::new(self)
     }
 }

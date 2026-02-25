@@ -613,3 +613,17 @@ pub struct AutoRepeat {
     /// The duration, in milliseconds, between auto-repetitions of a held-down key.
     pub period: u32,
 }
+
+#[cfg(feature = "async-io")]
+fn warn_if_tokio() {
+    static WARN: std::sync::Once = std::sync::Once::new();
+    WARN.call_once(|| {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            eprintln!(
+                "Warning: evdev is configured with feature 'async-io', but is called \
+                from tokio runtime. While it works, it causes wakeup storms with 100x \
+                performance overhead. Please use evdev with feauture 'tokio' instead."
+            );
+        }
+    });
+}

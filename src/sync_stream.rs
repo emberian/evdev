@@ -359,6 +359,8 @@ impl Device {
 
     #[cfg(any(feature = "tokio", feature = "async-io"))]
     pub fn into_event_stream(self) -> io::Result<EventStream> {
+        #[cfg(feature = "async-io")]
+        crate::warn_if_tokio();
         EventStream::new(self)
     }
 
