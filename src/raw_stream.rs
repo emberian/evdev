@@ -785,7 +785,7 @@ mod tokio_stream {
     impl EventStream {
         pub(crate) fn new(device: RawDevice) -> io::Result<Self> {
             use nix::fcntl;
-            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
+            fcntl::fcntl(&device, fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
             let device = AsyncFd::new(device)?;
             Ok(Self { device, index: 0 })
         }

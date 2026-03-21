@@ -585,7 +585,7 @@ mod tokio_stream {
     impl VirtualEventStream {
         pub(crate) fn new(device: VirtualDevice) -> io::Result<Self> {
             use nix::fcntl;
-            fcntl::fcntl(device.as_raw_fd(), fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
+            fcntl::fcntl(&device, fcntl::F_SETFL(fcntl::OFlag::O_NONBLOCK))?;
             let device = AsyncFd::new(device)?;
             Ok(Self { device, index: 0 })
         }

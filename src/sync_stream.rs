@@ -364,10 +364,9 @@ impl Device {
 
     /// Set `O_NONBLOCK` on this device handle.
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        let mut flags =
-            fcntl::OFlag::from_bits_retain(fcntl::fcntl(self.as_raw_fd(), fcntl::F_GETFL)?);
+        let mut flags = fcntl::OFlag::from_bits_retain(fcntl::fcntl(self, fcntl::F_GETFL)?);
         flags.set(fcntl::OFlag::O_NONBLOCK, nonblocking);
-        fcntl::fcntl(self.as_raw_fd(), fcntl::F_SETFL(flags))?;
+        fcntl::fcntl(self, fcntl::F_SETFL(flags))?;
         Ok(())
     }
 
