@@ -8,6 +8,7 @@ use crate::{
     InputId, KeyCode,
 };
 
+use libc::ENODEV;
 use nix::fcntl;
 use std::fs::File;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
@@ -418,7 +419,16 @@ impl Device {
 impl Drop for Device {
     fn drop(&mut self) {
         if let Err(error) = self.ungrab() {
-            eprintln!("Failed to ungrab device: {error}");
+            // Ignore when the device has already been closed
+            // by some external event like device disconnect.
+            let enodev = error
+                .raw_os_error()
+                .map(|errno| errno == ENODEV)
+                .unwrap_or_default();
+
+            if !enodev {
+                eprintln!("Failed to ungrab device: {error}");
+            }
         }
     }
 }
