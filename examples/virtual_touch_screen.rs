@@ -6,7 +6,6 @@ use std::thread::sleep;
 use std::time::Duration;
 
 fn main() -> std::io::Result<()> {
-
     // Size of the touch screen
     let max_x = 1080;
     let max_y = 1920;
