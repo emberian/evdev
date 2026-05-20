@@ -1,8 +1,11 @@
-use evdev::uinput::VirtualDevice;
-use evdev::{AbsInfo, AbsoluteAxisCode, AttributeSet, EventType, InputEvent};
-use evdev::{KeyCode, KeyEvent, UinputAbsSetup};
-use std::thread::sleep;
-use std::time::Duration;
+use evdev::{
+    uinput::VirtualDevice,
+    {
+        AbsInfo, AbsoluteAxisCode, AttributeSet, EventType, InputEvent, KeyCode, KeyEvent,
+        UinputAbsSetup,
+    },
+};
+use std::{thread::sleep, time::Duration};
 
 fn main() -> std::io::Result<()> {
     // Size of the touch screen
