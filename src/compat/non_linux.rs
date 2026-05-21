@@ -139,6 +139,7 @@ pub struct ff_rumble_effect {
     pub weak_magnitude: u16,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ff_effect {

@@ -1,12 +1,10 @@
-use evdev::{
-    uinput::VirtualDeviceBuilder, AbsInfo, AbsoluteAxisCode, AttributeSet, EventType, InputEvent,
-};
+use evdev::uinput::VirtualDevice;
+use evdev::{AbsInfo, AbsoluteAxisCode, AttributeSet, EventType, InputEvent};
 use evdev::{KeyCode, KeyEvent, UinputAbsSetup};
 use std::thread::sleep;
 use std::time::Duration;
 
 fn main() -> std::io::Result<()> {
-
     // Size of the touch screen
     let max_x = 1080;
     let max_y = 1920;
@@ -18,7 +16,7 @@ fn main() -> std::io::Result<()> {
     let mut buttons = AttributeSet::<KeyCode>::new();
     buttons.insert(KeyCode::BTN_TOUCH);
 
-    let mut device = VirtualDeviceBuilder::new()?
+    let mut device = VirtualDevice::builder()?
         .name("Fake TouchScreen")
         .with_keys(&buttons)?
         .with_absolute_axis(&UinputAbsSetup::new(AbsoluteAxisCode::ABS_X, abs_setup_x))?
