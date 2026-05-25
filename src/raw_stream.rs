@@ -139,9 +139,16 @@ impl RawDevice {
 
         let props = {
             let mut props = AttributeSet::<PropType>::new();
-            unsafe { sys::eviocgprop(fd.as_raw_fd(), props.as_mut_raw_slice())? };
-            props
-        }; // FIXME: handle old kernel
+
+            match unsafe { sys::eviocgprop(fd.as_raw_fd(), props.as_mut_raw_slice()) } {
+                Ok(_) => props,
+
+                // Kernel 2.6.x does not implement this ioctl, return empty props
+                Err(e) if e == nix::errno::Errno::EINVAL => props,
+
+                Err(e) => return Err(e.into())
+            }
+        };
 
         let supported_keys = if ty.contains(EventType::KEY) {
             let mut keys = AttributeSet::<KeyCode>::new();
