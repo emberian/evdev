@@ -146,7 +146,7 @@ impl RawDevice {
                 // Kernel 2.6.x does not implement this ioctl, return empty props
                 Err(e) if e == nix::errno::Errno::EINVAL => props,
 
-                Err(e) => return Err(e.into())
+                Err(e) => return Err(e.into()),
             }
         };
 
