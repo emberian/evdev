@@ -497,6 +497,10 @@ evdev_enum!(
     BTN_DPAD_DOWN = 0x221,
     BTN_DPAD_LEFT = 0x222,
     BTN_DPAD_RIGHT = 0x223,
+    BTN_GRIPL = 0x224,
+    BTN_GRIPR = 0x225,
+    BTN_GRIPL2 = 0x226,
+    BTN_GRIPR2 = 0x227,
     KEY_ALS_TOGGLE = 0x230,   /* Ambient light sensor */
     KEY_BUTTONCONFIG = 0x240, /* AL Button Configuration */
     KEY_TASKMANAGER = 0x241,  /* AL Task/Project Manager */
