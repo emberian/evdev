@@ -6,8 +6,9 @@ use crate::compat::{input_event, input_id, uinput_abs_setup, uinput_setup, UINPU
 use crate::ff::FFEffectData;
 use crate::inputid::{BusType, InputId};
 use crate::{
-    sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, MiscCode, PropType, RelativeAxisCode,
-    SwitchCode, SynchronizationEvent, UInputCode, UInputEvent, UinputAbsSetup,
+    sys, AttributeSetRef, FFEffectCode, InputEvent, KeyCode, LedCode, MiscCode, PropType,
+    RelativeAxisCode, SoundCode, SwitchCode, SynchronizationEvent, UInputCode, UInputEvent,
+    UinputAbsSetup,
 };
 use std::ffi::{CStr, OsStr};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
@@ -205,6 +206,48 @@ impl<'a> VirtualDeviceBuilder<'a> {
         for bit in misc_set.iter() {
             unsafe {
                 sys::ui_set_mscbit(
+                    self.fd.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    /// Set the `SoundCode`s of this device.
+    pub fn with_sounds(self, sounds: &AttributeSetRef<SoundCode>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.fd.as_raw_fd(),
+                crate::EventType::SOUND.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in sounds.iter() {
+            unsafe {
+                sys::ui_set_sndbit(
+                    self.fd.as_raw_fd(),
+                    bit.0 as nix::sys::ioctl::ioctl_param_type,
+                )?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    /// Set the `LedCode`s of this device.
+    pub fn with_leds(self, leds: &AttributeSetRef<LedCode>) -> io::Result<Self> {
+        unsafe {
+            sys::ui_set_evbit(
+                self.fd.as_raw_fd(),
+                crate::EventType::LED.0 as nix::sys::ioctl::ioctl_param_type,
+            )?;
+        }
+
+        for bit in leds.iter() {
+            unsafe {
+                sys::ui_set_ledbit(
                     self.fd.as_raw_fd(),
                     bit.0 as nix::sys::ioctl::ioctl_param_type,
                 )?;
