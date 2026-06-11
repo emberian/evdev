@@ -9,6 +9,17 @@
 
 ### Fixed
 
+## evdev 0.14.0 (2026-02-25)
+[b946f93...2429bbb](https://github.com/emberian/evdev/compare/b946f93...2429bbb)
+
+### Added
+- Add `smol`/`async-io` support
+
+### Breaking changes
+- Feature `stream-trait` does not imply feature `tokio` anymore, and thus `stream-trait` requires either `tokio` or `async-io` to be enabled.
+
+### Fixed
+
 ## evdev 0.13.1 (2025-03-31)
 [7cbae16...6aed780](https://github.com/emberian/evdev/compare/7cbae16...6aed780)
 
